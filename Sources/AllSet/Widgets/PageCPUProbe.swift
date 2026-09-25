@@ -1,0 +1,324 @@
+#if DEBUG
+import AllSetCore
+import AppKit
+import SwiftUI
+
+/// Shows main-window pages (or single views) one at a time in a nearly
+/// invisible window and reports the CPU each uses while nothing happens, to
+/// catch views that keep redrawing when they should be idle.
+@MainActor
+enum PageCPUProbe {
+    static func run(pages: [(String, AppPage)], views: [(String, AnyView)] = [], services: AppServices) async {
+        try? await Task.sleep(for: .seconds(2))
+        await measure("no window", seconds: 5)
+        // Live stats every second, with nothing drawing them.
+        services.monitor.setViewer("probe", visible: true)
+        await measure("sampling", seconds: 5)
+
+        let window = NSWindow(contentRect: NSRect(x: 40, y: 40, width: 1120, height: 760),
+                              styleMask: [.titled, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+        window.alphaValue = 0.01
+        window.ignoresMouseEvents = true
+        window.level = .floating
+        window.isReleasedWhenClosed = false
+        window.orderFrontRegardless()
+
+        for (name, view) in views {
+            window.contentViewController = NSHostingController(rootView: view)
+            try? await Task.sleep(for: .seconds(2))
+            await measure(name, seconds: 5)
+        }
+        if !pages.isEmpty {
+            window.contentViewController = NSHostingController(rootView: MainView(services: services, ui: services.ui))
+            for (name, page) in pages {
+                services.ui.page = page
+                try? await Task.sleep(for: .seconds(3))
+                await measure(name, seconds: 6)
+            }
+        }
+        window.close()
+    }
+
+    static func runIslandViews(services: AppServices) async {
+        let model = NotchViewModel(geometry: NotchGeometry(screenFrame: CGRect(x: 0, y: 0, width: 940, height: 340),
+                                                           safeAreaTop: 32, topLeftArea: nil, topRightArea: nil, menuBarHeight: 32))
+        model.isExpanded = true
+        await run(pages: [], views: [
+            ("audio bars", AnyView(AudioBars(isPlaying: true, color: .white).frame(width: 40, height: 20))),
+            ("home tab", AnyView(HomeTab(services: services).frame(width: 600, height: 170))),
+            ("now playing", AnyView(NowPlayingCard(media: services.media).frame(width: 300, height: 170))),
+            ("expanded panel", AnyView(ExpandedPanel(model: model, services: services, openSettings: {}).frame(width: 640, height: 200))),
+            ("notch root", AnyView(NotchRootView(model: model, services: services, expand: {}, openSettings: {}))),
+            ("system tab", AnyView(SystemTab(services: services).frame(width: 816, height: 244))),
+            ("top apps", AnyView(TopAppsCard(services: services).frame(width: 216, height: 244))),
+        ], services: services)
+    }
+
+    static func runWallpapers(services: AppServices) async {
+        func wallpaper(_ style: ArtStyle, fps: Int, sharp: Bool = false) -> AnyView {
+            var config = WallpaperConfig()
+            config.source = .art(ArtPiece(style: style, palette: .aurora))
+            config.frameRate = fps
+            config.sharpArt = sharp
+            return AnyView(WallpaperView(config: config, services: services)
+                .environment(\.widgetIsVisible, true)
+                .frame(width: 1470, height: 956))
+        }
+        await run(pages: [], views: [
+            ("photo drift", {
+                var config = WallpaperConfig()
+                config.source = .photo(.web(CuratedBackgrounds.suggestion(3)))
+                config.motion = .drift
+                return AnyView(WallpaperView(config: config, services: services)
+                    .environment(\.widgetIsVisible, true)
+                    .frame(width: 1470, height: 956))
+            }()),
+            ("blobs 30", wallpaper(.blobs, fps: 30)),
+            ("aurora 30", wallpaper(.aurora, fps: 30)),
+            ("aurora 60", wallpaper(.aurora, fps: 60)),
+            ("aurora 30 sharp", wallpaper(.aurora, fps: 30, sharp: true)),
+            ("blobs 30 again", wallpaper(.blobs, fps: 30)),
+            ("sunset 30", wallpaper(.sunset, fps: 30)),
+            ("dunes 30", wallpaper(.dunes, fps: 30)),
+            ("skyline 30", wallpaper(.skyline, fps: 30)),
+            ("skyline 30 sharp", wallpaper(.skyline, fps: 30, sharp: true)),
+            ("embers 30", wallpaper(.embers, fps: 30)),
+            ("leopard 30", wallpaper(.leopard, fps: 30)),
+            ("hearts 30", wallpaper(.hearts, fps: 30)),
+            ("clouds 30", wallpaper(.clouds, fps: 30)),
+            ("film 30", wallpaper(.film, fps: 30)),
+        ], services: services)
+    }
+
+    /// What the window server spends compositing a full desktop of live
+    /// widgets: the Seven world moving, then paused, three times over, so the
+    /// difference stands out from whatever else the Mac is doing.
+    static func runWindowServer(services: AppServices) async {
+        let seven = ThemeLibrary.set("setup.seven")!
+        let widgets = seven.widgets(screenName: nil, bounds: CGSize(width: 1136, height: 768))
+        let window = NSWindow(contentRect: NSRect(x: 40, y: 40, width: 1136, height: 768),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.alphaValue = 0.01
+        window.ignoresMouseEvents = true
+        window.level = .floating
+        window.isReleasedWhenClosed = false
+        func show(moving: Bool) {
+            window.contentViewController = NSHostingController(rootView: ZStack(alignment: .topLeading) {
+                ForEach(widgets) { widget in
+                    WidgetBody(instance: widget, services: services).offset(x: widget.offset.x, y: widget.offset.y)
+                }
+            }
+            .frame(width: 1136, height: 768, alignment: .topLeading)
+            .environment(\.widgetIsVisible, moving))
+        }
+        window.orderFrontRegardless()
+        for round in 1...3 {
+            for moving in [true, false] {
+                show(moving: moving)
+                try? await Task.sleep(for: .seconds(3))
+                let server = windowServerSeconds(), own = cpuSeconds()
+                try? await Task.sleep(for: .seconds(8))
+                print(String(format: "round %d %-7@  window server %5.1f%%  app %4.1f%%", round, (moving ? "moving" : "paused") as NSString,
+                             (windowServerSeconds() - server) / 8 * 100, (cpuSeconds() - own) / 8 * 100))
+            }
+        }
+        window.close()
+    }
+
+    /// Applies a whole theme (into the scratch layout from `-widgetsFile`) and
+    /// reports the longest the main thread went without running a 4 ms timer:
+    /// the hitch someone would feel.
+    static func runApply(services: AppServices) async {
+        final class Gaps: @unchecked Sendable { var last = CACurrentMediaTime(); var worst = 0.0; var total = 0.0 }
+        try? await Task.sleep(for: .seconds(3))
+        for id in ["setup.seven", "setup.americana", "setup.wonderkid"] {
+            guard let set = ThemeLibrary.set(id) else { continue }
+            let gaps = Gaps()
+            let timer = Timer(timeInterval: 0.004, repeats: true) { _ in
+                let now = CACurrentMediaTime()
+                let gap = now - gaps.last
+                if gap > 0.017 { gaps.total += gap - 0.004 }
+                gaps.worst = max(gaps.worst, gap)
+                gaps.last = now
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            let start = CACurrentMediaTime()
+            services.install(set, mode: .replace, wallpaper: false)
+            let call = CACurrentMediaTime() - start
+            try? await Task.sleep(for: .seconds(4))
+            timer.invalidate()
+            print(String(format: "%-18@ install call %4.0f ms, longest hitch %4.0f ms, frames lost %4.0f ms", set.name as NSString,
+                         call * 1000, gaps.worst * 1000, gaps.total * 1000))
+        }
+    }
+
+    /// Shows a whole world of live widgets at once, visible, and reports the
+    /// longest main-thread hitch while their artwork is drawn.
+    static func runReveal(services: AppServices) async {
+        final class Gaps: @unchecked Sendable { var last = CACurrentMediaTime(); var worst = 0.0; var total = 0.0 }
+        let window = NSWindow(contentRect: NSRect(x: 40, y: 40, width: 1136, height: 768),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.alphaValue = 0.01
+        window.ignoresMouseEvents = true
+        window.level = .floating
+        window.isReleasedWhenClosed = false
+        window.orderFrontRegardless()
+        try? await Task.sleep(for: .seconds(2))
+        for id in ["setup.seven", "setup.wonderkid", "setup.americana", "setup.seven"] {
+            guard let set = ThemeLibrary.set(id) else { continue }
+            let widgets = set.widgets(screenName: nil, bounds: CGSize(width: 1136, height: 768))
+            let gaps = Gaps()
+            let timer = Timer(timeInterval: 0.004, repeats: true) { _ in
+                let now = CACurrentMediaTime()
+                let gap = now - gaps.last
+                if gap > 0.017 { gaps.total += gap - 0.004 }
+                gaps.worst = max(gaps.worst, gap)
+                gaps.last = now
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            window.contentViewController = NSHostingController(rootView: ZStack(alignment: .topLeading) {
+                ForEach(widgets) { widget in
+                    WidgetBody(instance: widget, services: services).offset(x: widget.offset.x, y: widget.offset.y)
+                }
+            }
+            .frame(width: 1136, height: 768, alignment: .topLeading)
+            .environment(\.widgetIsVisible, true))
+            try? await Task.sleep(for: .seconds(3))
+            timer.invalidate()
+            print(String(format: "%-14@ longest hitch %4.0f ms, frames lost %4.0f ms", set.name as NSString, gaps.worst * 1000, gaps.total * 1000))
+        }
+        window.close()
+    }
+
+    /// WindowServer's CPU time so far, from `ps` (which may read other users' processes).
+    private static func windowServerSeconds() -> Double {
+        let find = Process(), read = Pipe()
+        find.executableURL = URL(fileURLWithPath: "/bin/ps")
+        find.arguments = ["-axo", "cputime=,comm="]
+        find.standardOutput = read
+        try? find.run()
+        let output = String(decoding: read.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        find.waitUntilExit()
+        guard let line = output.split(separator: "\n").first(where: { $0.hasSuffix("WindowServer") }),
+              let time = line.split(separator: " ").first else { return 0 }
+        let parts = time.split(separator: ":").compactMap { Double($0) }
+        return parts.reduce(0) { $0 * 60 + $1 }
+    }
+
+    /// The football and music widgets, their art, and a whole world of them at once.
+    static func runFans(services: AppServices) async {
+        func widget(_ entry: String, _ size: WidgetSize) -> AnyView {
+            let instance = WidgetCatalog.entry(entry)?.make(size: size) ?? WidgetInstance(kind: .clock)
+            return AnyView(WidgetBody(instance: instance, services: services).environment(\.widgetIsVisible, true))
+        }
+        func scene(_ style: ArtStyle, _ palette: ArtPalette) -> AnyView {
+            var instance = WidgetInstance(kind: .ambient, size: .large)
+            instance.options.art = ArtPiece(style: style, palette: palette)
+            return AnyView(WidgetBody(instance: instance, services: services).environment(\.widgetIsVisible, true))
+        }
+        let seven = ThemeLibrary.set("setup.seven")!
+        let world = ZStack(alignment: .topLeading) {
+            ForEach(seven.widgets(screenName: nil, bounds: CGSize(width: 1136, height: 768))) { widget in
+                WidgetBody(instance: widget, services: services).offset(x: widget.offset.x, y: widget.offset.y)
+            }
+        }
+        .frame(width: 1136, height: 768, alignment: .topLeading)
+        .environment(\.widgetIsVisible, true)
+        await run(pages: [], views: [
+            ("shirt", widget("shirt", .medium)),
+            ("player card", widget("playerCard", .large)),
+            ("legend card", widget("legendCard", .large)),
+            ("tactics board", widget("tacticsBoard", .medium)),
+            ("scoreboard", widget("scoreboard", .medium)),
+            ("goal counter", widget("goalCounter", .medium)),
+            ("cassette", widget("cassette", .medium)),
+            ("vhs", widget("vhs", .medium)),
+            ("visualizer", widget("visualizer", .medium)),
+            ("ring visualizer", widget("ringVisualizer", .large)),
+            ("ticket", widget("concertTicket", .medium)),
+            ("chrome words", widget("wordArt", .medium)),
+            ("glitter words", widget("glitterWord", .medium)),
+            ("scene stadium", scene(.stadium, .floodlit)),
+            ("scene palms", scene(.palms, .americana)),
+            ("scene smoke", scene(.smoke, .slime)),
+            ("seven desktop", AnyView(world)),
+        ], services: services)
+    }
+
+    static func runWidgets(services: AppServices) async {
+        func widget(_ kind: WidgetKind, _ size: WidgetSize = .small, change: (inout WidgetInstance) -> Void = { _ in }) -> AnyView {
+            var instance = WidgetInstance(kind: kind, size: size)
+            change(&instance)
+            return AnyView(WidgetBody(instance: instance, services: services)
+                .environment(\.widgetIsVisible, true)
+                .environment(\.artFrameLimit, 24))
+        }
+        await run(pages: [], views: [
+            ("calendar mesh", widget(.calendar)),
+            ("calendar still", widget(.calendar) { $0.options.animateArt = false }),
+            ("ambient art", widget(.ambient, .medium)),
+            ("ambient battery", AnyView(WidgetBody(instance: WidgetInstance(kind: .ambient, size: .medium), services: services)
+                .environment(\.widgetIsVisible, true)
+                .environment(\.artFrameLimit, 15))),
+            ("clock photo", widget(.clock, .medium)),
+            ("daylight", widget(.daylight, .medium)),
+            ("polaroids", widget(.polaroids, .medium)),
+            ("system", widget(.system)),
+            ("vinyl", widget(.vinyl, .medium)),
+            ("now playing", widget(.nowPlaying, .medium)),
+            ("todo", widget(.todo, .large)),
+            ("focus idle", widget(.focus, .medium)),
+            ("focus running", widget(.focus, .medium) { $0.options.focus.start(at: .now, focusMinutes: 25, breakMinutes: 5) }),
+            ("stopwatch idle", widget(.stopwatch)),
+            ("stopwatch running", widget(.stopwatch) { $0.options.stopwatch.start(at: .now) }),
+            ("flip clock", widget(.clock, .medium) { $0.options.clockFace = .flip }),
+            ("frosted clock", widget(.clock, .medium) { $0 = WidgetTheme.pinkLatte.styled($0) }),
+            ("shortcuts", widget(.shortcuts, .medium)),
+            ("sticker", widget(.sticker, .medium)),
+            ("scene clouds", widget(.ambient, .medium) { $0.options.art = ArtPiece(style: .clouds, palette: .sky) }),
+            ("scene hearts", widget(.ambient, .medium) { $0.options.art = ArtPiece(style: .hearts, palette: .coquette) }),
+            ("scene leopard", widget(.ambient, .medium) { $0.options.art = ArtPiece(style: .leopard, palette: .diva) }),
+            ("scene film", widget(.ambient, .medium) { $0.options.art = ArtPiece(style: .film, palette: .mocha) }),
+            ("scene skyline", widget(.ambient, .medium) { $0.options.art = ArtPiece(style: .skyline, palette: .shadow) }),
+            ("scene embers", widget(.ambient, .medium) { $0.options.art = ArtPiece(style: .embers, palette: .ember) }),
+            ("neon sign", widget(.neon, .medium)),
+            ("terminal", widget(.terminal, .medium)),
+            ("dots", widget(.dots, .large)),
+            ("film strip", widget(.photo, .medium) { $0.options.photoFrame = .filmStrip }),
+            ("liquid glass clock", widget(.clock, .medium) { $0.options.clockFace = .minimal; $0.options.designTheme = "liquidGlass" }),
+            ("native cpu", widget(.metric, .medium) { $0.options.designTheme = "native" }),
+            ("native memory", widget(.metric, .medium) { $0.options.metric = .memory; $0.options.designTheme = "native" }),
+            ("wifi", widget(.metric, .medium) { $0.options.metric = .wifi }),
+            ("world clock", widget(.clock, .medium) { $0.options.clockFace = .world }),
+            ("goals", widget(.goals, .medium)),
+            ("habits", widget(.habits, .medium)),
+            ("status", widget(.status, .medium)),
+            ("github", widget(.github, .medium) { $0.options.github.user = "torvalds" }),
+            ("editorial date", widget(.date, .medium) { $0.options.designTheme = "editorial" }),
+        ], services: services)
+    }
+
+    private static func measure(_ name: String, seconds: Double) async {
+        let start = cpuSeconds()
+        let startSystem = systemSeconds()
+        let frames = MetalArtView.ArtMetalView.framesDrawn
+        try? await Task.sleep(for: .seconds(seconds))
+        let drawn = Double(MetalArtView.ArtMetalView.framesDrawn - frames) / seconds
+        print(String(format: "%-18@ %5.1f%% CPU (%4.1f%% kernel)  %4.0f GPU frames/s", name as NSString,
+                     (cpuSeconds() - start) / seconds * 100, (systemSeconds() - startSystem) / seconds * 100, drawn))
+    }
+
+    private static func systemSeconds() -> Double {
+        var usage = rusage()
+        getrusage(RUSAGE_SELF, &usage)
+        return Double(usage.ru_stime.tv_sec) + Double(usage.ru_stime.tv_usec) / 1_000_000
+    }
+
+    private static func cpuSeconds() -> Double {
+        var usage = rusage()
+        getrusage(RUSAGE_SELF, &usage)
+        func seconds(_ time: timeval) -> Double { Double(time.tv_sec) + Double(time.tv_usec) / 1_000_000 }
+        return seconds(usage.ru_utime) + seconds(usage.ru_stime)
+    }
+}
+#endif

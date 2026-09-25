@@ -1,0 +1,551 @@
+import AllSetCore
+import AppKit
+import AVFoundation
+import SwiftUI
+
+/// Pick and preview the live wallpaper.
+struct LiveWallpaperPage: View {
+    let services: AppServices
+
+    enum Tab: String, CaseIterable, Identifiable {
+        case aerials, art, photos, myPhotos, videos
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .aerials: "Aerial Videos"
+            case .art: "Art"
+            case .photos: "Photos"
+            case .myPhotos: "My Photos"
+            case .videos: "My Videos"
+            }
+        }
+    }
+
+    @State private var tab: Tab = .aerials
+
+    var body: some View {
+        let store = services.wallpaper
+        let setWallpaper = LibraryContext(action: .init(title: "Set as Wallpaper", symbol: "photo.artframe") { source in
+            if case .art(let piece) = source {
+                store.set(.art(piece))
+            } else {
+                store.set(.photo(source))
+            }
+        })
+
+        VStack(spacing: 0) {
+            WallpaperHero(services: services)
+                .padding([.horizontal, .top], 24)
+                .padding(.bottom, 16)
+            Picker("Source", selection: $tab) {
+                ForEach(Tab.allCases) { tab in
+                    Text(tab.title).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 24)
+            .padding(.bottom, 4)
+            Divider().padding(.top, 8)
+
+            Group {
+                switch tab {
+                case .aerials: AerialsPage(services: services)
+                case .art: ArtLibraryPage(services: services, context: setWallpaper)
+                case .photos: WebPhotosPage(services: services, context: setWallpaper)
+                case .myPhotos: MyPhotosPage(services: services, context: setWallpaper)
+                case .videos: VideosPage(services: services)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+/// The current wallpaper, playing, with the main switch.
+private struct WallpaperHero: View {
+    let services: AppServices
+    /// Plays for a moment when the page opens, then whenever the pointer is on it.
+    @State private var isIntroPlaying = true
+    @State private var isHovering = false
+
+    var body: some View {
+        let store = services.wallpaper
+        let config = store.config
+        HStack(alignment: .center, spacing: 22) {
+            // A small preview needn't run at the desktop's frame rate, nor all
+            // the time: animating it costs as much as the wallpaper itself.
+            WallpaperView(config: { var preview = config; preview.frameRate = min(config.frameRate, 24); return preview }(),
+                          services: services)
+                .environment(\.widgetIsVisible, isIntroPlaying || isHovering)
+                .frame(width: 300, height: 188)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.15)))
+                .shadow(color: .black.opacity(0.3), radius: 12, y: 6)
+                .overlay(alignment: .top) {
+                    // A hint of the menu bar and notch, so it reads as a screen.
+                    Capsule().fill(.black).frame(width: 44, height: 7).padding(.top, 3)
+                }
+                .onHover { isHovering = $0 }
+                .task {
+                    try? await Task.sleep(for: .seconds(6))
+                    isIntroPlaying = false
+                }
+                .help("Point at the preview to see it move")
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Live Wallpaper").font(.largeTitle.bold())
+                Text(description(of: config.source))
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                Toggle(isOn: Binding(get: { store.config.isEnabled }, set: { store.config.isEnabled = $0 })) {
+                    Text(config.isEnabled ? "On: playing on your desktop" : "Off")
+                        .font(.headline)
+                }
+                .toggleStyle(.switch)
+                .controlSize(.large)
+                HStack(spacing: 10) {
+                    Button("Options…") { services.openWindow(.wallpaperOptions) }
+                    if config.isEnabled, !services.ui.wallpaperPlaying {
+                        Label("Paused to save energy", systemImage: "pause.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func description(of source: WallpaperSource) -> String {
+        switch source {
+        case .art(let piece): "\(piece.title), animated"
+        case .photo(.web(let photo)): "Photo by \(photo.author)"
+        case .photo(.file): "Your photo, with gentle motion"
+        case .photo(.art(let piece)): piece.title
+        case .video(let name):
+            if let aerial = services.aerials.aerials.first(where: { name.hasPrefix("aerial-\($0.id)") }) {
+                "\(aerial.name), an Apple aerial"
+            } else {
+                "Your video, looping silently"
+            }
+        }
+    }
+}
+
+/// Imported videos, for video wallpapers.
+private struct VideosPage: View {
+    let services: AppServices
+    @State private var isDropTarget = false
+
+    var body: some View {
+        let store = services.wallpaper
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Videos").font(.largeTitle.bold())
+                        Text("Any MP4 or MOV loops silently behind your desktop. Drop files here or import them.")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button {
+                        importVideos()
+                    } label: {
+                        Label("Import Videos…", systemImage: "square.and.arrow.down")
+                    }
+                    .controlSize(.large)
+                }
+                let videos = store.videos.filter { !$0.hasPrefix("aerial-") }
+                if videos.isEmpty {
+                    VStack(spacing: 10) {
+                        Image(systemName: "film.stack")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.secondary)
+                        Text("Drop videos here").font(.headline)
+                        Text("Screen-sized loops look best. Videos are copied into All Set.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 240)
+                    .background(RoundedRectangle(cornerRadius: 16).strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
+                        .foregroundStyle(.quaternary))
+                } else {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 14)], spacing: 14) {
+                        ForEach(videos, id: \.self) { name in
+                            VideoTile(url: store.videoURL(name), isCurrent: store.config.source == .video(name)) {
+                                store.set(.video(name))
+                            } onDelete: {
+                                store.deleteVideo(name)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(28)
+        }
+        .overlay {
+            if isDropTarget {
+                RoundedRectangle(cornerRadius: 16).strokeBorder(Color.accentColor, lineWidth: 3).padding(8)
+            }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            !store.importVideos(from: urls).isEmpty
+        } isTargeted: { isDropTarget = $0 }
+    }
+
+    private func importVideos() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.movie]
+        panel.prompt = "Import"
+        if panel.runModal() == .OK {
+            services.wallpaper.importVideos(from: panel.urls)
+        }
+    }
+}
+
+private struct VideoTile: View {
+    let url: URL
+    let isCurrent: Bool
+    let onUse: () -> Void
+    let onDelete: () -> Void
+
+    @State private var thumbnail: NSImage?
+    @State private var isHovering = false
+
+    var body: some View {
+        ZStack {
+            if isHovering {
+                LoopingVideo(url: url, isPlaying: true)
+            } else if let thumbnail {
+                Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fill)
+            } else {
+                Rectangle().fill(.quaternary)
+            }
+        }
+        .aspectRatio(16 / 10, contentMode: .fill)
+        .frame(minWidth: 0, maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.accentColor, lineWidth: isCurrent ? 3 : 0)
+        }
+        .overlay(alignment: .bottom) {
+            if isHovering {
+                HStack {
+                    Button(action: onUse) {
+                        Label(isCurrent ? "Current" : "Set as Wallpaper", systemImage: "photo.artframe")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isCurrent)
+                    Button(role: .destructive, action: onDelete) {
+                        Image(systemName: "trash")
+                    }
+                }
+                .controlSize(.small)
+                .padding(8)
+            }
+        }
+        .onHover { isHovering = $0 }
+        .task(id: url) {
+            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 600, height: 600)
+            if let (image, _) = try? await generator.image(at: CMTime(seconds: 1, preferredTimescale: 600)) {
+                thumbnail = NSImage(cgImage: image, size: .zero)
+            }
+        }
+    }
+}
+
+/// Apple's aerial videos: pick one and it downloads once, then loops offline.
+private struct AerialsPage: View {
+    let services: AppServices
+
+    @State private var category: Aerial.Category?
+    @AppStorage("aerials.quality") private var quality = Aerial.Quality.uhd
+    @State private var problem: String?
+
+    var body: some View {
+        let catalog = services.aerials
+        let store = services.wallpaper
+        let downloaded = Set(store.videos.filter { $0.hasPrefix("aerial-") })
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Aerial Videos").font(.largeTitle.bold())
+                        Text("Apple's own drone and space footage, from the Apple TV screen savers. Rest the pointer on one to preview it; choosing it downloads it once, then it loops offline.")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Picker("Quality", selection: $quality) {
+                        ForEach(Aerial.Quality.allCases) { Text($0.title).tag($0) }
+                    }
+                    .frame(width: 230)
+                }
+
+                HStack(spacing: 8) {
+                    categoryChip(nil, title: "All", symbol: "sparkles")
+                    ForEach(Aerial.Category.allCases) { categoryChip($0, title: $0.title, symbol: $0.symbol) }
+                    Spacer()
+                    if !downloaded.isEmpty {
+                        Menu("\(downloaded.count) downloaded") {
+                            Button("Delete Downloads Not in Use", role: .destructive) {
+                                for name in downloaded where store.config.source != .video(name) {
+                                    store.deleteVideo(name)
+                                }
+                            }
+                        }
+                        .fixedSize()
+                    }
+                }
+
+                if let problem {
+                    Label(problem, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+
+                if catalog.aerials.isEmpty {
+                    VStack(spacing: 12) {
+                        if let error = catalog.errorMessage {
+                            Text(error).foregroundStyle(.secondary)
+                            Button("Try Again") { Task { await catalog.retry() } }
+                        } else {
+                            ProgressView()
+                            Text("Getting Apple's aerial list…").foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 240)
+                } else {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 14)], spacing: 14) {
+                        ForEach(catalog.aerials.filter { category == nil || $0.category == category }) { aerial in
+                            let file = aerial.fileName(quality)
+                            AerialTile(aerial: aerial, catalog: catalog,
+                                       isDownloaded: downloaded.contains(file),
+                                       isCurrent: store.config.source == .video(file)) {
+                                use(aerial)
+                            }
+                        }
+                    }
+                    .motion(Motion.standard, value: category)
+                }
+            }
+            .padding(28)
+        }
+        .task { await catalog.load() }
+    }
+
+    private func categoryChip(_ value: Aerial.Category?, title: String, symbol: String) -> some View {
+        let selected = category == value
+        return Button {
+            withMotion(Motion.quick) { category = value }
+        } label: {
+            Label(title, systemImage: symbol)
+                .font(.callout.weight(.medium))
+                .foregroundStyle(selected ? Color.white : .primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(selected ? Color.accentColor : Color.primary.opacity(0.07)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle())
+    }
+
+    private func use(_ aerial: Aerial) {
+        problem = nil
+        let store = services.wallpaper
+        let quality = quality
+        Task {
+            do {
+                let name = try await services.aerials.download(aerial, quality: quality, into: store.videosFolder)
+                store.reloadVideos()
+                store.set(.video(name))
+            } catch is CancellationError {
+            } catch let error as URLError where error.code == .cancelled {
+            } catch {
+                problem = "\(aerial.name) couldn't be downloaded: \(error.localizedDescription)"
+            }
+        }
+    }
+}
+
+private struct AerialTile: View {
+    let aerial: Aerial
+    let catalog: AerialCatalog
+    let isDownloaded: Bool
+    let isCurrent: Bool
+    let onUse: () -> Void
+
+    @State private var preview: CGImage?
+    @State private var isHovering = false
+    /// Streaming starts after a moment's rest, not as the pointer passes over.
+    @State private var isPreviewing = false
+
+    var body: some View {
+        let progress = catalog.downloads[aerial.id]
+        Color.clear
+            .aspectRatio(16 / 9, contentMode: .fit)
+            .overlay {
+                ZStack {
+                    Rectangle().fill(.quaternary)
+                    if let preview {
+                        Image(decorative: preview, scale: 1)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .transition(.opacity)
+                    }
+                    if isPreviewing {
+                        LoopingVideo(url: aerial.hdURL, isPlaying: true)
+                            .transition(.opacity)
+                    }
+                }
+                .scaleEffect(isHovering ? 1.03 : 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.accentColor, lineWidth: isCurrent ? 3 : 0)
+            }
+            .overlay(alignment: .bottomLeading) {
+                HStack(spacing: 6) {
+                    Image(systemName: aerial.category.symbol)
+                    Text(aerial.name).lineLimit(1)
+                    if isDownloaded {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .foregroundStyle(.white.opacity(0.8))
+                            .help("Downloaded")
+                    }
+                }
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.6), radius: 4)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom))
+                .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 14, bottomTrailingRadius: 14))
+            }
+            .overlay {
+                if let progress {
+                    ZStack {
+                        Color.black.opacity(0.45)
+                        VStack(spacing: 8) {
+                            ZStack {
+                                Circle().stroke(.white.opacity(0.25), lineWidth: 4)
+                                Circle().trim(from: 0, to: progress)
+                                    .stroke(.white, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                                    .rotationEffect(.degrees(-90))
+                                    .motion(Motion.standard, value: progress)
+                                Text("\(Int(progress * 100))%")
+                                    .font(.caption.bold().monospacedDigit())
+                                    .foregroundStyle(.white)
+                            }
+                            .frame(width: 46, height: 46)
+                            Button("Cancel") { catalog.cancelDownload(aerial) }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                } else if isHovering {
+                    Button(action: onUse) {
+                        Label(isCurrent ? "Current Wallpaper" : isDownloaded ? "Set as Wallpaper" : "Download & Set",
+                              systemImage: isCurrent ? "checkmark" : isDownloaded ? "photo.artframe" : "arrow.down.circle")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isCurrent)
+                    .transition(.scale(scale: 0.9).combined(with: .opacity))
+                }
+            }
+            .shadow(color: .black.opacity(isHovering ? 0.3 : 0.1), radius: isHovering ? 14 : 4, y: isHovering ? 6 : 2)
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .onHover { hovering in
+                withMotion(Motion.responsive) { isHovering = hovering }
+                if !hovering { withMotion(Motion.quick) { isPreviewing = false } }
+            }
+            .task(id: isHovering) {
+                guard isHovering else { return }
+                try? await Task.sleep(for: .milliseconds(600))
+                guard !Task.isCancelled, isHovering else { return }
+                withMotion(Motion.standard) { isPreviewing = true }
+            }
+            .task(id: aerial.id) {
+                let image = await catalog.preview(for: aerial)
+                withMotion(Motion.standard) { preview = image }
+            }
+    }
+}
+
+/// Look, motion and energy settings for the live wallpaper.
+struct WallpaperOptionsPage: View {
+    let services: AppServices
+
+    var body: some View {
+        let store = services.wallpaper
+        Form {
+            Section {
+                Toggle("Live wallpaper", isOn: binding(\.isEnabled))
+                LabeledContent("Dim") {
+                    Slider(value: binding(\.dim), in: 0...0.6)
+                        .frame(width: 220)
+                }
+            } footer: {
+                Text("Dimming helps desktop icons and widgets stand out.")
+            }
+
+            Section("Art") {
+                LabeledContent("Speed") {
+                    Slider(value: binding(\.speed), in: 0.25...3)
+                        .frame(width: 220)
+                }
+                Picker("Quality", selection: binding(\.sharpArt)) {
+                    Text("Balanced: soft styles look the same, much less work").tag(false)
+                    Text("Sharp: full resolution").tag(true)
+                }
+                Picker("Frame rate", selection: binding(\.frameRate)) {
+                    Text("15 fps: calm, least energy").tag(15)
+                    Text("30 fps: smooth").tag(30)
+                    Text("60 fps: silky").tag(60)
+                }
+            }
+
+            Section("Photos") {
+                Picker("Motion", selection: binding(\.motion)) {
+                    ForEach(WallpaperMotion.allCases) { motion in
+                        Text(motion.title).tag(motion)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            Section {
+                Toggle("Pause while windows cover the desktop", isOn: binding(\.pauseWhenCovered))
+                Toggle("Pause on battery power", isOn: binding(\.pauseOnBattery))
+            } header: {
+                Text("Energy")
+            } footer: {
+                Text("The wallpaper also pauses when the screen is locked or asleep, and in Low Power Mode.")
+            }
+
+            Section {
+                Toggle("Match the system wallpaper", isOn: binding(\.matchSystemWallpaper))
+            } footer: {
+                Text("Sets a still of your live wallpaper as the macOS wallpaper, so Mission Control, Spaces and the lock screen match. Your previous wallpaper comes back when you turn the live wallpaper off.")
+            }
+
+            Section {
+                Button("Choose a Wallpaper…") { services.openWindow(.wallpaper) }
+            }
+        }
+        .formStyle(.grouped)
+        .motion(Motion.standard, value: store.config)
+    }
+
+    private func binding<Value>(_ keyPath: WritableKeyPath<WallpaperConfig, Value>) -> Binding<Value> {
+        Binding(get: { services.wallpaper.config[keyPath: keyPath] },
+                set: { services.wallpaper.config[keyPath: keyPath] = $0 })
+    }
+}
