@@ -30,7 +30,7 @@ struct LockScreenWidget: View {
 
     var body: some View {
         let layout = placement
-        TimelineView(.periodic(from: Self.minuteStart(.now), by: 60)) { context in
+        WidgetTimeline(.periodic(from: Self.minuteStart(.now), by: 60)) { context in
             ZStack {
                 clock(context.date, alignment: layout.alignment)
                 if let cutout, layout.depth {
@@ -467,7 +467,7 @@ struct MoonWidget: View {
     let size: WidgetSize
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1800)) { context in
+        WidgetTimeline(.periodic(from: .now, by: 1800)) { context in
             let phase = MoonPhase(date: context.date)
             ZStack {
                 NightSky()

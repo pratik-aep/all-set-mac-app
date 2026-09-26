@@ -264,7 +264,7 @@ struct VHSWidget: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     Spacer()
-                    TimelineView(.everyMinute) { context in
+                    WidgetTimeline(.everyMinute) { context in
                         Text(context.date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)).minute()).uppercased())
                     }
                 }
@@ -450,7 +450,7 @@ struct TicketArt: View {
 
     private func stub(w: CGFloat, h: CGFloat) -> some View {
         VStack(spacing: h * 0.03) {
-            TimelineView(.everyMinute) { context in
+            WidgetTimeline(.everyMinute) { context in
                 let days = ticket.date.map { Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: context.date),
                                                                                to: Calendar.current.startOfDay(for: $0)).day ?? 0 }
                 VStack(spacing: 0) {

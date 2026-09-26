@@ -776,7 +776,7 @@ struct KickoffCountdown: View {
     var color: Color = .white
 
     var body: some View {
-        TimelineView(.everyMinute) { context in
+        WidgetTimeline(.everyMinute) { context in
             VStack(spacing: 1) {
                 Text(Self.text(until: kickoff, now: context.date))
                     .font(.system(size: size, weight: .heavy, design: .monospaced))

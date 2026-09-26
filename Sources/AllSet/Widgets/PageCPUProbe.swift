@@ -415,6 +415,51 @@ enum PageCPUProbe {
         }
     }
 
+    /// A clock with seconds (a SwiftUI TimelineView ticking every second),
+    /// visible and then fully covered by another window: whether SwiftUI
+    /// keeps redrawing a window nobody can see.
+    static func runCovered(services: AppServices) async {
+        func cpuSeconds() -> Double {
+            var usage = rusage()
+            getrusage(RUSAGE_SELF, &usage)
+            return Double(usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) + Double(usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6
+        }
+        let env = ProcessInfo.processInfo.environment
+        var clock = WidgetCatalog.entry(env["ENTRY"] ?? "digitalClock")?.make(size: WidgetSize(rawValue: env["SIZE"] ?? "medium") ?? .medium)
+            ?? WidgetInstance(kind: .clock)
+        clock.options.showSeconds = true
+        let frame = NSRect(x: 300, y: 300, width: 364, height: 170)
+        let window = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        // Wired like a desktop widget window: on screen unless occluded.
+        let state = ProbeOcclusion()
+        window.contentView = NSHostingView(rootView: ProbeOccludedWidget(instance: clock, services: services, state: state)
+            .frame(width: 364, height: 170))
+        let observer = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window,
+                                                              queue: .main) { _ in
+            MainActor.assumeIsolated { state.isOccluded = !window.occlusionState.contains(.visible) }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        window.orderFrontRegardless()
+        try? await Task.sleep(for: .seconds(3))
+        var start = cpuSeconds()
+        try? await Task.sleep(for: .seconds(30))
+        print(String(format: "clock visible: %.3f%% CPU", (cpuSeconds() - start) / 30 * 100))
+        let cover = NSWindow(contentRect: frame.insetBy(dx: -40, dy: -40), styleMask: [.borderless], backing: .buffered, defer: false)
+        cover.isReleasedWhenClosed = false
+        cover.backgroundColor = .gray
+        cover.isOpaque = true
+        cover.level = .floating
+        cover.orderFrontRegardless()
+        try? await Task.sleep(for: .seconds(3))
+        print("clock window occluded: \(!window.occlusionState.contains(.visible))")
+        start = cpuSeconds()
+        try? await Task.sleep(for: .seconds(30))
+        print(String(format: "clock covered: %.3f%% CPU", (cpuSeconds() - start) / 30 * 100))
+        cover.close()
+        window.close()
+    }
+
     /// The spiral, charms, label and the mystic widgets.
     static func runMystic(services: AppServices) async {
         func widget(_ entry: String, _ size: WidgetSize) -> AnyView {
@@ -503,6 +548,25 @@ enum PageCPUProbe {
         getrusage(RUSAGE_SELF, &usage)
         func seconds(_ time: timeval) -> Double { Double(time.tv_sec) + Double(time.tv_usec) / 1_000_000 }
         return seconds(usage.ru_utime) + seconds(usage.ru_stime)
+    }
+}
+#endif
+
+#if DEBUG
+@Observable @MainActor
+final class ProbeOcclusion {
+    var isOccluded = false
+}
+
+private struct ProbeOccludedWidget: View {
+    let instance: WidgetInstance
+    let services: AppServices
+    let state: ProbeOcclusion
+
+    var body: some View {
+        WidgetBody(instance: instance, services: services)
+            .environment(\.widgetIsVisible, !state.isOccluded)
+            .environment(\.widgetIsOnScreen, !state.isOccluded)
     }
 }
 #endif

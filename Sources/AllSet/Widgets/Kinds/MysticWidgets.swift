@@ -329,7 +329,7 @@ struct AuraWidget: View {
     let instance: WidgetInstance
 
     var body: some View {
-        TimelineView(.everyMinute) { context in
+        WidgetTimeline(.everyMinute) { context in
             let reading = AuraReading.reading(for: context.date)
             let colors = reading.colors.map { Color(hex: $0) }
             ZStack {
@@ -472,7 +472,7 @@ struct TarotWidget: View {
     let instance: WidgetInstance
 
     var body: some View {
-        TimelineView(.everyMinute) { context in
+        WidgetTimeline(.everyMinute) { context in
             let card = TarotCard.card(for: context.date)
             let gold = instance.options.accent.map { Color($0) } ?? Color(hex: 0xE8C15A)
             ZStack {

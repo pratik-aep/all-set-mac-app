@@ -15,7 +15,7 @@ struct ClockWidget: View {
         // Ticks on the second or on the minute, aligned so the display changes
         // exactly when the time does.
         let step: TimeInterval = options.showSeconds ? 1 : 60
-        TimelineView(.periodic(from: Self.aligned(.now, to: step), by: step)) { context in
+        WidgetTimeline(.periodic(from: Self.aligned(.now, to: step), by: step)) { context in
             switch options.clockFace {
             case .digital: digital(context.date)
             case .analog: analog(context.date)

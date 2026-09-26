@@ -21,7 +21,7 @@ struct DateWidget: View {
     @Environment(\.widgetDate) private var previewDate
 
     var body: some View {
-        TimelineView(.periodic(from: Calendar.current.startOfDay(for: .now), by: 3600)) { context in
+        WidgetTimeline(.periodic(from: Calendar.current.startOfDay(for: .now), by: 3600)) { context in
             let now = previewDate ?? context.date
             HStack(spacing: 18) {
                 day(now)
@@ -111,7 +111,7 @@ struct NextEventWidget: View {
         Group {
             switch calendar.access {
             case .granted:
-                TimelineView(.periodic(from: .now, by: 60)) { context in
+                WidgetTimeline(.periodic(from: .now, by: 60)) { context in
                     content(now: context.date)
                 }
             case .notDetermined:
@@ -245,7 +245,7 @@ struct GoalsWidget: View {
     @Environment(\.widgetStyle) private var style
 
     var body: some View {
-        TimelineView(.periodic(from: Calendar.current.startOfDay(for: .now), by: 3600)) { context in
+        WidgetTimeline(.periodic(from: Calendar.current.startOfDay(for: .now), by: 3600)) { context in
             let today = Habit.key(context.date)
             let goals = instance.options.goals.map { goal in
                 var goal = goal
@@ -373,7 +373,7 @@ struct HabitsWidget: View {
     @Environment(\.widgetStyle) private var style
 
     var body: some View {
-        TimelineView(.periodic(from: Calendar.current.startOfDay(for: .now), by: 3600)) { context in
+        WidgetTimeline(.periodic(from: Calendar.current.startOfDay(for: .now), by: 3600)) { context in
             let now = context.date
             let habits = Array(instance.options.habits.prefix(instance.size == .large ? 7 : 4))
             let doneToday = instance.options.habits.filter { $0.isDone(on: now) }.count

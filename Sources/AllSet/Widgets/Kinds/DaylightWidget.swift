@@ -15,7 +15,7 @@ struct DaylightWidget: View {
 
     var body: some View {
         let place = instance.options.location ?? fallbackLocation ?? Self.guessedPlace
-        TimelineView(.periodic(from: .now, by: 60)) { context in
+        WidgetTimeline(.periodic(from: .now, by: 60)) { context in
             DaylightScene(date: fixedDate ?? context.date, place: place, size: instance.size, use24Hour: instance.options.use24Hour)
         }
         .environment(\.colorScheme, .dark)

@@ -70,7 +70,7 @@ struct PhotoWidget: View {
     var body: some View {
         let sources = options.images.isEmpty ? [ImageSource.art(options.art)] : options.images
         let interval = options.slideshowInterval
-        TimelineView(.periodic(from: .now, by: interval > 0 ? interval : 3600)) { context in
+        WidgetTimeline(.periodic(from: .now, by: interval > 0 ? interval : 3600)) { context in
             let index = interval > 0 ? Int(context.date.timeIntervalSince1970 / interval) % sources.count : 0
             Group {
                 if options.photoFrame == .collage {
@@ -315,7 +315,7 @@ struct AmbientWidget: View {
     private var large: Bool { instance.size != .small }
 
     var body: some View {
-        TimelineView(.everyMinute) { context in
+        WidgetTimeline(.everyMinute) { context in
             overlay(context.date)
                 .shadow(color: .black.opacity(0.25), radius: 10, y: 2)
                 .padding(18)
@@ -366,7 +366,7 @@ struct QuoteWidget: View {
     private var options: WidgetOptions { instance.options }
 
     var body: some View {
-        TimelineView(.everyMinute) { context in
+        WidgetTimeline(.everyMinute) { context in
             let text = options.quoteSource == .custom && !options.customText.isEmpty
                 ? options.customText
                 : Affirmations.line(at: context.date)
@@ -480,7 +480,7 @@ struct CountdownWidget: View {
     private var options: WidgetOptions { instance.options }
 
     var body: some View {
-        TimelineView(.everyMinute) { context in
+        WidgetTimeline(.everyMinute) { context in
             let calendar = Calendar.current
             let target = options.countdownDate ?? context.date
             let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: context.date),

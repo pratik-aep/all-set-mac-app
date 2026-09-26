@@ -110,7 +110,7 @@ struct RetroWindowWidget: View {
     @Environment(\.widgetStyle) private var style
 
     var body: some View {
-        TimelineView(.everyMinute) { context in
+        WidgetTimeline(.everyMinute) { context in
             let date = context.date
             let calendar = Calendar.current
             let fraction = date.timeIntervalSince(calendar.startOfDay(for: date)) / 86_400
@@ -161,7 +161,7 @@ struct EnsoWidget: View {
     @Environment(\.widgetStyle) private var style
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 600)) { context in
+        WidgetTimeline(.periodic(from: .now, by: 600)) { context in
             let date = context.date
             let fraction = date.timeIntervalSince(Calendar.current.startOfDay(for: date)) / 86_400
             Group {
@@ -244,7 +244,7 @@ struct MagazineWidget: View {
     @Environment(\.widgetStyle) private var style
 
     var body: some View {
-        TimelineView(.periodic(from: Calendar.current.startOfDay(for: .now), by: 3600)) { context in
+        WidgetTimeline(.periodic(from: Calendar.current.startOfDay(for: .now), by: 3600)) { context in
             let date = context.date
             let issue = Calendar.current.ordinality(of: .day, in: .year, for: date) ?? 1
             let large = instance.size == .large

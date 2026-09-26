@@ -360,7 +360,7 @@ struct SystemMetricWidget: View {
         let days = minutes / 1440, hours = minutes / 60 % 24
         let text = days > 0 ? "\(days)d \(hours)h" : "\(hours)h \(minutes % 60)m"
         let since = Date.now.addingTimeInterval(-seconds)
-        return TimelineView(.periodic(from: .now, by: 60)) { _ in
+        return WidgetTimeline(.periodic(from: .now, by: 60)) { _ in
             VStack(alignment: .leading, spacing: 6) {
                 WidgetHeader(title: "Uptime", symbol: "clock.arrow.circlepath")
                 Spacer(minLength: 0)

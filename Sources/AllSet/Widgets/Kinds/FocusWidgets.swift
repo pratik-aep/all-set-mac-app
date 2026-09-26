@@ -141,7 +141,7 @@ struct FocusWidget: View {
 
     var body: some View {
         // Ticks once a second, only while running.
-        TimelineView(.periodic(from: .now, by: session.isRunning ? 1 : 3600)) { context in
+        WidgetTimeline(.periodic(from: .now, by: session.isRunning ? 1 : 3600)) { context in
             let remaining = session.remaining(at: context.date, focusMinutes: options.focusMinutes, breakMinutes: options.breakMinutes)
             let progress = session.progress(at: context.date, focusMinutes: options.focusMinutes, breakMinutes: options.breakMinutes)
             switch instance.size {

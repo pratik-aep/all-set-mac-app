@@ -185,7 +185,7 @@ struct DotsWidget: View {
     @Environment(\.widgetDate) private var previewDate
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1800)) { context in
+        WidgetTimeline(.periodic(from: .now, by: 1800)) { context in
             let now = previewDate ?? context.date
             let calendar = Calendar.current
             switch instance.size {

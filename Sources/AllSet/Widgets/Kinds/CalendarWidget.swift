@@ -11,7 +11,7 @@ struct CalendarWidget: View {
     }
 
     var body: some View {
-        TimelineView(.everyMinute) { context in
+        WidgetTimeline(.everyMinute) { context in
             switch instance.size {
             case .small: small(context.date)
             case .medium: medium(context.date)
