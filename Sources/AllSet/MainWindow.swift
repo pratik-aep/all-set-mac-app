@@ -218,7 +218,7 @@ struct MainView: View {
         case .widgetAppearance:
             FormPage { WidgetSettings(settings: services.settings, services: services) }
         case .wallpaper:
-            LiveWallpaperPage(services: services)
+            LiveWallpaperPage(services: services, tab: services.ui.wallpaperTab)
         case .wallpaperOptions:
             WallpaperOptionsPage(services: services)
         case .snapping:

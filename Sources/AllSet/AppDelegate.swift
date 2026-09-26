@@ -59,6 +59,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
+        if let folder = UserDefaults.standard.string(forKey: "renderWallpaperLibrary") {
+            NSApp.setActivationPolicy(.accessory)
+            Task {
+                await WidgetRenderHarness.renderWallpaperLibrary(to: URL(fileURLWithPath: folder), services: services)
+                exit(0)
+            }
+            return
+        }
         if let folder = UserDefaults.standard.string(forKey: "renderPhotos") {
             NSApp.setActivationPolicy(.accessory)
             Task {
@@ -122,6 +130,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case "fans": await PageCPUProbe.runFans(services: services)
                 case "mystic": await PageCPUProbe.runMystic(services: services)
                 case "neon": await PageCPUProbe.runNeon(services: services)
+                case "wallpaperlibrary":
+                    // The real wallpaper windows, so pausing rules are the app's own.
+                    let wallpaper = WallpaperController(services: services)
+                    wallpaper.start()
+                    await PageCPUProbe.runWallpaperLibrary(services: services)
+                    withExtendedLifetime(wallpaper) {}
                 case "covered": await PageCPUProbe.runCovered(services: services)
                 case "desktopwidgets": await PageCPUProbe.runDesktopWidgets(services: services)
                 case "windowclose": await PageCPUProbe.runWindowClose(services: services)

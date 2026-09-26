@@ -89,6 +89,8 @@ public final class WallpaperStore {
     public private(set) var libraryRoots: [String: WallpaperLibraryCatalog.Root] = [:]
     public private(set) var reachableRoots: Set<String> = []
     @ObservationIgnored private var libraryIndex: [String: Int] = [:]
+    /// Ids whose converted copy is on disk, checked once when the catalog loads.
+    @ObservationIgnored private var libraryCopies: Set<String> = []
 
     @ObservationIgnored private let fileURL: URL
     @ObservationIgnored public let directory: URL
@@ -133,6 +135,13 @@ public final class WallpaperStore {
                 return try? JSONDecoder().decode(WallpaperLibraryCatalog.self, from: data)
             }.value
             let items = (catalog?.items ?? []).filter { $0.status != .unsupported }
+            let directory = libraryDirectory
+            libraryCopies = Set(items.filter { video in
+                video.playback.map { FileManager.default.fileExists(atPath: directory.appendingPathComponent($0).path) } ?? false
+            }.map(\.id))
+            #if DEBUG
+            if hasDebugLibrary { return }
+            #endif
             library = items
             libraryIndex = Dictionary(items.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
             libraryRoots = Dictionary((catalog?.roots ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -145,6 +154,17 @@ public final class WallpaperStore {
         let reachable = Set(libraryRoots.values.filter { FileManager.default.fileExists(atPath: $0.path) }.map(\.id))
         if reachable != reachableRoots { reachableRoots = reachable }
     }
+
+    #if DEBUG
+    @ObservationIgnored private var hasDebugLibrary = false
+
+    /// Replaces the library in memory (never on disk), for scale probes.
+    public func debugReplaceLibrary(_ videos: [LibraryVideo]) {
+        hasDebugLibrary = true
+        library = videos
+        libraryIndex = Dictionary(videos.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+    #endif
 
     public func libraryVideo(_ id: String) -> LibraryVideo? {
         libraryIndex[id].map { library[$0] }
@@ -161,6 +181,13 @@ public final class WallpaperStore {
         guard let root = libraryRoots[video.root], reachableRoots.contains(video.root) else { return nil }
         let url = URL(fileURLWithPath: root.path).appendingPathComponent(video.file)
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// Whether it can play now, without touching the disk: its converted copy
+    /// is known to exist, or its drive is connected. For drawing many cards
+    /// (a file check per card on a USB drive stalls scrolling).
+    public func canPlay(_ video: LibraryVideo) -> Bool {
+        (video.playback != nil && libraryCopies.contains(video.id)) || reachableRoots.contains(video.root)
     }
 
     public func libraryThumbnailURL(_ video: LibraryVideo) -> URL? {

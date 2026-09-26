@@ -460,6 +460,158 @@ enum PageCPUProbe {
         window.close()
     }
 
+    /// The wallpaper library at scale: 1,008 entries (the real ones repeated,
+    /// each with its own thumbnail file) in the real main window, scrolled end
+    /// to end, five wallpaper switches, then closed; five cycles. Then the
+    /// pausing rules: Low Power Mode and a window covering the screen.
+    /// Leaves the saved wallpaper as it found it.
+    static func runWallpaperLibrary(services: AppServices) async {
+        func cpuSeconds() -> Double {
+            var usage = rusage()
+            getrusage(RUSAGE_SELF, &usage)
+            return Double(usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) + Double(usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6
+        }
+        func report(_ label: String) {
+            print(String(format: "%-26@ %4.0f MB  %@; %@", label as NSString, footprintMB(), services.images.debugCacheReport,
+                         SharedVideoPlayers.debugReport))
+        }
+        let store = services.wallpaper
+        let original = store.config
+        var quiet = original
+        // No system-wallpaper stills while probing.
+        quiet.matchSystemWallpaper = false
+        store.config = quiet
+        try? await Task.sleep(for: .seconds(3))
+        let real = store.library
+        guard !real.isEmpty else { print("no library imported"); store.config = original; return }
+        // Every synthetic entry gets its own thumbnail file, so the cache is
+        // tested with as many distinct pictures as entries.
+        let thumbs = store.libraryDirectory.appendingPathComponent("probe-thumbs", isDirectory: true)
+        try? FileManager.default.createDirectory(at: thumbs, withIntermediateDirectories: true)
+        var videos: [LibraryVideo] = []
+        for copy in 0..<21 {
+            for video in real {
+                var entry = video
+                entry.id = "\(video.id)-\(copy)"
+                entry.title = copy == 0 ? video.title : "\(video.title) \(copy + 1)"
+                if let source = store.libraryThumbnailURL(video) {
+                    let name = "probe-thumbs/\(entry.id).jpg"
+                    try? FileManager.default.copyItem(at: source, to: store.libraryDirectory.appendingPathComponent(name))
+                    entry.thumbnail = name
+                }
+                videos.append(entry)
+            }
+        }
+        store.debugReplaceLibrary(videos)
+        print("library entries: \(videos.count)")
+        print("first resolves to: \(store.libraryURL(videos[0].id)?.lastPathComponent ?? "nil"); roots \(store.libraryRoots.count), reachable \(store.reachableRoots.count)")
+        print("wallpaper enabled: \(store.config.isEnabled); wallpaper windows: \(NSApp.windows.filter { $0.level.rawValue < 0 }.count)")
+        report("before")
+        let mainWindow = { NSApp.windows.first { $0.frameAutosaveName == "AllSetMain" && $0.isVisible } }
+        for cycle in 1...5 {
+            services.ui.wallpaperTab = .videos
+            services.ui.page = .wallpaper
+            MainWindowController.shared.show(services: services)
+            try? await Task.sleep(for: .seconds(3))
+            report("cycle \(cycle) open")
+            if let scroll = Self.tallestScrollView(in: mainWindow()?.contentView) {
+                final class Gaps: @unchecked Sendable { var last = CACurrentMediaTime(); var worst = 0.0; var lost = 0.0 }
+                let gaps = Gaps()
+                let timer = Timer(timeInterval: 0.004, repeats: true) { _ in
+                    let now = CACurrentMediaTime(), gap = now - gaps.last
+                    if gap > 0.017 { gaps.lost += gap - 0.004 }
+                    gaps.worst = max(gaps.worst, gap)
+                    gaps.last = now
+                }
+                RunLoop.main.add(timer, forMode: .common)
+                let start = cpuSeconds(), began = Date()
+                var y: CGFloat = 0
+                while y < (scroll.documentView?.frame.height ?? 0) {
+                    y += 700
+                    scroll.contentView.scroll(to: NSPoint(x: 0, y: y))
+                    scroll.reflectScrolledClipView(scroll.contentView)
+                    try? await Task.sleep(for: .milliseconds(120))
+                }
+                let elapsed = Date().timeIntervalSince(began)
+                timer.invalidate()
+                print(String(format: "  scrolled %.0f pt in %.1f s: %.1f%% CPU; main thread: longest stall %.0f ms, %.0f ms lost",
+                             y, elapsed, (cpuSeconds() - start) / elapsed * 100, gaps.worst * 1000, gaps.lost * 1000))
+            }
+            report("cycle \(cycle) scrolled")
+            for video in videos.shuffled().prefix(5) {
+                store.set(.library(video.id))
+                try? await Task.sleep(for: .seconds(1.5))
+            }
+            print("  after switching: source \(store.config.source), playing \(services.ui.wallpaperPlaying), \(SharedVideoPlayers.debugReport)")
+            if cycle == 1 {
+                func names(_ view: NSView, _ depth: Int = 0) -> [String] {
+                    guard depth < 12 else { return [] }
+                    return ["\(type(of: view))"] + view.subviews.flatMap { names($0, depth + 1) }
+                }
+                let test = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 480, height: 300), styleMask: [.borderless],
+                                    backing: .buffered, defer: false)
+                test.isReleasedWhenClosed = false
+                test.contentView = NSHostingView(rootView: WallpaperView(config: store.config, services: services)
+                    .environment(\.widgetIsVisible, true).frame(width: 480, height: 300))
+                test.orderFrontRegardless()
+                try? await Task.sleep(for: .seconds(1))
+                print("  fresh WallpaperView subviews: \(names(test.contentView ?? NSView()).prefix(6).joined(separator: ", ")); \(SharedVideoPlayers.debugReport)")
+                test.close()
+                for window in NSApp.windows where window.level.rawValue < 0 {
+                    print("  wallpaper window \(window.frame) visible \(window.isVisible) occluded \(!window.occlusionState.contains(.visible))")
+                    print("  views: " + names(window.contentView ?? NSView()).filter { !$0.contains("Hosting") || true }.prefix(12).joined(separator: ", "))
+                }
+            }
+            report("cycle \(cycle) switched x5")
+            mainWindow()?.performClose(nil)
+            try? await Task.sleep(for: .seconds(4))
+            report("cycle \(cycle) closed")
+        }
+        // The same pausing rules as every wallpaper. Covered (this Mac's
+        // windows usually cover the desktop) it rests; then with covering
+        // ignored, Low Power Mode must still stop it.
+        let policy = services.ui.performance
+        print("covered by windows -> playing: \(services.ui.wallpaperPlaying) (\(SharedVideoPlayers.debugReport))")
+        var uncovered = store.config
+        uncovered.pauseWhenCovered = false
+        store.config = uncovered
+        try? await Task.sleep(for: .seconds(2))
+        print("covering ignored -> playing: \(services.ui.wallpaperPlaying)")
+        services.ui.performance = PerformancePolicy(isLowPower: true)
+        try? await Task.sleep(for: .seconds(1))
+        print("Low Power Mode -> playing: \(services.ui.wallpaperPlaying)")
+        services.ui.performance = policy
+        try? await Task.sleep(for: .seconds(1))
+        print("back to normal -> playing: \(services.ui.wallpaperPlaying)")
+        let frame = NSScreen.main?.frame ?? .zero
+        let cover = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        cover.isReleasedWhenClosed = false
+        cover.backgroundColor = .darkGray
+        cover.orderFrontRegardless()
+        try? await Task.sleep(for: .seconds(4))
+        print("screen covered -> playing: \(services.ui.wallpaperPlaying)")
+        cover.close()
+        try? await Task.sleep(for: .seconds(4))
+        print("uncovered -> playing: \(services.ui.wallpaperPlaying)")
+        store.config = original
+        try? await Task.sleep(for: .seconds(2))
+        report("wallpaper restored")
+        try? FileManager.default.removeItem(at: thumbs)
+    }
+
+    /// The scroll view with the most to scroll (a page, not the sidebar).
+    static func tallestScrollView(in view: NSView?) -> NSScrollView? {
+        var best: NSScrollView?
+        func visit(_ view: NSView) {
+            if let scroll = view as? NSScrollView, (scroll.documentView?.frame.height ?? 0) > (best?.documentView?.frame.height ?? 0) {
+                best = scroll
+            }
+            view.subviews.forEach(visit)
+        }
+        if let view { visit(view) }
+        return best
+    }
+
     /// The spiral, charms, label and the mystic widgets.
     static func runMystic(services: AppServices) async {
         func widget(_ entry: String, _ size: WidgetSize) -> AnyView {

@@ -23,7 +23,12 @@ struct LiveWallpaperPage: View {
         }
     }
 
-    @State private var tab: Tab = .aerials
+    @State private var tab: Tab
+
+    init(services: AppServices, tab: Tab = .aerials) {
+        self.services = services
+        _tab = State(initialValue: tab)
+    }
 
     var body: some View {
         let store = services.wallpaper
@@ -167,7 +172,8 @@ private struct VideosPage: View {
                 }
                 let videos = store.videos.filter { !$0.hasPrefix("aerial-") }
                 if videos.isEmpty, !store.library.isEmpty {
-                    Text("Drop your own videos here, or import them.").foregroundStyle(.secondary)
+                    // The header already says how to add some; the library follows.
+                    EmptyView()
                 } else if videos.isEmpty {
                     VStack(spacing: 10) {
                         Image(systemName: "film.stack")
@@ -369,7 +375,7 @@ private struct LibraryTile: View {
     private static let thumbnailPixels = 512
 
     var body: some View {
-        let url = store.libraryURL(video.id)
+        let playable = store.canPlay(video)
         Color.clear
             .aspectRatio(16 / 9, contentMode: .fit)
             .overlay {
@@ -378,7 +384,9 @@ private struct LibraryTile: View {
                     if let thumbnail {
                         Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fill)
                     }
-                    if isPreviewing, let url {
+                    // Resolved only when previewing: finding the file costs a
+                    // disk check, too much to do for every card as it scrolls by.
+                    if isPreviewing, let url = store.libraryURL(video.id) {
                         LoopingVideo(url: url, isPlaying: true).transition(.opacity)
                     }
                 }
@@ -400,13 +408,13 @@ private struct LibraryTile: View {
                     .font(.caption.weight(.semibold))
                     if isHovering {
                         Button(action: onUse) {
-                            Label(isCurrent ? "Current" : url == nil ? "Drive Not Connected" : "Set as Wallpaper",
+                            Label(isCurrent ? "Current" : playable ? "Set as Wallpaper" : "Drive Not Connected",
                                   systemImage: "photo.artframe")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
-                        .disabled(isCurrent || url == nil)
+                        .disabled(isCurrent || !playable)
                     }
                 }
                 .foregroundStyle(.white)

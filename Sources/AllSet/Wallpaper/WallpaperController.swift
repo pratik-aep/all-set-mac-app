@@ -475,6 +475,13 @@ enum SharedVideoPlayers {
 
     private static var entries: [URL: Entry] = [:]
 
+    #if DEBUG
+    /// Players alive, and how many views hold each (for probes).
+    static var debugReport: String {
+        "players \(entries.count) (viewers \(entries.values.map { $0.viewers.count }.reduce(0, +)))"
+    }
+    #endif
+
     static func player(for url: URL) -> AVQueuePlayer {
         if let entry = entries[url] { return entry.player }
         let entry = Entry()

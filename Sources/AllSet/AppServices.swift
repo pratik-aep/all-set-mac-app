@@ -7,6 +7,8 @@ import Observation
 @Observable @MainActor
 final class UIState {
     var page: AppPage? = .island
+    /// Which source the Live Wallpaper page opens on.
+    var wallpaperTab = LiveWallpaperPage.Tab.aerials
     var isArrangingWidgets = false
     /// False while the live wallpaper is paused to save energy.
     var wallpaperPlaying = true

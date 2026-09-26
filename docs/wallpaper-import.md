@@ -174,3 +174,163 @@ Scene and web items would each need a second wallpaper engine, which this task r
 
   So exactly those 3 files were converted: HEVC via VideoToolbox, at most 3840×2160 and 60 fps, no audio, into `Library/transcoded` (**1.19 GB** total). The originals on the drive are untouched. The rest (including 45 files with unused audio tracks) play as they are, muted, since the audio costs nothing measurable.
 - **Tradeoff:** the 120 and 144 fps videos now play at 60 fps, which is identical on the MacBook's 60 Hz screen but fewer frames on a 120/144 Hz external display.
+
+## Phase 4: the gallery
+
+Built on what's there: the **existing My Videos tab** of the Live Wallpaper page. The design is unchanged; a **Library** section follows your own videos.
+
+- **Grid:** the same `LazyVGrid` of cards as Aerial Videos (16:9, title and category icon, current-wallpaper outline, "Set as Wallpaper" on hover, video preview after a 0.6 s rest).
+  - Only cards on screen are built.
+  - Cards show the imported thumbnail and never a live video until previewed.
+  - Cards don't touch the drive while drawing (`WallpaperStore.canPlay` reads the cached reachability). The file is looked up only when previewing or setting.
+- **Search:** an in-memory match over each entry's title, original title, category and tags. It never scans video files.
+- **Category chips:** the aerial chip style, showing only categories the library actually has. The Aerial page now also shows only categories Apple's list has, so the two new ones don't appear there empty.
+- **Sort:** Name, Recently Added, Longest, Sharpest. All come from catalog metadata; nothing is invented (no "popularity").
+- **Favourites and recents:** none exist anywhere in the app today, so none were added (a new state system would be out of scope).
+- **Rights label:** a one-line note, and a tooltip per card with the quarantine reason.
+- **Drive status:** an orange note when the drive isn't connected; cards say "Drive Not Connected" instead of "Set as Wallpaper".
+
+`UIState.wallpaperTab` (default Aerial Videos, as before) lets the page open on a given tab. `LiveWallpaperPage` got an optional `tab:` initialiser.
+
+**Visual check:** `-renderWallpaperLibrary <folder>` renders the tab at the top and scrolled.
+
+## Phase 5: no regression
+
+Probe `-probe wallpaperlibrary`, with the real main window, the real `WallpaperController` windows and the real shared players:
+- **1,008 entries** (the 48 real ones repeated 21 times, each with its own thumbnail file, so the cache sees 1,008 distinct pictures);
+- scrolled end to end (28,700 pt) at about 5,500 pt/s;
+- 5 wallpaper switches;
+- window closed;
+- **5 cycles**.
+
+It leaves your saved wallpaper exactly as it found it and deletes its synthetic thumbnails.
+
+### Memory and players [measured]
+
+| | Footprint | Thumbnail cache | Video players |
+|---|---|---|---|
+| Before (no window) | 29–37 MB | 0 | 0 |
+| Window open | 103–136 MB | 15–82 cached | 0–2 |
+| After scrolling 1,008 | 112–175 MB | **120 (68 MB): the count limit holds** | 1 |
+| After 5 switches | 88–159 MB | up to 120 | **1** (plus 1 viewer for the page's preview) |
+| **After closing, cycles 1–5** | **111, 90, 92, 94, 93 MB: no growth** | trimmed to 42 (24 MB) | 1 (the wallpaper itself) |
+| After restoring the wallpaper | 107–109 MB | 42 | **0** |
+
+- **Players never pile up:** switching five times keeps a single player, since each switch releases the previous video through `SharedVideoPlayers`.
+- **Thumbnails stay within the cache's limits.**
+- **Memory after close is flat across cycles.**
+
+### Scrolling [measured]
+28,700 pt in 5.1–5.2 s:
+- CPU 115–118 % (thumbnail decoding runs on background threads in parallel);
+- main thread: **longest stall 33–43 ms, 0.85–0.96 s of frames lost**.
+
+**Tried:**
+- Drawing whole cards on the GPU (`.drawingGroup()`) cut frames lost to 0.62–0.76 s. **Not adopted:** it can't contain the AppKit video view, so the hover preview would break.
+- GPU-drawing the picture alone made it worse (1.9 s lost). Reverted.
+- Removing per-card file checks had no measurable effect. Kept anyway: it removes main-thread disk access on a USB drive.
+
+This is a very fast fling; see the remaining risks.
+
+### The same pausing rules [measured]
+
+| State | Library wallpaper playing? |
+|---|---|
+| Your windows cover the desktop ("pause when covered" on) | **no** |
+| Covering ignored | yes |
+| Low Power Mode (`PerformancePolicy`) | **no** |
+| Back to normal | yes |
+
+There's no separate logic: it's `WallpaperController.updatePlayback()`, which doesn't look at the source kind.
+
+### The audit's own checks after this change [measured]
+- **`-probe windowclose`:**
+  - CPU: 0.03 % never opened, 0.04 % after closing; viewers released.
+  - Themes footprint with previews on disk: **66 → 78 → 68 MB** (fully returned).
+  - When the new build redrew some theme previews, the first run peaked higher (238 MB, 159 MB after closing). That's the audit's known remaining risk #2 (drawing previews from scratch), not this change.
+- **Tests:** 205 pass, including 5 new `WallpaperLibraryTests`:
+  - a tolerant catalog;
+  - search;
+  - sort from real metadata;
+  - the source round-trips;
+  - resolving to the converted copy, the original, or nothing when the drive is unplugged.
+- **Build warnings:** 0.
+
+### Thermal tiering [reasoned]
+`PerformancePolicy`'s thermal tiers act through the same `pausesDecorativeMotion` and `videoFrameRateLimit` checks as Low Power, which were measured above. I couldn't heat the Mac on demand.
+
+## Phase 6: SEO
+
+**Skipped.** There's no public wallpaper website or SEO system in this repository; All Set is a desktop app. The catalog's titles, categories and tags would serve one if it existed.
+
+---
+
+## Final report
+
+### Import stats
+| | |
+|---|---|
+| Workshop items scanned | 196 (48 video, 138 scene, 10 web) |
+| Video files scanned | 62 (9.08 GB) |
+| Valid / invalid | 62 / 0 |
+| Exact duplicates removed | 0 |
+| Near-duplicates flagged for review | 0 |
+| **Unique wallpapers in the library** | **48** |
+| Categories | games 30, landscapes 7, abstract 7, cities 2, underwater 1, space 1 |
+| Quarantined (provenance unknown) | **48 of 48**: all Workshop uploads with no author or license; 1 also has no content rating |
+| Unsupported and not imported | 14 WebM clips inside 2 web wallpapers; 138 scene and 10 web items (they need Wallpaper Engine's renderers) |
+| Size in the source | 7.97 GB (stays on the drive) |
+| Size added on the Mac | **1.19 GB** transcoded copies (3 files) + 1.6 MB thumbnails + 44 KB catalog; nothing in the app bundle or repo |
+
+### Files created
+- `scripts/wallpaper_library.py`: inventory and importer.
+- `scripts/playcheck.swift`, `scripts/playcost.swift`: playback test and decode-cost measurement.
+- `Sources/AllSetCore/Wallpaper/WallpaperLibrary.swift`: `LibraryVideo`, `WallpaperLibraryCatalog`, `LibrarySort`.
+- `Tests/AllSetCoreTests/WallpaperLibraryTests.swift`.
+- `docs/wallpaper-import.md`: this file.
+
+### Files changed
+- `AllSetCore`:
+  - `Wallpaper/WallpaperStore.swift`: `.library` source, catalog loading, URL resolution, reachability.
+  - `Wallpaper/AerialCatalog.swift`: games and abstract categories.
+  - `Aesthetics/ImageLibrary.swift`: `thumbnail(at:maxPixels:)`.
+  - `Widgets/WidgetTheme.swift`, `Themes/ThemeSet.swift`: switches.
+- `AllSet`:
+  - `Wallpaper/WallpaperController.swift`: `.library` playback, a shared `videoStill`, mount observers, debug player report.
+  - `Wallpaper/WallpaperPages.swift`: `LibrarySection`, `LibraryTile`, tab initialiser, aerial chip filter, hero text.
+  - `Studio/ThemePreviews.swift`: switch.
+  - `AppServices.swift`: `UIState.wallpaperTab`.
+  - `MainWindow.swift`: tab routing.
+  - `Widgets/PageCPUProbe.swift`, `Widgets/WidgetRenderHarness.swift`, `AppDelegate.swift`: DEBUG probe and render.
+
+### Existing systems reused
+- `WallpaperSource` and `WallpaperStore` (the model and its owner);
+- `WallpaperController.updatePlayback()` (all pausing);
+- `LoopingVideo` and `SharedVideoPlayers` (playback and preview);
+- `PerformancePolicy`;
+- `ImageLibrary`'s `CostCache`-backed small-copy cache and `releaseCachedPictures`;
+- `Aerial.Category` (categories);
+- the aerial page's chips and tile style;
+- `SearchMatch` (word matching);
+- the main-window release on close.
+
+No second engine, cache, player, catalog model or state system was added.
+
+### New dependencies
+- `ffmpeg`/`ffprobe` (Homebrew), **for the import script only**. The app itself uses nothing new.
+- The script runs on macOS's `/usr/bin/python3`, with no pip packages.
+
+### Remaining risks and choices
+1. **Rights.** Everything is quarantined. If any of these is ever to ship or be shared, it needs an author and a license first. Many are game or anime art, and several are re-uploads of TikTok/YouTube downloads (their file names say so).
+2. **Scene and web wallpapers (148 items) aren't supported.** Supporting them would mean re-implementing Wallpaper Engine's scene renderer and a web view wallpaper: a second engine, out of scope.
+3. **Fast scrolling hitches** (33–43 ms stalls while flinging through 1,000 cards).
+   - The measured fix (GPU-drawn cards) conflicts with the hover preview.
+   - Options: move the title and gradient into a lighter layer, or show the preview in a separate overlay window. Not done.
+4. **Scale beyond ~1,000** is untested.
+   - At 10,000 the catalog is ~9 MB of JSON, decoded off the main thread [reasoned: about 100–200 ms].
+   - Search and sort are linear on every change (fine at 10,000 [reasoned]).
+   - The grid stays lazy.
+   - The importer's first run is bound by disk read speed for hashing; reruns only re-hash changed files.
+5. **High-frame-rate originals now play at 60 fps.** That's identical on the MacBook's display, but fewer frames on a 120/144 Hz external display. The originals are untouched on the drive if you want them back.
+6. **Unplugging the drive:** a playing library wallpaper falls back to the default art until the drive returns; your choice is kept. Cards stay browsable but can't be set.
+7. **The catalog is per Mac**, in Application Support. Another Mac needs the import run there too, pointed at its own copy.

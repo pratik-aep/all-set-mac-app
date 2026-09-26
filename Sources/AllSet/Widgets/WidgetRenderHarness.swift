@@ -502,6 +502,38 @@ extension WidgetRenderHarness {
 }
 
 extension WidgetRenderHarness {
+    /// `-renderWallpaperLibrary folder`: My Videos with the imported library,
+    /// at the top and scrolled down to the library grid.
+    static func renderWallpaperLibrary(to folder: URL, services: AppServices) async {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let window = NSWindow(contentRect: NSRect(x: 80, y: 80, width: 1100, height: 900), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.contentView = NSHostingView(rootView: LiveWallpaperPage(services: services, tab: .videos).frame(width: 1100, height: 900))
+        window.orderFrontRegardless()
+        try? await Task.sleep(for: .seconds(4))
+        for (index, offset) in [0.0, 700, 1400].enumerated() {
+            if let scroll = Self.firstScrollView(in: window.contentView) {
+                scroll.contentView.scroll(to: NSPoint(x: 0, y: offset))
+                scroll.reflectScrolledClipView(scroll.contentView)
+            }
+            try? await Task.sleep(for: .seconds(3))
+            if let image = captureOwnWindow(window), let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+                try? png.write(to: folder.appendingPathComponent("library-\(index + 1).png"))
+            }
+        }
+        window.close()
+    }
+
+    static func firstScrollView(in view: NSView?) -> NSScrollView? {
+        guard let view else { return nil }
+        if let scroll = view as? NSScrollView, scroll.documentView != nil, scroll.frame.height > 300 { return scroll }
+        for child in view.subviews {
+            if let found = firstScrollView(in: child) { return found }
+        }
+        return nil
+    }
+
     /// `-renderPhotos folder`: the Photos page after a few real searches, as the window shows it.
     static func renderPhotos(to folder: URL, services: AppServices) async {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
