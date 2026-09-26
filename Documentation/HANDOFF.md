@@ -2,7 +2,7 @@
 
 **Read this first at the start of every session, instead of reviewing the codebase.** It's rewritten at the end of every session. Dated session logs are in `Documentation/Reports/` (newest last). For what the app contains (widgets, themes, pages), see `CONTENT.md`. Only open the source files that the task at hand needs.
 
-_Last updated: 2026-09-26_
+_Last updated: 2026-09-26 (evening: performance audit)_
 
 ---
 
@@ -32,7 +32,7 @@ _Last updated: 2026-09-26_
 | What | Command |
 |---|---|
 | Debug build (expect 0 warnings) | `swift build 2>&1 \| grep -c warning:` |
-| Tests (currently 193 in 61 suites) | `swift test` |
+| Tests (currently 200 in 63 suites) | `swift test` |
 | Optimised build with DEBUG tools | `swift build -c release -Xswiftc -DDEBUG --build-path .build-probe` |
 
 Run DEBUG tools as `.build-probe/release/AllSet <flag> -skip window,wallpaper,widgets,notch`.
@@ -52,6 +52,10 @@ Run DEBUG tools as `.build-probe/release/AllSet <flag> -skip window,wallpaper,wi
 | `reveal` | Theme reveal cost |
 | `windowserver` | WindowServer CPU |
 | `pages` | Page CPU (the default when no name is given) |
+| `windowclose` | Monitor viewers, CPU and footprint around opening and closing the main window (Themes page) |
+| `covered` | A widget visible vs. covered; `ENTRY=`/`SIZE=` pick it |
+| `desktopwidgets` | Each of the user's desktop widgets alone; `ONLY_KIND=`, `SECONDS=` |
+| `neon` | Neon flicker on vs. off over 60 s |
 
 **`-render<X> <folder>`** saves PNGs to look at:
 
@@ -66,6 +70,8 @@ Run DEBUG tools as `.build-probe/release/AllSet <flag> -skip window,wallpaper,wi
 | `-renderDesign` | Real-window capture of design themes |
 
 **Scratchpad helpers** (session temp directory; they may be gone): `sheetL out.jpg cols files…` makes a contact sheet (sizes from the `CW`/`CH` environment variables); `load.sh` reads WindowServer load.
+
+**Profiling:** `xctrace record --template 'Time Profiler' --attach <pid> --time-limit 60s --output x.trace`, then `xctrace export --input x.trace --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]' > x.xml`, then aggregate with `/usr/bin/python3` (the Homebrew python lacks expat) using the scratchpad `perf/agg.py`, `stacks.py` and `main.py`. The "CPU Profiler" template records nothing on this Mac; use "Time Profiler". `xctrace --launch` can leave a copy stopped at dyld (state `T`): check `ps -o stat` and kill it. `leaks <pid>`, `heap <pid>` and `footprint <pid>` work without sudo; `powermetrics` needs sudo (not available).
 
 **Measure honestly:** app CPU doesn't include Core Animation, which runs in WindowServer. The user is active while you measure, so compare interleaved A/B runs.
 
@@ -127,6 +133,10 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 - Deep links: `Support/DeepLink.swift` (`allset://open|widget|arrange|fit|theme|focus`).
 
 ## Performance lessons (don't relearn these)
+- **The main window is released on close** (`MainWindowController.windowWillClose`). A hidden SwiftUI window gets no `onDisappear`, so anything registered in `onAppear` leaks until quit. Don't reintroduce `isReleasedWhenClosed = false` with a kept reference.
+- **SwiftUI redraws covered windows.** Desktop widgets must use `WidgetTimeline` (not `TimelineView`), which pauses via `widgetIsOnScreen`. Animated SwiftUI text every second (`.contentTransition(.numericText())`) costs about 10 % CPU: use Core Animation for anything per-second.
+- **Caches are `CostCache`** (bytes plus count, LRU). Weigh images with `NSImage.decodedByteCount`. `ImageRenderer` output is 16 bits a channel: convert with `ImageLibrary.displayReady` before keeping.
+- **Power and heat limits come from `PerformancePolicy`** (`services.ui.performance`). Add new limits there, never as constants in a subsystem.
 - Anything that moves all day uses a Core Animation layer, not SwiftUI animation (5–30% CPU otherwise). Cap `preferredFrameRateRange`: 10–30 fps.
 - Don't animate SwiftUI frames or clipShape on big views: RenderBox reallocates surfaces every frame. Animate a Core Animation path instead.
 - Keep only the visible content mounted. Give grid cards exact frames; flexible nested stacks measure children many times over.
@@ -134,11 +144,14 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 - Per-second text changes use `CATextLayer` (`TickingText`), not a SwiftUI `Text` with `.contentTransition`.
 - Theme preview cache keys use a content fingerprint and `drawingVersion`: bump `drawingVersion` when preview drawing changes.
 
-## Current state (2026-09-26)
-- Everything below builds with 0 warnings and passes 193 tests, and the Dock app has been rebuilt with it.
-- **Not committed:** 36 changed files since commit `e8dc7bc`. That covers the island rework, fit to screen, search, the Mystic widgets and CONTENT.md.
+## Current state (2026-09-26, evening)
+- Branch **`perf-audit`** (not merged, not pushed): baseline commit `6022ee5` (the island, search and widget work), then the audit commits. `main` is still at `e8dc7bc`.
+- The audit log and final report are in **`docs/perf-audit.md`**. 200 tests pass, 0 warnings, and the Dock app is rebuilt from the branch.
+- For A/B: `git worktree add ../allset-baseline <commit>`, then build the probe there (removed after the audit).
 
 ## Backlog (not started unless the user asks)
+- **Needs the user's decision:** a seconds clock costs 9–12 % CPU while visible (F15 in the audit). Either move the rolling digits to Core Animation, or let the digits change without rolling.
+- Audit recommendations not done: align decorative frame rates to {10, 15, 30}; lazy calendar store; see `docs/perf-audit.md`, Phase 5.
 - Audit findings F1–F16 from the Phase 0 report are waiting for the user's "go".
 - Later waves: calendar in the notch, a brightness HUD, a menu-bar icon manager, Shortcuts/script live activities.
 - Optional: Unsplash, Pexels or Pixabay search, if the user gets an API key.

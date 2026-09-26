@@ -169,3 +169,357 @@ Legend for the "hidden" column (does it keep running when its UI is hidden, cove
 - **Wallpaper playback** is gated on many signals.
 - **Sparkline histories** are bounded at 60; clipboard history at 200, and its images are deleted when trimmed.
 - **Island animations** run in WindowServer; the 0.15 s timer runs only while the island is open.
+
+---
+
+## Phase 3: changes
+
+Each change was built, tested (200 tests pass, 0 warnings) and measured before the next. Commits on branch `perf-audit`:
+- `05899ce`: main window and memory
+- `1bed2d7`: performance policy
+- `0aaad06`: events, bounds, lifecycle, launch
+- `3e8dd6d`: covered widget timelines
+
+New DEBUG probes, for re-measuring:
+
+| Probe | Checks |
+|---|---|
+| `-probe windowclose` | viewers, CPU and footprint around opening and closing the main window |
+| `-probe covered` | a widget visible vs. covered (`ENTRY=` and `SIZE=` pick it) |
+| `-probe desktopwidgets` | each widget on your desktop alone |
+| `-probe neon` | the neon flicker's cost |
+
+### Fix 1. Main window let go on close (F1, F2)
+**File:** `Sources/AllSet/MainWindow.swift`
+
+**Problem:**
+- The window was kept (`isReleasedWhenClosed = false` plus a strong reference), and SwiftUI sends no `onDisappear` to a hidden window.
+- The default page's `monitor.setViewer("window", interval: 2)` stayed registered after closing, so detailed sampling every 2 s ran forever.
+- Everything the page had drawn stayed in memory.
+
+**Fix:** `windowWillClose` drops the content view controller and the window. `UIState.page` remembers the page, so reopening shows the same page. Closing also calls `releaseCachedPictures(keeping: 0.25)`.
+
+**Why it helps (measured, `-probe windowclose`):**
+
+| | Before | After |
+|---|---|---|
+| Viewers after close | `["window": 2.0]` | `[:]` |
+| App CPU after close | 0.89 % | 0.10 % (never opened: 0.09 %) |
+
+Reopening registers again, correctly.
+
+**Tradeoff:** reopening rebuilds the page (tens of ms). Transient view state such as scroll position resets. Search text on the Photos page is restored from `PhotoSearch.query`.
+
+### Fix 2. Picture caches limited by bytes and released when not needed (F2, F4)
+**Files:**
+- `Sources/AllSetCore/Support/CostCache.swift` (new, 3 tests)
+- `Sources/AllSetCore/Support/ImageCost.swift` (new)
+- `Sources/AllSetCore/Aesthetics/ImageLibrary.swift`
+- `Sources/AllSet/Studio/ThemePreviews.swift`
+- `Sources/AllSet/Components/LiveLayers.swift` (`ArtworkCache`)
+- `Sources/AllSet/AppServices.swift`
+
+**Problem:**
+- The caches were bounded by count only (40 photos, 80 small copies, 60 artworks) and cleared everything at once when full.
+- Theme previews were never evicted, and stored at 16 bits a channel (`ImageRenderer`'s output): 7 MB each [measured: 1136×768, 9088 bytes per row].
+- Nothing listened for memory pressure.
+
+**Fix:**
+- A least-recently-used cache bounded by bytes and count. Limits: photos 160 MB/40, small copies 96 MB/120, artworks 64 MB/60, previews 48 MB beyond the cards on screen (which always keep theirs), photo search 200 pages.
+- Previews and artwork are stored as 8-bit screen-format pixels (`ImageLibrary.displayReady`).
+- `releaseCachedPictures` runs when the main window closes (down to 25 %) and on a `DispatchSource` memory-pressure warning (50 %) or critical event (0).
+- A purge cancels queued preview work and ignores results that land afterwards (generation counter).
+
+**Why it helps (measured, `-probe windowclose`, Themes page open 12 s):**
+
+| Footprint | Before | After |
+|---|---|---|
+| Opening the page | 69 → 333–351 MB | 71 → 77–79 MB |
+| After closing | 327–351 MB (nothing released) | 67–70 MB (every cache empty) |
+
+**Tradeoff:**
+- Scrolling back to a preview that was evicted reloads it from disk, a few ms off the main thread.
+- 8-bit previews lose 16-bit precision the screen can't show; checked visually with `-renderThemeSets`.
+
+**Regression found and fixed while verifying:** the first version evicted previews of cards still on screen, which then showed spinners. The cache now tracks visible cards (`showing`) and never evicts theirs. Re-verified: every card loads.
+
+### Fix 3. One `PerformancePolicy` for power and heat (F5)
+**Files:**
+- `Sources/AllSetCore/Support/PerformancePolicy.swift` (new, 4 tests)
+- `Sources/AllSet/AppServices.swift`
+- `Wallpaper/WallpaperController.swift`, `Widgets/WidgetHostView.swift`, `Clipboard/ClipboardMonitor.swift`
+- `Design/WidgetComponents.swift` and five network widgets
+
+**Problem:** `EnergyMode` knew Low Power, Reduce Motion and battery, but not `thermalState`. Limits were constants in each subsystem, and network refresh never slowed down.
+
+**Fix:** one struct decides a tier (full / balanced / saver / minimal) from all four signals, and every consumer reads its limits from it:
+- decorative motion
+- art and video frame rate
+- idle and minimum stats interval
+- clipboard pace
+- network refresh scale (`widgetRefreshScale`)
+
+It observes `ProcessInfo.thermalStateDidChangeNotification`.
+
+**Why it helps:** a hot fanless Mac now sheds decorative animation and background work, as Low Power Mode already did. Network widgets wait 2–4× longer in the saver tiers. [Reasoned; unit-tested tier table. Not measured under real thermal pressure, since I couldn't make the Mac hot on demand.]
+
+**Tradeoff (behaviour change, deliberate):**
+- At `serious` or `critical` thermal state, decorative motion pauses, as it already did in Low Power Mode.
+- At `fair`, limits drop to the battery tier.
+- Battery and Low Power behaviour is identical to before (tested).
+
+### Fix 4. The system monitor idles on cheap readings only (F3)
+**File:** `Sources/AllSetCore/System/SystemMonitor.swift`
+
+**Problem:** with no viewer, every 10th idle tick (30 s) did the full detailed pass: every process, disk capacity, IOKit temperatures, battery registry.
+
+**Fix:** idle ticks take quick samples only, at the policy's pace. The detailed pass runs immediately when any viewer appears (existing `setViewer` behaviour), so nothing on screen shows stale detail.
+
+**Why it helps (measured, idle app with no windows):** 0.09–0.11 % → **0.03–0.04 %** CPU (two runs each).
+
+**Tradeoff:** the menu-bar readout shows only CPU, which is still sampled. Temperatures and per-app energy aren't refreshed until something shows them, and nothing idle does.
+
+### Fix 5. Calendar: events instead of a 5-minute loop (F10)
+**File:** `Sources/AllSetCore/Calendar/CalendarService.swift`
+
+**Problem:** a `Task` loop refetched every 300 s, forever.
+
+**Fix:** refresh on:
+- `EKEventStoreChanged` (as before);
+- `NSCalendarDayChanged` and `NSWorkspace.didWakeNotification`;
+- a single timer set for the moment the soonest event ends.
+
+**Why it helps:** no periodic work, and ended events now leave the list on time (they could linger up to 5 min before). [Reasoned]
+
+**Tradeoff:** none known. Relative labels ("in 10 min") are computed by the views as they draw.
+
+### Fix 6. Covered widgets stop their timelines (F14, confirmed)
+**Files:** `Sources/AllSet/Widgets/Design/WidgetComponents.swift` (`WidgetTimeline`, `PausableSchedule`), and all 24 `TimelineView`s in `Widgets/Kinds/*`.
+
+**Problem:** SwiftUI keeps redrawing a window nobody can see. Measured with `-probe covered`: a digital clock showing seconds cost 12.6 % CPU visible and **12.7 % fully covered**.
+
+**Fix:** widget timelines use a schedule that yields no further dates while `widgetIsOnScreen` is false (desktop windows set it from occlusion). When uncovered, it starts again from the current time.
+
+**Why it helps (measured):**
+
+| Clock with seconds, covered | Before | After |
+|---|---|---|
+| Small | 9.9 % | **0.034 %** |
+| Medium | 12.7 % | **0.036 %** |
+
+The same mechanism applies to every ticking widget: clocks, calendar, focus, daylight, mystic and others.
+
+**Tradeoff:** none visible. A covered widget is behind a window.
+
+### Fix 7. Screenshot editor keeps 24 versions (F6)
+**File:** `Sources/AllSet/Screenshot/ScreenshotStudio.swift`
+
+**Problem:** one full-size picture (about 60 MB for a 5K screenshot) per edit, with no limit.
+
+**Fix:** keeps the original plus the last 24 versions; the oldest edits drop first.
+
+**Tradeoff (behaviour change):** undo reaches 24 steps back, not unlimited. The original is always kept.
+
+### Fix 8. Lifecycle fixes (F9, F13)
+**Files:** `Sources/AllSet/Notch/IslandView.swift`, `Sources/AllSet/Mixer/MixerController.swift`
+
+**Problem:**
+- `IslandView.watch` captured its model strongly inside a closure stored in the model's own registrar, so the warm-up's throwaway island was never freed (`leaks`: ROOT CYCLE `NotchViewModel`).
+- The mixer discarded an observer token.
+
+**Fix:** capture the model weakly; keep the token and remove it in `stop()`.
+
+**Why it helps (measured):** `leaks` on the rebuilt app after warm-up: **0 leaks, no cycles** (before: 38 leaks, 1 cycle).
+
+### Fix 9. Wallpaper work only when it matters (F7, launch)
+**File:** `Sources/AllSet/Wallpaper/WallpaperController.swift`
+
+**Problem:**
+- The 2 s coverage check ran even for a still photo, which has nothing to pause.
+- Every launch re-rendered the art still, encoded a PNG and set it as the system wallpaper, even when nothing had changed.
+
+**Fix:**
+- Coverage checks run only when the source can move (art, video, drifting photo).
+- The still's source and path are remembered; when every screen already shows that still, launch skips the work.
+
+**Why it helps (measured, xctrace launch profiles, first 15 s):** `WallpaperController.writePNG` (105–113 ms) disappears. Launch CPU 1.71 s → **1.59 s** (1.96 s on the launch that wrote a fresh still).
+
+### Fix 10. Island warm-up after the launch burst
+**File:** `Sources/AllSet/Notch/NotchController.swift`
+
+**Change:** warm-up at +6 s instead of +2 s, so its ~125 ms doesn't compete with launch.
+
+### Not changed, with reasons
+- **Clipboard polling:** there's no public macOS clipboard-change event, and one check costs 0.01 % [measured]. The pace now comes from the policy.
+- **Now Playing 10 s safety poll:** it catches players that don't post notifications [measured 2.2 s CPU in 12 h].
+- **Neon flicker (F8):** the flicker costs nothing measurable. `-probe neon`: 0.120 % with flicker vs 0.131 % without over 60 s, within noise. **Correction to F8:** the CPU blur in the 12-hour profile did not come from the neon flicker. The most likely source was the retained main window (F1) still animating its island preview, whose shadows blur on the CPU; that window is now released. [Reasoned; the rebuilt app's idle profile in Phase 4 checks it.]
+- **Per-widget costs:** `-probe desktopwidgets` measured each of the 11 desktop widgets alone for 20 s. All were within about 0.5 % of an empty window, and a profile of the flip clock showed its own work is negligible (the rest was the probe's stats sampling).
+
+### New finding while fixing: F15, a visible clock with seconds costs 9–12 % CPU (HIGH, not fixed)
+- **Measured:** `-probe covered` showed 9.5 % (small) and 12.3 % (medium) visible, with the seconds option on.
+- **Cause:**
+  - `TimeLabel` animates the digits every second with `.contentTransition(.numericText())` and `Motion.standard`.
+  - The medium clock's `AnalogFace` gives its hands a bouncy spring every second.
+  - Each animation redraws the card's layers on the CPU for about a third of every second (profile: `CA::Transaction::commit` → CGDrawingLayer, `argb32_image_mark`, `vSepConvolve`).
+- **Tried:** `.drawingGroup()` only reached 8.6 %; reverted.
+- **Why not fixed:** a proper fix moves the rolling digits into Core Animation (CATextLayers with a push transition, as `TickingText` does for the stopwatch). But those layers would have to reproduce every design theme's typography (design, width, custom fonts) and ink colour. The simpler alternative, digits that change without rolling, changes how the clock looks. This needs your decision (see Phase 5).
+- **Exposure:** seconds are off by default, and your desktop's flip clock doesn't show them. Covered, it now costs nothing (Fix 6).
+
+---
+
+## Phase 4: combined workload
+
+### What was run
+**Scenario:** your 11 desktop widgets and your wallpaper, the island held open on the System tab (live stats every second), clipboard monitoring and the mixer's Core Audio listeners. Main window skipped.
+
+**Method:** the audit's starting code (`20b4b70`, in a separate worktree) vs. the current branch, interleaved baseline / new / baseline / new. 30 s to settle, then 60 s measured with `ps` (app and WindowServer CPU time) plus `footprint`. Script: `scratchpad/perf/combined.sh`.
+
+| Round | Build | App CPU | WindowServer | Footprint |
+|---|---|---|---|---|
+| 1 | baseline | 5.48 % | 27.7 % | 75 MB |
+| 1 | new | 1.88 % | 9.2 % | 74 MB |
+| 2 | baseline | 2.75 % | 15.7 % | 75 MB |
+| 2 | new | 2.77 % | 15.7 % | 77 MB |
+
+**Reading, honestly:** round 2 is identical, and round 1's gap is almost certainly your activity during the run. WindowServer swung between 9 % and 28 % between rounds, which is what it does while you're working. **Under full visible load the two builds cost the same.**
+- That's expected: this scenario keeps everything visible and open, the one state the fixes deliberately leave alone (no feature is degraded).
+- The savings are in the hidden, closed, covered and idle states, measured individually in Phase 3.
+- **No regression.** [measured]
+
+### The real Dock app after the fixes [measured]
+
+**Idle, 60 s, 11 visible widgets, window closed:** 0.66 % CPU, the same total as the baseline. The mix changed:
+- The detailed stats pass (disk capacity, temperatures, process walk) no longer appears.
+- `RB::CGContext::apply_blur` shows up in 1 sample (baseline: dozens).
+- What remains is your visible widgets' own work: the terminal and system widgets redrawing with stats every 2 s, and the neon sign. It's live data you can see.
+
+**Main window on Themes, then closed, with previews already on disk:**
+
+| | Footprint | Peak |
+|---|---|---|
+| After launch | 101 MB | 278 MB |
+| On Themes | 114 MB | 278 MB |
+| After closing | 105 MB | 278 MB |
+
+**When previews had to be drawn from scratch** (a first visit): 104 → 287 MB on Themes and 214 MB after closing, with a **peak of 738 MB**. The live heap after closing was 142 MB, much of it pictures the caches deliberately keep at 25 %. The rest is allocator high-water that isn't returned right away. See Remaining risks.
+
+### Combination effects [reasoned]
+
+**Concurrent decorative animations use mismatched frame rates.**
+- Core Animation loops request 10, 12, 20, 24 or 30 fps, and art runs at 24 (15 on battery).
+- On a 60 Hz display, WindowServer has to composite on the union of their frame times. For example, 20 and 30 fps together is 40 distinct frames a second, where aligned rates (10, 15, 30, all dividing 30) would need at most 30.
+- This only matters when several different animated widgets are visible at once.
+- **Not changed:** the benefit sits well below WindowServer's ±5 % noise on this Mac, so I couldn't verify it, and changing rates alters how the motion looks. The one-line fix is in the recommendations.
+
+**Sleep and wake:**
+- Wallpaper, TapTap and (new) calendar react to sleep, wake and lock notifications.
+- The system monitor's loop resumes with one overdue sample; nothing piles up (one `Task`, no queued timers).
+- After wake, visible widgets' refresh tasks, the calendar refresh and a stats sample coincide in one short burst. That's acceptable, not a loop.
+
+**Displays connecting or disconnecting:**
+- The wallpaper creates or closes a window per screen (`sync()`) and removes that window's occlusion observer. Video players are shared per file and torn down when their last viewer goes (`SharedVideoPlayers.release`).
+- Desktop widgets and the island re-lay out on `didChangeScreenParameters`.
+- I couldn't physically attach a display during the audit; this is from reading the code.
+
+**Everything visible and hot at once:** the new `PerformancePolicy` makes every subsystem slow down together when the Mac reports `serious` heat, rather than each one keeping its own pace.
+
+---
+
+## Phase 5: final report
+
+### Findings by severity (details and evidence in Phase 2 and Phase 3)
+
+| # | Severity | Finding | Status |
+|---|---|---|---|
+| F1 | CRITICAL | A closed main window kept its pages alive; its stats request kept the monitor sampling every 2 s forever (0.09 % → 0.89 % CPU) | **fixed**: 0.10 % after close |
+| F2 | CRITICAL | Memory built up by the window was never returned (Themes page: +264 MB, kept) | **fixed**: +7 MB, released on close |
+| F14 | CRITICAL (was NEEDS VERIFICATION; confirmed in Phase 3) | Covered widgets kept redrawing; a seconds clock cost 12.7 % while hidden | **fixed**: 0.04 % |
+| F3 | HIGH | Idle system monitor did a detailed pass every 30 s with no viewer | **fixed**: idle 0.09–0.11 % → 0.03–0.04 % |
+| F4 | HIGH | Image caches bounded by count, not bytes; no memory-pressure response | **fixed** |
+| F5 | HIGH | No central policy; thermal state ignored | **fixed** (`PerformancePolicy`) |
+| F15 | HIGH | A *visible* clock with seconds costs 9–12 % (per-second SwiftUI digit animation) | **not fixed**: needs your decision |
+| F6 | MEDIUM | Screenshot undo history unbounded | **fixed**: 24 versions plus the original |
+| F7 | MEDIUM | Wallpaper coverage timer ran for still photos | **fixed** |
+| F8 | MEDIUM → withdrawn | Neon flicker blur | **measured as nothing** (0.120 % vs 0.131 %); the blur came from the retained window (F1) |
+| F9 | LOW | Island warm-up retain cycle | **fixed** (leaks: 0) |
+| F10 | LOW | Calendar polled every 5 min | **fixed**: event-driven |
+| F11 | LOW | Now Playing 10 s safety poll | kept (2.2 s CPU in 12 h) |
+| F12 | LOW | Search page cache unbounded | **fixed**: 200 pages |
+| F13 | LOW | Mixer observer token discarded | **fixed** |
+| — | LOW | System wallpaper still rewritten every launch | **fixed** (launch 1.71 → 1.59 s CPU) |
+
+### Changes made
+All ten are listed in Phase 3 with file, problem, fix, why it helps and tradeoff.
+
+**Files touched:**
+- `MainWindow.swift`, `AppServices.swift`, `Components/LiveLayers.swift`, `Studio/ThemePreviews.swift`
+- `AllSetCore/Aesthetics/ImageLibrary.swift`, `AllSetCore/Aesthetics/PhotoSearch.swift`
+- `AllSetCore/Support/{CostCache, ImageCost, PerformancePolicy}.swift` (new)
+- `AllSetCore/System/SystemMonitor.swift`, `AllSetCore/Calendar/CalendarService.swift`
+- `Wallpaper/WallpaperController.swift`, `Widgets/WidgetHostView.swift`, `Clipboard/ClipboardMonitor.swift`
+- `Widgets/Design/WidgetComponents.swift`, 24 `TimelineView` sites in `Widgets/Kinds/*`, five network widgets
+- `Screenshot/ScreenshotStudio.swift`, `Notch/IslandView.swift`, `Notch/NotchController.swift`, `Mixer/MixerController.swift`
+- New tests: `CostCacheTests`, `PerformancePolicyTests` (200 tests total).
+
+### Verified vs. estimated
+
+**Measured** (profiler, OS counters, or the app's own probes, on this Mac):
+- the F1 CPU numbers;
+- the Themes footprint before and after;
+- idle CPU of the monitor;
+- covered vs. visible clocks;
+- the neon flicker's cost;
+- leaks before (38 / 4 KB, 1 cycle) and after (0);
+- launch CPU;
+- idle profile of the real app before and after;
+- the combined-load A/B (no difference, within noise);
+- the WindowServer A/B at baseline.
+
+**Reasoned, not measured:**
+- the thermal tiers (I couldn't make the Mac hot on demand);
+- the calendar change;
+- the network refresh slowdown;
+- sleep/wake and display-change behaviour;
+- the frame-rate alignment effect;
+- the preview memory per card (read from bytes per row, then confirmed through the footprint numbers).
+
+**Not available:**
+- power-rail numbers (`powermetrics` needs sudo);
+- per-app WindowServer attribution (only by quit/relaunch A/B, which is noisy while you use the Mac).
+
+**Multi-day stability:** not measured over days. Measured instead:
+- the 12 h baseline (106 → 533 MB, peak 790 MB);
+- the mechanisms behind it (retained window, unbounded caches), both fixed and verified with open/close cycles.
+
+A 24-hour run of the new build with `footprint` sampled hourly would confirm the trend.
+
+### Remaining risks and recommendations
+
+1. **F15, clock with seconds, visible: 9–12 % CPU. Your decision.** Options:
+   - (a) Move the rolling digits to Core Animation. This keeps the look, but the layer has to reproduce every design theme's typography and colour; about a day's work.
+   - (b) Let the seconds change without rolling, keeping the roll for minutes. That costs almost nothing, but it's a visible change.
+2. **Theme previews drawn from scratch spike memory** (peak 738 MB on a first Themes visit; about 110 MB of allocator high-water stays afterwards).
+   - **Cause:** drawing a preview renders a whole desktop of widgets with full-size photos at 16 bits a channel.
+   - **Suggested fix:** render previews with photos loaded at preview size (the `ImageLibrary.image(for:maxPixels:)` path) and hand them to the renderer already 8-bit.
+   - Needs care to keep previews looking identical; not done.
+3. **Launch spikes to 278 MB** while the main window, 11 widget windows and the wallpaper are built together.
+   - It's transient and drops to about 100 MB.
+   - Staggering widget windows further, or not opening the main window at login, would lower it. The second is a behaviour choice.
+4. **Frame-rate alignment** (Phase 4): snap `LiveLayerView.rate(_:)` to {10, 15, 30} and keep art at 15 or 30. Unverified benefit; motion looks slightly different.
+5. **Visible widgets' live stats** redraw their SwiftUI cards on every sample (terminal and system widgets every 2 s: the remaining idle main-thread cost, about 0.3 %). Moving live numbers to Core Animation text would cut it; it's the same design question as F15.
+6. **Calendar store** (`EKEventStore`) is created at launch even without calendar widgets. It's cheap and didn't show in launch profiles; lazy creation is possible.
+7. **The `observe()` helper** captures objects strongly by design. That's safe for app-lifetime objects, but any new short-lived object watched this way will leak (F9 was one). Prefer `[weak …]` captures.
+
+### What was not changed
+- **No feature was removed** and no setting was taken away.
+- **Visual design is unchanged:**
+  - previews and artwork are now 8-bit but look the same (checked with `-renderThemeSets`);
+  - covered widgets pause, which nobody can see;
+  - uncovered, they resume on the current time.
+- **Behaviour changes, deliberate and listed:**
+  1. **Undo depth:** the screenshot editor keeps 24 versions plus the original.
+  2. **Hot-Mac motion:** decorative motion pauses and limits tighten when the Mac is hot, as they already did in Low Power Mode.
+  3. **Slower network refresh:** network widgets refresh 2–4× less often in Low Power Mode or when hot.
+  4. **Reopened window:** the main window rebuilds when reopened (same page; transient state like scroll position resets).
+  5. **Idle stats:** temperatures and per-app energy refresh only when something shows them.
+- **Kept on purpose:** the island animations, clipboard polling, the Now Playing safety poll, and all animation frame rates in the full tier.
