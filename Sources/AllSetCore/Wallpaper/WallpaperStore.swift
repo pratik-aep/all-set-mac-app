@@ -178,7 +178,8 @@ public final class WallpaperStore {
             let copy = libraryDirectory.appendingPathComponent(playback)
             if FileManager.default.fileExists(atPath: copy.path) { return copy }
         }
-        guard let root = libraryRoots[video.root], reachableRoots.contains(video.root) else { return nil }
+        // A still only exists as its extracted copy (the original is a scene package).
+        guard video.kind == .video, let root = libraryRoots[video.root], reachableRoots.contains(video.root) else { return nil }
         let url = URL(fileURLWithPath: root.path).appendingPathComponent(video.file)
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
@@ -187,7 +188,9 @@ public final class WallpaperStore {
     /// is known to exist, or its drive is connected. For drawing many cards
     /// (a file check per card on a USB drive stalls scrolling).
     public func canPlay(_ video: LibraryVideo) -> Bool {
-        (video.playback != nil && libraryCopies.contains(video.id)) || reachableRoots.contains(video.root)
+        if libraryCopies.contains(video.id) { return true }
+        // A still exists only as its extracted copy.
+        return video.kind == .video && reachableRoots.contains(video.root)
     }
 
     public func libraryThumbnailURL(_ video: LibraryVideo) -> URL? {

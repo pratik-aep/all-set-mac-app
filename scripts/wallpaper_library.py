@@ -18,6 +18,7 @@ file content, so a rerun updates entries instead of adding new ones.
 """
 
 import argparse
+import collections
 import datetime
 import hashlib
 import json
@@ -251,6 +252,296 @@ def report(summary):
         print(f"invalid: {row['path']}: {row.get('problem')}")
 
 
+# MARK: Wallpaper Engine scenes
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def wetex_tool(library):
+    """The texture decoder (scripts/wetex.swift), compiled once into the library."""
+    source = os.path.join(HERE, "wetex.swift")
+    binary = os.path.join(library, "bin", "wetex")
+    if not os.path.exists(binary) or os.path.getmtime(binary) < os.path.getmtime(source):
+        os.makedirs(os.path.dirname(binary), exist_ok=True)
+        result = subprocess.run(["xcrun", "swiftc", "-O", source, "-o", binary], capture_output=True, text=True)
+        if result.returncode != 0:
+            sys.exit(f"couldn't compile wetex.swift:\n{result.stderr[:500]}")
+    return binary
+
+
+class Package:
+    """Files of a Wallpaper Engine scene: a scene.pkg archive, or loose files in the folder."""
+
+    def __init__(self, folder, name):
+        import struct
+        self.folder, self.entries, self.path = folder, {}, os.path.join(folder, name)
+        if os.path.isfile(self.path):
+            with open(self.path, "rb") as handle:
+                def text():
+                    count = struct.unpack("<i", handle.read(4))[0]
+                    return handle.read(count).decode("utf-8", "replace")
+                text()
+                count = struct.unpack("<i", handle.read(4))[0]
+                raw = []
+                for _ in range(count):
+                    entry = text()
+                    offset, length = struct.unpack("<ii", handle.read(8))
+                    raw.append((entry, offset, length))
+                base = handle.tell()
+            self.entries = {entry: (base + offset, length) for entry, offset, length in raw}
+
+    def has(self, name):
+        return name in self.entries or os.path.isfile(os.path.join(self.folder, name))
+
+    def read(self, name):
+        if name in self.entries:
+            offset, length = self.entries[name]
+            with open(self.path, "rb") as handle:
+                handle.seek(offset)
+                return handle.read(length)
+        with open(os.path.join(self.folder, name), "rb") as handle:
+            return handle.read()
+
+    def json(self, name):
+        try:
+            return json.loads(self.read(name).decode("utf-8-sig", "replace"))
+        except (OSError, KeyError, json.JSONDecodeError, UnicodeDecodeError):
+            return None
+
+
+def value(field, default=None):
+    """Scene values are plain, or {"user": …, "value": …} when bound to a setting."""
+    if isinstance(field, dict):
+        field = field.get("value", default)
+    return default if field is None else field
+
+
+def vector(field, default):
+    field = value(field)
+    if isinstance(field, str):
+        try:
+            parts = [float(p) for p in field.split()]
+            return parts + default[len(parts):]
+        except ValueError:
+            return default
+    if isinstance(field, (int, float)):
+        return [float(field)] * len(default)
+    return default
+
+
+def decode_texture(package, name, work, wetex, frames=False):
+    """A scene texture as a picture file (or frames, or an MP4), via wetex."""
+    path = f"materials/{name}.tex"
+    if not package.has(path):
+        return None
+    source = os.path.join(work, hashlib.sha1(path.encode()).hexdigest()[:12] + ".tex")
+    with open(source, "wb") as handle:
+        handle.write(package.read(path))
+    command = [wetex, source, source[:-4] + ("-frames" if frames else "")] + (["--frames"] if frames else [])
+    result = subprocess.run(command, capture_output=True, text=True)
+    try:
+        info = json.loads(result.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError):
+        return None
+    return None if "error" in info else info
+
+
+def scene_layers(package, scene, work, wetex):
+    """The picture layers of a scene, bottom first, in scene coordinates (y up)."""
+    objects = scene.get("objects") or []
+    by_id = {o.get("id"): o for o in objects if isinstance(o, dict)}
+    layers, skipped = [], collections.Counter()
+
+    def transform(obj, depth=0):
+        origin = vector(obj.get("origin"), [0.0, 0.0, 0.0])
+        scale = vector(obj.get("scale"), [1.0, 1.0, 1.0])
+        parent = by_id.get(obj.get("parent"))
+        if parent is not None and depth < 8:
+            (px, py), (sx, sy) = transform(parent, depth + 1)
+            return (px + origin[0] * sx, py + origin[1] * sy), (scale[0] * sx, scale[1] * sy)
+        return (origin[0], origin[1]), (scale[0], scale[1])
+
+    for obj in objects:
+        if not isinstance(obj, dict):
+            continue
+        kind = next((k for k in ("image", "particle", "text", "sound", "light", "model") if k in obj), "other")
+        if kind != "image" or not isinstance(obj.get("image"), str):
+            skipped[kind] += 1
+            continue
+        if not value(obj.get("visible"), True) or float(value(obj.get("alpha"), 1.0) or 0) <= 0.01:
+            skipped["hidden"] += 1
+            continue
+        model = package.json(obj["image"]) or {}
+        # A solid colour layer under every picture is the background the artwork
+        # sits on. Anywhere else, or carrying effects, it's a mask or a tint
+        # that only makes sense with the effects drawn, so it's left out.
+        if obj["image"].endswith("util/solidlayer.json"):
+            size = vector(obj.get("size"), [0.0, 0.0])
+            (x, y), (sx, sy) = transform(obj)
+            if not layers and not obj.get("effects") and size[0] * abs(sx) >= 1 and size[1] * abs(sy) >= 1:
+                rgb = vector(obj.get("color"), [1.0, 1.0, 1.0])
+                layers.append({"color": "".join(f"{max(0, min(255, int(c * 255))):02x}" for c in rgb[:3]),
+                               "x": x, "y": y, "width": size[0] * abs(sx), "height": size[1] * abs(sy),
+                               "flipX": False, "flipY": False, "angle": vector(obj.get("angles"), [0.0, 0.0, 0.0])[2],
+                               "alpha": float(value(obj.get("alpha"), 1.0) or 1.0), "animated": False, "pixels": 0})
+            continue
+        if model.get("fullscreen") or "util/" in obj["image"]:
+            skipped["effect layer"] += 1
+            continue
+        material = package.json(model.get("material", "")) or {}
+        passes = material.get("passes") or [{}]
+        textures = passes[0].get("textures") or []
+        texture = textures[0] if textures else None
+        if not isinstance(texture, str) or texture.startswith("_rt_") or texture.startswith("util/"):
+            skipped["no picture"] += 1
+            continue
+        info = decode_texture(package, texture, work, wetex)
+        if not info or info.get("kind") != "image":
+            skipped["undecodable"] += 1
+            continue
+        size = vector(obj.get("size"), [float(model.get("width") or info["width"]), float(model.get("height") or info["height"])])
+        (x, y), (sx, sy) = transform(obj)
+        if size[0] * abs(sx) < 1 or size[1] * abs(sy) < 1:
+            skipped["zero size"] += 1
+            continue
+        layers.append({"file": info["file"], "x": x, "y": y, "width": size[0] * abs(sx), "height": size[1] * abs(sy),
+                       "flipX": sx < 0, "flipY": sy < 0, "angle": vector(obj.get("angles"), [0.0, 0.0, 0.0])[2],
+                       "alpha": float(value(obj.get("alpha"), 1.0) or 1.0), "animated": info.get("animated", False),
+                       "pixels": info["width"] * info["height"]})
+    return layers, skipped
+
+
+def compose(layers, canvas, clear, output, long_side=3840):
+    """Draws the layers onto the canvas with ffmpeg, scaled to at most `long_side`."""
+    width, height = canvas
+    factor = min(1.0, long_side / max(width, height))
+    W, H = max(2, int(width * factor) // 2 * 2), max(2, int(height * factor) // 2 * 2)
+    inputs = ["-f", "lavfi", "-i", f"color=c=0x{clear}:s={W}x{H}:d=1"]
+    chains, last = [], "0:v"
+    for index, layer in enumerate(layers, 1):
+        w, h = max(2, int(layer["width"] * factor)), max(2, int(layer["height"] * factor))
+        filters = [f"scale={w}:{h}", "format=rgba"]
+        if layer["flipX"]:
+            filters.append("hflip")
+        if layer["flipY"]:
+            filters.append("vflip")
+        if abs(layer["angle"]) > 0.01:
+            filters.append(f"rotate={-layer['angle']}:c=none:ow=rotw({-layer['angle']}):oh=roth({-layer['angle']})")
+        if layer["alpha"] < 0.999:
+            filters.append(f"colorchannelmixer=aa={layer['alpha']:.3f}")
+        if "color" in layer:
+            inputs += ["-f", "lavfi", "-i", f"color=c=0x{layer['color']}:s={w}x{h}:d=1"]
+        else:
+            inputs += ["-i", layer["file"]]
+        chains.append(f"[{index}:v]{','.join(filters)}[l{index}]")
+        # Scene y points up from the bottom; images are placed by their centre.
+        x = f"{layer['x'] * factor:.1f}-overlay_w/2"
+        y = f"{H - layer['y'] * factor:.1f}-overlay_h/2"
+        chains.append(f"[{last}][l{index}]overlay=x={x}:y={y}:format=auto[b{index}]")
+        last = f"b{index}"
+    graph = ";".join(chains) if chains else "[0:v]null[b0]"
+    command = [FFMPEG, "-v", "error", "-y"] + inputs + ["-filter_complex", graph, "-map", f"[{last if chains else 'b0'}]",
+                                                         "-frames:v", "1", "-q:v", "2", output]
+    result = subprocess.run(command, capture_output=True, text=True)
+    return None if result.returncode == 0 and os.path.exists(output) else (result.stderr.strip()[-300:] or "ffmpeg failed")
+
+
+def preview_hash(folder, project):
+    """The Workshop preview's difference hash, to check a composed still against."""
+    preview = os.path.join(folder, project.get("preview") or "preview.jpg")
+    for candidate in (preview, os.path.join(folder, "preview.jpg"), os.path.join(folder, "preview.gif")):
+        if os.path.isfile(candidate):
+            return dhash(candidate)
+    return None
+
+
+def gif_video(package, texture, work, wetex, output):
+    """A GIF scene's frames as a looping H.264 video, pixels kept sharp when scaled up."""
+    info = decode_texture(package, texture, work, wetex, frames=True)
+    if not info or info.get("kind") != "frames" or not info.get("count"):
+        return "no frames"
+    listing = os.path.join(info["dir"], "frames.txt")
+    with open(listing, "w") as handle:
+        for index, duration in enumerate(info["times"], 1):
+            handle.write(f"file 'frame-{index:04d}.png'\nduration {max(duration, 0.02):.3f}\n")
+        handle.write(f"file 'frame-{len(info['times']):04d}.png'\n")
+    first = os.path.join(info["dir"], "frame-0001.png")
+    result = subprocess.run([FFPROBE, "-v", "error", "-select_streams", "v", "-show_entries", "stream=width,height", "-of", "csv=p=0", first],
+                            capture_output=True, text=True)
+    try:
+        w, h = [int(v) for v in result.stdout.strip().split(",")[:2]]
+    except ValueError:
+        return "unreadable frames"
+    factor = max(1, int(2160 / h))
+    result = subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", listing,
+                             "-vf", f"scale={w * factor}:{h * factor}:flags=neighbor,format=yuv420p,fps=30",
+                             "-c:v", "h264_videotoolbox", "-b:v", "12M", "-movflags", "+faststart", output],
+                            capture_output=True, text=True)
+    return None if result.returncode == 0 else result.stderr.strip()[-300:]
+
+
+def import_scene(folder, project, library, wetex, item_id):
+    """A still (or, for GIF scenes and video textures, a video) for one scene.
+    Returns (entry fields, problem)."""
+    import tempfile
+    file_name = project.get("file") or "scene.json"
+    package = Package(folder, os.path.splitext(file_name)[0] + ".pkg")
+    scene = package.json(file_name)
+    if scene is None:
+        return None, "no scene description"
+    general = scene.get("general") or {}
+    projection = general.get("orthogonalprojection") or {}
+    canvas = (int(projection.get("width") or 0), int(projection.get("height") or 0))
+    clear_rgb = vector(general.get("clearcolor"), [0.0, 0.0, 0.0])
+    clear = "".join(f"{max(0, min(255, int(c * 255))):02x}" for c in clear_rgb[:3])
+    with tempfile.TemporaryDirectory() as work:
+        # A video texture inside: that's the wallpaper. The biggest one, since
+        # smaller ones are masks and overlays for it.
+        videos = []
+        for name in [n for n in package.entries if n.endswith(".tex")]:
+            info = decode_texture(package, name[len("materials/"):-4], work, wetex) if name.startswith("materials/") else None
+            if info and info.get("kind") == "mp4":
+                videos.append((os.path.getsize(info["file"]), info["file"]))
+        if videos:
+            output = os.path.join(library, "extracted", f"{item_id}.mp4")
+            os.makedirs(os.path.dirname(output), exist_ok=True)
+            shutil.copyfile(max(videos)[1], output)
+            return {"kind": "video", "playback": f"extracted/{item_id}.mp4", "source": "video texture"}, None
+        layers, skipped = scene_layers(package, scene, work, wetex)
+        pictures = [layer for layer in layers if "file" in layer]
+        if file_name.startswith("gifscene") or (len(pictures) == 1 and pictures[0]["animated"]):
+            obj = next((o for o in scene.get("objects", []) if isinstance(o, dict) and isinstance(o.get("image"), str)
+                        and "util/" not in o["image"]), None)
+            model = package.json(obj["image"]) if obj else {}
+            material = package.json((model or {}).get("material", "")) or {}
+            texture = ((material.get("passes") or [{}])[0].get("textures") or [None])[0]
+            output = os.path.join(library, "extracted", f"{item_id}.mp4")
+            os.makedirs(os.path.dirname(output), exist_ok=True)
+            problem = gif_video(package, texture, work, wetex, output) if texture else "no texture"
+            if problem:
+                return None, f"GIF scene: {problem}"
+            return {"kind": "video", "playback": f"extracted/{item_id}.mp4", "source": "gif frames"}, None
+        # Sprite sheets drawn whole would show every frame at once.
+        layers = [layer for layer in layers if not layer["animated"]]
+        if not any("file" in layer for layer in layers):
+            return None, "nothing drawable (" + ", ".join(f"{k} {v}" for k, v in skipped.items()) + ")"
+        if canvas[0] < 2 or canvas[1] < 2:
+            biggest = max(layers, key=lambda l: l["width"] * l["height"])
+            canvas = (max(2, int(biggest["width"])), max(2, int(biggest["height"])))
+        output = os.path.join(library, "stills", f"{item_id}.jpg")
+        os.makedirs(os.path.dirname(output), exist_ok=True)
+        problem = compose(layers, canvas, clear, output)
+        if problem:
+            return None, f"couldn't compose: {problem}"
+        reference = preview_hash(folder, project)
+        composed = dhash(output, square=True)
+        distance = bin(reference ^ composed).count("1") if reference is not None and composed is not None else None
+        factor = min(1.0, 3840 / max(canvas))
+        return {"kind": "image", "playback": f"stills/{item_id}.jpg", "source": "composed layers",
+                "layers": len(layers), "previewDistance": distance,
+                "width": int(canvas[0] * factor) // 2 * 2, "height": int(canvas[1] * factor) // 2 * 2}, None
+
+
 # MARK: Import
 
 # The app's wallpaper categories (Aerial.Category in AllSetCore), in the
@@ -272,7 +563,8 @@ TAG_CATEGORIES = {"game": "games", "landscape": "landscapes", "nature": "landsca
 NOISE = [r"【[^】]*(壁纸|4K|4k|风景|动态)[^】]*】", r"\((with )?bgm\)", r"\b(4k|8k|2k|qhd|uhd|hd|1080p|1440p|2160p)\b",
          r"\b\d{2,3}\s?fps\b", r"\b(animated|loop(ed)?|wallpaper engine|official)\b", r"\bby\s+\S*b站\S*", r"[-—_]+\s*b站.*$",
          r"b站@\S+", r"_?简单循环.*$", r"_v\d+(\.\d+)*$", r"-?moewalls-com", r"\bedit(ed)? by .*$", r"动态壁纸", r"官网",
-         r"[，,]?\s*[48]k\s*\d*\s*帧", r"\d+\s*帧", r"\s*[/／]\s*背景"]
+         r"[，,]?\s*[48]k\s*\d*\s*帧", r"\d+\s*帧", r"\s*[/／]\s*背景", r"\s[-—|]\s*by[:\s]+\S+.*$",
+         r"\(?\b\d{3,4}\s*[x×]\s*\d{3,4}\b\)?", r"\[[^\]]*\bmusic\s*\]", r"\s*[-|]*\s*\|\s*random soundtracks.*$", r"\s*\|\s*full\s*$"]
 
 
 def clean_title(text):
@@ -286,7 +578,18 @@ def clean_title(text):
         title = re.sub(r"[-_]+", " ", title).title()
     title = re.sub(r"\s*[-—|:：]\s*$", "", title.strip())
     title = re.sub(r"^\s*[-—|:：]\s*", "", title)
+    # Brackets emptied by the cleaning above: "[ ]", "[ , music]" → "", "[music]".
+    for _ in range(2):
+        title = re.sub(r"[\[(（【]\s*[,+&|/]*\s*[\])）】]", " ", title)
+        title = re.sub(r"([\[(（【])\s*[,+&|/]\s*", r"\1", title)
+        title = re.sub(r"\s*[,+&|/]\s*([\])）】])", r"\1", title)
+    title = re.sub(r"([\[(（【])\s+", r"\1", title)
+    title = re.sub(r"\s+([\])）】])", r"\1", title)
     title = re.sub(r"\s{2,}", " ", title).strip(" -—_|")
+    # "[Island sunset]" → "Island sunset": a name that is all bracket.
+    whole = re.fullmatch(r"[\[【]([^\]】]+)[\]】]", title)
+    if whole:
+        title = whole.group(1).strip()
     # "arthas", "hunt showdown" → "Arthas", "Hunt Showdown"
     if title.isascii() and title == title.lower() and any(c.isalpha() for c in title):
         title = title.title()
@@ -360,15 +663,19 @@ def transcode(source, destination, record):
 
 def thumbnail(source, destination, duration):
     at = max(0.0, min(2.0, duration * 0.3))
-    subprocess.run([FFMPEG, "-v", "error", "-y", "-ss", f"{at:.2f}", "-i", source, "-frames:v", "1",
+    # Seeking in a single picture skips its only frame: stills aren't seeked.
+    seek = ["-ss", f"{at:.2f}"] if duration > 0 else []
+    subprocess.run([FFMPEG, "-v", "error", "-y"] + seek + ["-i", source, "-frames:v", "1",
                     "-vf", "scale=640:-2", "-q:v", "4", destination], capture_output=True)
     return os.path.exists(destination)
 
 
-def dhash(path):
-    """A 64-bit difference hash of a picture, for finding near-duplicates."""
-    result = subprocess.run([FFMPEG, "-v", "error", "-i", path, "-vf", "scale=9:8,format=gray", "-f", "rawvideo", "-"],
-                            capture_output=True)
+def dhash(path, square=False):
+    """A 64-bit difference hash of a picture (of its centre square, to compare
+    with Workshop previews, which are square crops), for finding near-duplicates."""
+    crop = "crop='min(iw,ih)':'min(iw,ih)'," if square else ""
+    result = subprocess.run([FFMPEG, "-v", "error", "-i", path, "-frames:v", "1", "-vf", f"{crop}scale=9:8,format=gray",
+                             "-f", "rawvideo", "-"], capture_output=True)
     pixels = result.stdout
     if len(pixels) < 72:
         return None
@@ -377,6 +684,159 @@ def dhash(path):
         for column in range(8):
             bits = (bits << 1) | (pixels[row * 9 + column] > pixels[row * 9 + column + 1])
     return bits
+
+
+def loops_in_page(root, relative):
+    """Whether a web wallpaper's page plays this video on a loop (a background),
+    rather than as a one-off clip of an interaction."""
+    import re
+    folder = os.path.join(root, relative.split(os.sep)[0])
+    name = os.path.basename(relative)
+    text = ""
+    for base, _, names in os.walk(folder):
+        for page in names:
+            if page.endswith((".html", ".js")) and os.path.getsize(os.path.join(base, page)) < 2_000_000:
+                with open(os.path.join(base, page), encoding="utf-8", errors="replace") as handle:
+                    text += handle.read() + "\n"
+    tags = re.findall(r"<video\b[^>]*>", text, flags=re.IGNORECASE)
+    # 1. A <video> tag naming the file: it loops if that tag says so.
+    for tag in tags:
+        if name in tag:
+            return re.search(r"\bloop\b", tag, flags=re.IGNORECASE) is not None
+    # 2. Tags without sources, filled in by script: they loop if all of them do.
+    if tags and name in text:
+        return all(re.search(r"\bloop\b", tag, flags=re.IGNORECASE) for tag in tags)
+    # 3. Videos made in script: `.loop = true` (or loop: true) close to the name.
+    for match in re.finditer(re.escape(name), text):
+        around = text[max(0, match.start() - 200):match.start()] + text[match.end():match.end() + 200]
+        if re.search(r"loop\s*[:=]\s*true", around, flags=re.IGNORECASE):
+            return True
+    return False
+
+
+# Scenes left out after checking every one by eye against its Workshop preview
+# (2026-09-27): pictures that come out wrong without Wallpaper Engine's
+# effects, and a second upload of the same artwork.
+SCENE_REVIEWED_SKIP = {
+    "3577452645": "the towers are drawn by effects: only the sky comes out",
+    "3572340969": "only the sky strip comes out, not the characters",
+    "3684060242": "the city photos sit under an effect: only the menu ring comes out",
+    "3299228616": "a black audio-visualizer layer covers the picture",
+    "3448877775": "the video inside is a chroma mask, not the picture",
+    "3645009840": "the statue comes out cut into bars (glitch effect layers)",
+    "3682811008": "the same picture as 3624164256 (Resident Evil 9 - Requiem), at 1080p instead of 4K",
+}
+
+
+# Bumped whenever scenes would come out differently: cached results from an
+# older renderer are redone.
+SCENE_RENDERER = 3
+
+
+def import_scenes(root, library, summary, entries, existing, skipped, now, root_id):
+    """Every Wallpaper Engine scene item in the folder, as catalog entries."""
+    items = workshop_items(root)
+    wetex = wetex_tool(library)
+    cache_path = os.path.join(library, "scenes.json")
+    try:
+        with open(cache_path) as handle:
+            cache = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        cache = {}
+    imported = []
+    for workshop_id, project in items.items():
+        if (project.get("type") or "").lower() != "scene":
+            continue
+        if workshop_id in SCENE_REVIEWED_SKIP:
+            skipped.append((workshop_id, f"{project.get('title')}: {SCENE_REVIEWED_SKIP[workshop_id]}"))
+            continue
+        folder = os.path.join(root, workshop_id)
+        package_name = os.path.splitext(project.get("file") or "scene.json")[0] + ".pkg"
+        package_path = os.path.join(folder, package_name)
+        if not os.path.isfile(package_path):
+            skipped.append((workshop_id, "scene without a package"))
+            continue
+        stat = os.stat(package_path)
+        known = cache.get(workshop_id, {})
+        if known.get("size") == stat.st_size and known.get("mtime") == int(stat.st_mtime):
+            digest = known["sha256"]
+        else:
+            digest = sha256(package_path)
+            known = {"size": stat.st_size, "mtime": int(stat.st_mtime), "sha256": digest}
+        item_id = digest[:16]
+        result = known.get("result") if known.get("result") and known.get("sha256") == digest else None
+        current = known.get("renderer") == SCENE_RENDERER
+        output_ok = result and current and os.path.exists(os.path.join(library, result.get("playback", "")))
+        if not output_ok:
+            if not current:
+                for stale in ("stills/{}.jpg", "extracted/{}.mp4", "transcoded/{}.mp4"):
+                    path = os.path.join(library, stale.format(item_id))
+                    if os.path.exists(path):
+                        os.remove(path)
+            known["renderer"] = SCENE_RENDERER
+            try:
+                result, problem = import_scene(folder, project, library, wetex, item_id)
+            except Exception as error:  # one broken scene must not stop the batch
+                result, problem = None, f"failed: {type(error).__name__}: {error}"
+            if problem:
+                skipped.append((workshop_id, f"{project.get('title')}: {problem}"))
+                known.pop("result", None)
+                cache[workshop_id] = known
+                continue
+            if result["kind"] == "video":
+                media = os.path.join(library, result["playback"])
+                described = describe(media)
+                result.update({k: described.get(k) for k in ("duration", "width", "height", "fps", "codec", "bitRate")})
+                reason = needs_transcode(dict(described, extension=".mp4"))
+                if reason:
+                    output = os.path.join(library, "transcoded", f"{item_id}.mp4")
+                    error = None if os.path.exists(output) else transcode(media, output, described)
+                    if error:
+                        skipped.append((workshop_id, f"video texture can't play: {error}"))
+                        continue
+                    os.remove(media)
+                    result.update(playback=f"transcoded/{item_id}.mp4", transcodedBecause=reason)
+            known["result"] = result
+            cache[workshop_id] = known
+            # Saved as it goes: an interrupted run resumes where it stopped.
+            with open(cache_path, "w") as handle:
+                json.dump(cache, handle, indent=1, ensure_ascii=False)
+        media = os.path.join(library, result["playback"])
+        title = title_for({"workshop": {"title": project.get("title")}}, package_path)
+        tags = [t for t in project.get("tags") or [] if t.lower() != "unspecified"]
+        category = category_for(title, tags)
+        rating = project.get("contentrating")
+        entry = {
+            "id": item_id, "title": title, "category": category, "kind": result["kind"],
+            "tags": sorted({t.lower() for t in tags} | {category, resolution_tag(result.get("width"), result.get("height")),
+                                                        "still" if result["kind"] == "image" else "live"}),
+            "root": root_id, "file": os.path.relpath(package_path, root), "playback": result["playback"],
+            "thumbnail": f"thumbnails/{item_id}.jpg", "duration": result.get("duration"),
+            "width": result.get("width"), "height": result.get("height"), "fps": result.get("fps"),
+            "size": os.path.getsize(media), "sha256": digest, "contentRating": rating,
+            "status": "quarantined",
+            "statusReason": "license and author unknown" + ("" if rating == "Everyone" else "; no content rating")
+                            + ("; the scene's animation and effects aren't included" if result["kind"] == "image" else ""),
+            "provenance": {"source": "steam-workshop-scene", "workshopId": workshop_id, "originalTitle": project.get("title"),
+                           "author": None, "license": None, "extractedFrom": result.get("source"),
+                           "previewDistance": result.get("previewDistance")},
+            "addedAt": existing.get(item_id, {}).get("addedAt", now),
+        }
+        if "transcodedBecause" in result:
+            entry["transcodedBecause"] = result["transcodedBecause"]
+        thumb = os.path.join(library, entry["thumbnail"])
+        # Redrawn with its picture: a thumbnail older than it shows the old one.
+        fresh = os.path.exists(thumb) and os.path.getmtime(thumb) >= os.path.getmtime(media)
+        if not fresh and not thumbnail(media, thumb, result.get("duration") or 0):
+            entry["thumbnail"] = None
+        if item_id in entries:
+            continue
+        entries[item_id] = entry
+        imported.append(item_id)
+        print(f"  {entry['kind']:>5} {entry['category']:>10}  {entry['title']}", flush=True)
+    with open(cache_path, "w") as handle:
+        json.dump(cache, handle, indent=1, ensure_ascii=False)
+    return imported
 
 
 def import_library(root, library):
@@ -403,7 +863,8 @@ def import_library(root, library):
         if not record.get("valid"):
             skipped.append((record["path"], f"invalid: {record.get('problem')}"))
             continue
-        if workshop and not (workshop.get("type") == "video" and workshop.get("isMainFile")):
+        looped = workshop and workshop.get("type") == "web" and loops_in_page(root, record["path"])
+        if workshop and not (workshop.get("type") == "video" and workshop.get("isMainFile")) and not looped:
             skipped.append((record["path"], f"part of a {workshop.get('type') or 'unknown'} wallpaper, not a video wallpaper"))
             continue
         item_id = record["sha256"][:16]
@@ -411,6 +872,13 @@ def import_library(root, library):
             duplicates.append((record["path"], entries[item_id]["file"]))
             continue
         title = title_for(record, path)
+        if looped:
+            stem = os.path.splitext(os.path.basename(path))[0]
+            clip = clean_title(stem.split("-")[-1].replace("_", " ")) or clean_title(stem.replace("-", " ").replace("_", " "))
+            # Numbered clip names ("anim1 belt idle") read better without the number.
+            import re
+            clip = re.sub(r"^anim\d+\s*", "", clip, flags=re.IGNORECASE).strip() or clip
+            title = f"{title} - {clip.title() if clip.islower() else clip}"[:80]
         tags = [t for t in (workshop or {}).get("tags", []) if t.lower() != "unspecified"]
         category = category_for(title, tags)
         rating = (workshop or {}).get("contentRating")
@@ -418,6 +886,7 @@ def import_library(root, library):
             "id": item_id,
             "title": title,
             "category": category,
+            "kind": "video",
             "tags": sorted({t.lower() for t in tags} | {category, resolution_tag(record.get("width"), record.get("height"))}
                            | ({record["orientation"]} if record.get("orientation") in ("portrait", "ultrawide") else set())
                            | ({"60fps"} if (record.get("fps") or 0) >= 59 else set())),
@@ -458,6 +927,11 @@ def import_library(root, library):
         entries[item_id] = entry
         print(f"  {entry['category']:>10}  {entry['title']}", flush=True)
 
+    # Wallpaper Engine scenes: their artwork as a sharp still, or, when the
+    # scene is really a video (a video texture, a GIF), that video.
+    scene_ids = import_scenes(root, library, summary, entries, existing, skipped, now, root_id)
+    print(f"scenes: {len(scene_ids)} imported", flush=True)
+
     # Other folders' entries stay; this folder's are replaced by this scan.
     kept = [item for item in catalog.get("items", []) if item.get("root") != root_id]
     catalog["items"] = kept + sorted(entries.values(), key=lambda e: e["title"].lower())
@@ -468,6 +942,15 @@ def import_library(root, library):
     with open(catalog_path + ".tmp", "w") as handle:
         json.dump(catalog, handle, indent=1, ensure_ascii=False)
     os.replace(catalog_path + ".tmp", catalog_path)
+
+    # Pictures and copies this importer made that no entry uses any more
+    # (a scene left out, a video gone from the folder): only its own folders.
+    used = {item.get(key) for item in catalog["items"] for key in ("playback", "thumbnail") if item.get(key)}
+    for folder in ("stills", "extracted", "transcoded", "thumbnails"):
+        directory = os.path.join(library, folder)
+        for name in os.listdir(directory) if os.path.isdir(directory) else []:
+            if f"{folder}/{name}" not in used and os.path.isfile(os.path.join(directory, name)):
+                os.remove(os.path.join(directory, name))
 
     # Near-duplicates for a person to review (never removed automatically).
     hashes = {e["id"]: dhash(os.path.join(library, e["thumbnail"])) for e in entries.values() if e.get("thumbnail")}
@@ -481,14 +964,24 @@ def import_library(root, library):
     with open(os.path.join(library, "import-report.json"), "w") as handle:
         json.dump({"root": root, "importedAt": now, "imported": len(entries), "skipped": skipped,
                    "duplicates": duplicates, "nearDuplicates": near}, handle, indent=1, ensure_ascii=False)
-    size = sum(e["size"] for e in entries.values())
-    transcoded = [e for e in entries.values() if e.get("playback")]
-    print(f"\n== import ==\nimported {len(entries)} unique videos ({size / 1e9:.2f} GB, played from {root})")
+    size = sum(e["size"] or 0 for e in entries.values() if e.get("kind") == "video" and not e.get("playback"))
+    transcoded = [e for e in entries.values() if e.get("transcodedBecause")]
+    extracted = [e for e in entries.values() if (e.get("playback") or "").startswith(("stills/", "extracted/"))]
+
+    def on_disk(entries):
+        return sum(os.path.getsize(os.path.join(library, e["playback"])) for e in entries
+                   if os.path.exists(os.path.join(library, e["playback"]))) / 1e9
+
+    kinds = {k: sum(1 for e in entries.values() if e.get("kind") == k) for k in ("video", "image")}
+    print(f"\n== import ==\nimported {len(entries)} wallpapers: {kinds['video']} live, {kinds['image']} stills")
+    print(f"played from {root}: {size / 1e9:.2f} GB (not copied)")
     print(f"skipped {len(skipped)}; exact duplicates {len(duplicates)}; near-duplicates to review {len(near)}")
-    print(f"transcoded {len(transcoded)} ({sum(e['playbackSize'] for e in transcoded) / 1e9:.2f} GB in the library): "
-          + "; ".join(f"{e['title']} ({e['transcodedBecause']})" for e in transcoded))
+    print(f"transcoded {len(transcoded)} ({on_disk(transcoded):.2f} GB): " + "; ".join(f"{e['title']} ({e['transcodedBecause']})" for e in transcoded))
+    print(f"extracted from scenes {len(extracted)} ({on_disk(extracted):.2f} GB)")
     print(f"categories: { {c: sum(1 for e in entries.values() if e['category'] == c) for c in sorted({e['category'] for e in entries.values()})} }")
     print(f"status: { {s: sum(1 for e in entries.values() if e['status'] == s) for s in sorted({e['status'] for e in entries.values()})} }")
+    for path, reason in skipped:
+        print(f"  skipped {path}: {reason}")
 
 
 def main():

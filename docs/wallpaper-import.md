@@ -322,7 +322,7 @@ No second engine, cache, player, catalog model or state system was added.
 
 ### Remaining risks and choices
 1. **Rights.** Everything is quarantined. If any of these is ever to ship or be shared, it needs an author and a license first. Many are game or anime art, and several are re-uploads of TikTok/YouTube downloads (their file names say so).
-2. **Scene and web wallpapers (148 items) aren't supported.** Supporting them would mean re-implementing Wallpaper Engine's scene renderer and a web view wallpaper: a second engine, out of scope.
+2. **Scene and web wallpapers (148 items) aren't supported.** Supporting them would mean re-implementing Wallpaper Engine's scene renderer and a web view wallpaper: a second engine, out of scope. *Superseded: see "Scenes and web wallpapers" below. Their artwork and videos are now imported without a second engine.*
 3. **Fast scrolling hitches** (33–43 ms stalls while flinging through 1,000 cards).
    - The measured fix (GPU-drawn cards) conflicts with the hover preview.
    - Options: move the title and gradient into a lighter layer, or show the preview in a separate overlay window. Not done.
@@ -334,3 +334,58 @@ No second engine, cache, player, catalog model or state system was added.
 5. **High-frame-rate originals now play at 60 fps.** That's identical on the MacBook's display, but fewer frames on a 120/144 Hz external display. The originals are untouched on the drive if you want them back.
 6. **Unplugging the drive:** a playing library wallpaper falls back to the default art until the drive returns; your choice is kept. Cards stay browsable but can't be set.
 7. **The catalog is per Mac**, in Application Support. Another Mac needs the import run there too, pointed at its own copy.
+
+---
+
+## Scenes and web wallpapers (2026-09-27, second pass)
+
+Asked: "import all if possible." A scene is a package of pictures plus Wallpaper Engine's effects, and those effects are only what makes it move. So each scene is imported as **what can be taken out of it without a second engine**, and plays through the existing pipeline:
+
+- **Its artwork, as a still.** The picture layers are composited at the scene's canvas size (at most 3840 px), and it plays with the photo wallpaper's slow drift (`MovingStill` + `DriftingImage`, and the same pausing rules).
+- **A video, when the scene really is one.**
+  - A scene with an MP4 inside (a video texture): that video, extracted. When there are several, the biggest is used, since the small ones are masks.
+  - A GIF scene: its sprite-sheet frames made into a looping H.264 video, pixels kept sharp.
+- **Web wallpapers:** a `.webm` that the page loops (a `loop` attribute on its `<video>` tag, or `loop: true` beside its name in the script) is imported as a video, transcoded to HEVC. Clips the page plays once, as part of an interaction, are left out.
+
+### How (all in `scripts/wallpaper_library.py`, plus `scripts/wetex.swift`)
+
+- **`scene.pkg`** is read in place: a header, then an index of names, offsets and lengths.
+- **`.tex` textures** are decoded by `scripts/wetex.swift`, compiled once into the library's `bin/`.
+  - Supported: LZ4 blocks, DXT1/3/5, RGBA8888, RG88 and R8; embedded PNG/JPEG are written out as they are.
+  - An embedded MP4 is detected by its `ftyp` bytes, because the header flag is often 0.
+  - GIF sprite sheets come out as their frames plus frame times.
+- **`scene.json` layers** carry origin (y up), scale, angles, size, visible/alpha (including user-property values) and parent transforms.
+  - Skipped: particles, text, sound, lights, 3D models, effect/fullscreen layers, render targets and zero-size layers.
+  - A solid-colour layer is drawn only when it sits under every picture and has no effects. Anywhere else it's a mask or tint that needs the effects to make sense: drawing those turned five scenes white or black.
+- **Compositing** is a single ffmpeg overlay graph per scene, written as a quality-2 JPEG.
+- **Caching:** `scenes.json` keys each scene by package size, mtime and SHA-256, plus `SCENE_RENDERER`. Bumping `SCENE_RENDERER` redoes every scene and removes its old outputs. Thumbnails older than their picture are redrawn. A rerun with nothing changed takes about 18 s.
+- **Cleanup:** files the importer made (stills, extracted, transcoded, thumbnails) that no catalog entry uses any more are removed. Nothing outside those four folders is touched.
+- **The app:** `LibraryVideo.kind` (`video` / `image`, where a missing value means video), `MovingStill`, a Show picker (All / Live / Stills), a photo badge on stills, and no hover preview for stills. A still is playable with the drive unplugged, because its picture lives on the Mac.
+
+### Review [measured, by eye]
+- All 133 scene results were laid out on contact sheets and compared against their Workshop previews where they looked wrong.
+- **Six were wrong** because their picture depends on effects, and are left out by id in `SCENE_REVIEWED_SKIP` with the reason:
+  - Towers, GTA V Los Santos, Lonely Cat, the statue, the DELTARUNE door;
+  - "Nightingale", whose MP4 is a chroma mask.
+- **One was a duplicate:** "Leon Kennedy RE9" is the same picture as "Resident Evil 9 - Requiem", at 1080p instead of 4K. The 4K one is kept.
+- **Other near-duplicate flags (16):** they are all dark pictures with a lit subject in the centre, which fools a 64-bit difference hash. They're different artwork, and all are kept.
+- **Titles:** also cleaned of author credits, resolutions, "[4K, music]" brackets, emptied brackets and "| Full". The originals stay in `provenance.originalTitle`.
+
+### Result
+| | |
+|---|---|
+| **Wallpapers in the library** | **181**: 75 live, 106 stills (was 48) |
+| From video items | 48 |
+| From web items | 7 looping clips (Treasure Base Day/Dusk/Night, Night City Rain - City, 3 Faiz idle loops) |
+| From scenes | 126 of 138: 106 stills, 18 extracted videos, 2 of them transcoded |
+| Left out | 19: 7 one-shot clips from interactive web pages; 5 3D scenes with nothing 2D to draw (Earth-Moon, World Machine, Singularity, Sonic AKIBA, Ocarina of Time); 6 reviewed as wrong; 1 duplicate |
+| Plays | all 30 videos made on the Mac pass `scripts/playcheck.swift` (playable, ready, a frame decodes) |
+| Quarantined | 181 of 181 |
+| Added on the Mac | 3.4 GB in Application Support (1.6 GB transcoded, 1.7 GB extracted, 103 MB stills, 6.6 MB thumbnails); still nothing in the bundle or repo |
+| Tests | 205 pass; the build has 0 warnings |
+
+### Remaining risks
+- **Stills are the artwork, not the animation.** Scenes whose motion lives in effects (shaders, particles, audio response, parallax) play as a still with a slow drift.
+- **The skip list is by Workshop id.** A new scene that renders wrong would need a look and an entry there. The contact-sheet review is the check: the preview hash can't do it, because previews are square crops, zoomed, or start on a black GIF frame.
+- **Gothic Wallpaper** keeps a grey background where Wallpaper Engine shows black (its background is drawn by an effect). It's recognisable, so it's kept.
+- **Rights:** the same as above. Everything is quarantined.

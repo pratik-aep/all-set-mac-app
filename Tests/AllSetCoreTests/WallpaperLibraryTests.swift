@@ -25,6 +25,8 @@ import Testing
         // Unknown status is treated as the most careful one.
         #expect(catalog.items[1].status == .quarantined)
         #expect(catalog.items[1].title == "Untitled video")
+        // Catalogs from before stills existed are all videos.
+        #expect(catalog.items[0].kind == .video)
         #expect(catalog.roots.first?.label == "Walls")
     }
 
@@ -64,17 +66,26 @@ import Testing
         try FileManager.default.createDirectory(at: store.libraryDirectory.appendingPathComponent("transcoded"), withIntermediateDirectories: true)
         try Data("x".utf8).write(to: drive.appendingPathComponent("1/a.mp4"))
         try Data("y".utf8).write(to: store.libraryDirectory.appendingPathComponent("transcoded/b.mp4"))
+        try FileManager.default.createDirectory(at: store.libraryDirectory.appendingPathComponent("stills"), withIntermediateDirectories: true)
+        try Data("z".utf8).write(to: store.libraryDirectory.appendingPathComponent("stills/e.jpg"))
         let catalog = WallpaperLibraryCatalog(
             roots: [.init(id: "r1", path: drive.path, label: "Drive")],
             items: [LibraryVideo(id: "a", title: "A", category: .games, root: "r1", file: "1/a.mp4"),
                     LibraryVideo(id: "b", title: "B", category: .games, root: "r1", file: "2/b.mp4", playback: "transcoded/b.mp4"),
                     LibraryVideo(id: "c", title: "C", category: .games, root: "r1", file: "missing.mp4"),
-                    LibraryVideo(id: "d", title: "D", category: .games, root: "r1", file: "1/a.mp4", status: .unsupported)])
+                    LibraryVideo(id: "d", title: "D", category: .games, root: "r1", file: "1/a.mp4", status: .unsupported),
+                    LibraryVideo(id: "e", title: "E", kind: .image, category: .abstract, root: "r1", file: "3/scene.pkg",
+                                 playback: "stills/e.jpg"),
+                    LibraryVideo(id: "f", title: "F", kind: .image, category: .abstract, root: "r1", file: "1/a.mp4",
+                                 playback: "stills/missing.jpg")])
         try JSONEncoder().encode(catalog).write(to: store.libraryDirectory.appendingPathComponent("catalog.json"))
         store.reloadLibrary()
         for _ in 0..<100 where store.library.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
         // Unsupported entries never reach the gallery.
-        #expect(store.library.map(\.id) == ["a", "b", "c"])
+        #expect(store.library.map(\.id) == ["a", "b", "c", "e", "f"])
+        // A still resolves to its picture, never to the scene package it came from.
+        #expect(store.libraryURL("e")?.lastPathComponent == "e.jpg")
+        #expect(store.libraryURL("f") == nil)
         #expect(store.libraryURL("a")?.path == drive.appendingPathComponent("1/a.mp4").path)
         // The converted copy wins over the original.
         #expect(store.libraryURL("b")?.lastPathComponent == "b.mp4")
@@ -85,5 +96,9 @@ import Testing
         store.refreshLibraryReachability()
         #expect(store.libraryURL("a") == nil)
         #expect(store.libraryURL("b") != nil)
+        // Stills live on this Mac: still playable with the drive gone.
+        #expect(store.libraryURL("e") != nil)
+        #expect(store.canPlay(store.libraryVideo("e")!))
+        #expect(!store.canPlay(store.libraryVideo("a")!))
     }
 }

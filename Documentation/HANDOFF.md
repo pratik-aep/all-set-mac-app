@@ -2,7 +2,7 @@
 
 **Read this first at the start of every session, instead of reviewing the codebase.** It's rewritten at the end of every session. Dated session logs are in `Documentation/Reports/` (newest last). For what the app contains (widgets, themes, pages), see `CONTENT.md`. Only open the source files that the task at hand needs.
 
-_Last updated: 2026-09-27 (wallpaper library import)_
+_Last updated: 2026-09-27 (wallpaper library: scenes and web imported too)_
 
 ---
 
@@ -125,13 +125,25 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 - The UI is `Studio/LibraryPages.swift` (`WebPhotosPage`, `SearchFilters`, `RecentSearches`), shared by the Wallpaper page and the Library.
 
 **Wallpaper library** (docs/wallpaper-import.md)
-- `WallpaperSource.library(id)`: videos that play from where they live (an external drive).
+- `WallpaperSource.library(id)`:
+  - videos play from where they live (an external drive);
+  - stills (`LibraryVideo.kind == .image`, a Wallpaper Engine scene's artwork) play from the Mac through `MovingStill` with the photo drift.
 - Catalog: `~/Library/Application Support/AllSet/Wallpaper/Library/catalog.json`, written by `scripts/wallpaper_library.py import <folder>` (needs Homebrew ffmpeg; run with `/usr/bin/python3`). The importer is idempotent, with IDs from SHA-256.
-- The library also holds thumbnails and 3 transcoded copies (1.19 GB).
+- The library folder also holds:
+  - `stills/`: scene artwork;
+  - `extracted/`: videos taken out of scenes;
+  - `transcoded/`;
+  - `thumbnails/`;
+  - `bin/wetex`: the texture decoder, compiled from `scripts/wetex.swift`;
+  - `scenes.json`: the scene cache. Bump `SCENE_RENDERER` when compositing changes.
+  
+  3.4 GB in total.
 - `WallpaperStore.library`, `libraryURL(id)` (disk check, for playback only) and `canPlay(video)` (no disk access, for cards).
 - UI: the `LibrarySection` in My Videos.
-- The user's library is a Wallpaper Engine folder on `/Volumes/KALI LINUX/Steam Wallpapers`: 48 videos imported, all **QUARANTINED** (Workshop, no license). Personal use only; never bundle or commit them.
-- Scene and web items (148) are unsupported.
+- The user's library is a Wallpaper Engine folder on `/Volumes/KALI LINUX/Steam Wallpapers`:
+  - **181 imported** (75 live, 106 stills), from 48 video items, 7 web loops and 126 of 138 scenes;
+  - all **QUARANTINED** (Workshop, no license). Personal use only; never bundle or commit them.
+- Scenes left out after review are listed by Workshop id in `SCENE_REVIEWED_SKIP`, each with its reason. To check new scenes, lay the thumbnails out on a contact sheet and look: the preview hash can't tell.
 
 **Other areas**
 - Wallpaper: `Wallpaper/WallpaperController` (plays only if at least 15% of the screen is uncovered; shared video players).
@@ -156,7 +168,7 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 - Theme preview cache keys use a content fingerprint and `drawingVersion`: bump `drawingVersion` when preview drawing changes.
 
 ## Current state (2026-09-26, evening)
-- Branch **`perf-audit`** (not merged, not pushed): baseline commit `6022ee5` (the island, search and widget work), the audit commits, then the wallpaper-library commits (`5b54296`, `7608ad4`). `main` is still at `e8dc7bc`.
+- Branch **`perf-audit`** (not merged, not pushed): baseline commit `6022ee5` (the island, search and widget work), the audit commits, then the wallpaper-library commits (`5b54296`, `7608ad4`, and the scenes/web import after `1e633b1`). `main` is still at `e8dc7bc`.
 - The audit log and final report are in **`docs/perf-audit.md`**. 200 tests pass, 0 warnings, and the Dock app is rebuilt from the branch.
 - For A/B: `git worktree add ../allset-baseline <commit>`, then build the probe there (removed after the audit).
 

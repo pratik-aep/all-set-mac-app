@@ -156,14 +156,17 @@ final class WallpaperController {
         if services.ui.wallpaperPlaying != anyPlaying {
             services.ui.wallpaperPlaying = anyPlaying
         }
-        scheduleCoverageCheck(active: allowed && config.pauseWhenCovered && Self.moves(config))
+        scheduleCoverageCheck(active: allowed && config.pauseWhenCovered && moves(config))
     }
 
     /// Whether the wallpaper has any motion to pause. A still photo looks the
     /// same playing or not, so there's no need to keep checking what covers it.
-    private static func moves(_ config: WallpaperConfig) -> Bool {
+    private func moves(_ config: WallpaperConfig) -> Bool {
         switch config.source {
-        case .art, .video, .library: true
+        case .art, .video: true
+        case .library(let id):
+            // A still from a library moves only as a photo does.
+            services.wallpaper.libraryVideo(id)?.kind != .image || config.motion != .still
         case .photo(let source):
             if case .art = source { true } else { config.motion != .still }
         }
@@ -285,6 +288,8 @@ final class WallpaperController {
             return await videoStill(services.wallpaper.videoURL(name), to: file)
         case .library(let id):
             guard let url = services.wallpaper.libraryURL(id) else { return nil }
+            // A still is already a picture: the system wallpaper can use it as it is.
+            if services.wallpaper.libraryVideo(id)?.kind == .image { return url }
             return await videoStill(url, to: file)
         }
     }
@@ -364,9 +369,14 @@ struct WallpaperView: View {
             case .video(let name):
                 LoopingVideo(url: services.wallpaper.videoURL(name), isPlaying: isPlaying)
             case .library(let id):
-                // Same player and the same pausing rules as any other video.
+                // Same player (or, for a still, the same slow motion as a
+                // photo) and the same pausing rules as any other wallpaper.
                 if let url = services.wallpaper.libraryURL(id) {
-                    LoopingVideo(url: url, isPlaying: isPlaying)
+                    if services.wallpaper.libraryVideo(id)?.kind == .image {
+                        MovingStill(url: url, motion: config.motion)
+                    } else {
+                        LoopingVideo(url: url, isPlaying: isPlaying)
+                    }
                 } else {
                     // Its drive isn't connected: the default art until it is.
                     ArtView(piece: ArtPiece(style: .aurora, palette: .aurora), animated: true, speed: config.speed,
@@ -404,6 +414,46 @@ private struct MovingPhoto: View {
         .task(id: source) {
             guard let loaded = await library.image(for: source) else { return }
             image = loaded.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        }
+    }
+
+    private var driftMotion: DriftingImage.Motion {
+        switch motion {
+        case .still: .still
+        case .drift: .pan
+        case .breathe: .breathe
+        }
+    }
+}
+
+/// A picture file (a library still) with a photo wallpaper's slow motion:
+/// decoded off the main thread at screen size, moved by Core Animation.
+private struct MovingStill: View {
+    let url: URL
+    let motion: WallpaperMotion
+
+    @State private var image: CGImage?
+    @Environment(\.widgetIsVisible) private var isPlaying
+
+    var body: some View {
+        Group {
+            if let image {
+                DriftingImage(image: image, motion: isPlaying ? driftMotion : .still, period: motion == .drift ? 45 : 18)
+            } else {
+                Color.black
+            }
+        }
+        .task(id: url) {
+            image = await Task.detached(priority: .userInitiated) { [url] () -> SendableImage? in
+                guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                      let picture = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                          kCGImageSourceCreateThumbnailFromImageAlways: true,
+                          kCGImageSourceCreateThumbnailWithTransform: true,
+                          kCGImageSourceThumbnailMaxPixelSize: 3840,
+                      ] as CFDictionary)
+                else { return nil }
+                return SendableImage(ImageLibrary.displayReady(picture))
+            }.value?.image
         }
     }
 

@@ -289,29 +289,53 @@ private struct LibrarySection: View {
     @State private var query = ""
     @State private var category: Aerial.Category?
     @State private var sort = LibrarySort.title
+    @State private var show = Show.all
+
+    /// Moving videos, or stills taken from Wallpaper Engine scenes.
+    enum Show: String, CaseIterable, Identifiable {
+        case all, live, stills
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .all: "All"
+            case .live: "Live"
+            case .stills: "Stills"
+            }
+        }
+    }
 
     var body: some View {
         let store = services.wallpaper
         let all = store.library
         if !all.isEmpty {
             let kinds = Aerial.Category.allCases.filter { kind in all.contains { $0.category == kind } }
-            let shown = sort.sorted(all.filter { (category == nil || $0.category == category) && $0.matches(query) })
+            let shown = sort.sorted(all.filter { video in
+                (category == nil || video.category == category) && video.matches(query)
+                    && (show == .all || (show == .live) == (video.kind == .video))
+            })
+            let stills = all.filter { $0.kind == .image }.count
             let offline = store.libraryRoots.values.filter { !store.reachableRoots.contains($0.id) }
             VStack(alignment: .leading, spacing: 14) {
                 Divider().padding(.vertical, 6)
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Library").font(.title.bold())
-                        Text("\(all.count) videos from \(store.libraryRoots.values.compactMap(\.label).sorted().joined(separator: ", "))")
+                        Text("\(all.count - stills) live, \(stills) stills, from \(store.libraryRoots.values.compactMap(\.label).sorted().joined(separator: ", "))")
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
+                    Picker("Show", selection: $show) {
+                        ForEach(Show.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 200)
                     Picker("Sort", selection: $sort) {
                         ForEach(LibrarySort.allCases) { Text($0.title).tag($0) }
                     }
                     .frame(width: 210)
                 }
-                Label("For your own desktop: these came from Steam Workshop with no author or license, so they play from your drive and are never copied into All Set or shared.",
+                Label("For your own desktop: these came from Steam Workshop with no author or license. Videos play from your drive; stills are each scene's artwork, kept on this Mac, without the scene's animation. Never shared.",
                       systemImage: "lock.shield")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -386,7 +410,8 @@ private struct LibraryTile: View {
                     }
                     // Resolved only when previewing: finding the file costs a
                     // disk check, too much to do for every card as it scrolls by.
-                    if isPreviewing, let url = store.libraryURL(video.id) {
+                    // Stills have nothing more to show than their card.
+                    if isPreviewing, video.kind == .video, let url = store.libraryURL(video.id) {
                         LoopingVideo(url: url, isPlaying: true).transition(.opacity)
                     }
                 }
@@ -402,6 +427,11 @@ private struct LibraryTile: View {
                     HStack(spacing: 6) {
                         Image(systemName: video.category.symbol)
                         Text(video.title).lineLimit(1)
+                        if video.kind == .image {
+                            Image(systemName: "photo")
+                                .foregroundStyle(.white.opacity(0.75))
+                                .help("A still from the scene: its animation isn't included")
+                        }
                         Spacer(minLength: 4)
                         Text(video.resolutionLabel).foregroundStyle(.white.opacity(0.75))
                     }

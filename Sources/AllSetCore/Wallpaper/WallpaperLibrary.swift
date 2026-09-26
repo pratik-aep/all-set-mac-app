@@ -16,6 +16,12 @@ public struct LibraryVideo: Codable, Identifiable, Hashable, Sendable {
         case unsupported
     }
 
+    /// A moving video, or a still picture (a Wallpaper Engine scene's
+    /// artwork, which plays with the photo wallpaper's slow motion).
+    public enum Kind: String, Codable, Sendable {
+        case video, image
+    }
+
     public struct Provenance: Codable, Hashable, Sendable {
         public var source: String?
         public var workshopId: String?
@@ -28,6 +34,7 @@ public struct LibraryVideo: Codable, Identifiable, Hashable, Sendable {
     /// its id wherever it moves or whatever it's called.
     public var id: String
     public var title: String
+    public var kind: Kind
     public var category: Aerial.Category
     public var tags: [String]
     /// Which library folder it's in (`WallpaperLibraryCatalog.roots`).
@@ -60,16 +67,17 @@ public struct LibraryVideo: Codable, Identifiable, Hashable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, title, category, tags, root, file, thumbnail, playback, duration, width, height, fps, size
+        case id, title, kind, category, tags, root, file, thumbnail, playback, duration, width, height, fps, size
         case status, statusReason, provenance, contentRating, addedAt
     }
 
-    public init(id: String, title: String, category: Aerial.Category, tags: [String] = [], root: String, file: String,
+    public init(id: String, title: String, kind: Kind = .video, category: Aerial.Category, tags: [String] = [], root: String, file: String,
                 thumbnail: String? = nil, playback: String? = nil, duration: Double? = nil, width: Int? = nil,
                 height: Int? = nil, fps: Double? = nil, size: Int64? = nil, status: Status = .quarantined,
                 statusReason: String? = nil, provenance: Provenance? = nil, contentRating: String? = nil, addedAt: String? = nil) {
         self.id = id
         self.title = title
+        self.kind = kind
         self.category = category
         self.tags = tags
         self.root = root
@@ -94,6 +102,7 @@ public struct LibraryVideo: Codable, Identifiable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         title = (try? c.decodeIfPresent(String.self, forKey: .title)) ?? "Untitled video"
+        kind = (try? c.decodeIfPresent(Kind.self, forKey: .kind)) ?? .video
         category = (try? c.decodeIfPresent(Aerial.Category.self, forKey: .category)) ?? .abstract
         tags = (try? c.decodeIfPresent([String].self, forKey: .tags)) ?? []
         root = try c.decode(String.self, forKey: .root)
