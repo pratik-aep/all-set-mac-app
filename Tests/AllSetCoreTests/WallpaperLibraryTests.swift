@@ -101,4 +101,42 @@ import Testing
         #expect(store.canPlay(store.libraryVideo("e")!))
         #expect(!store.canPlay(store.libraryVideo("a")!))
     }
+
+    /// The promise behind `--self-contained`: once every wallpaper has a copy
+    /// here, deleting the folder they came from changes nothing.
+    @MainActor @Test func copiedLibraryOutlivesTheFolderItCameFrom() async throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("wallpaper-\(UUID())")
+        let drive = home.appendingPathComponent("Pendrive")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let store = WallpaperStore(directory: home.appendingPathComponent("AllSet"))
+        try FileManager.default.createDirectory(at: drive, withIntermediateDirectories: true)
+        try Data("source".utf8).write(to: drive.appendingPathComponent("clip.mp4"))
+        for folder in ["originals", "live"] {
+            try FileManager.default.createDirectory(at: store.libraryDirectory.appendingPathComponent(folder),
+                                                    withIntermediateDirectories: true)
+        }
+        try Data("copy".utf8).write(to: store.libraryDirectory.appendingPathComponent("originals/a.mp4"))
+        try Data("loop".utf8).write(to: store.libraryDirectory.appendingPathComponent("live/b.mp4"))
+        let catalog = WallpaperLibraryCatalog(
+            roots: [.init(id: "r1", path: drive.path, label: "Pendrive")],
+            items: [LibraryVideo(id: "a", title: "Copied", category: .games, root: "r1", file: "clip.mp4",
+                                 playback: "originals/a.mp4"),
+                    LibraryVideo(id: "b", title: "Scene loop", category: .abstract, root: "r1", file: "scene.pkg",
+                                 playback: "live/b.mp4")])
+        try JSONEncoder().encode(catalog).write(to: store.libraryDirectory.appendingPathComponent("catalog.json"))
+        store.reloadLibrary()
+        for _ in 0..<100 where store.library.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+
+        // The pendrive is wiped and unplugged.
+        try FileManager.default.removeItem(at: drive)
+        store.refreshLibraryReachability()
+        #expect(!store.reachableRoots.contains("r1"))
+        for id in ["a", "b"] {
+            let video = try #require(store.libraryVideo(id))
+            #expect(store.canPlay(video))
+            #expect(store.libraryURL(id) != nil)
+            // It plays from this Mac, never from the folder that's gone.
+            #expect(store.libraryURL(id)?.path.hasPrefix(store.libraryDirectory.path) == true)
+        }
+    }
 }

@@ -1030,7 +1030,7 @@ def import_scenes(root, library, summary, entries, existing, skipped, now, root_
     return imported
 
 
-def import_library(root, library, live=True):
+def import_library(root, library, live=True, self_contained=False):
     """Turns a folder into catalog entries: one per unique video, keyed by content.
     Rerunning updates entries (and adds new files) instead of duplicating them."""
     summary = inventory(root, library)
@@ -1115,6 +1115,27 @@ def import_library(root, library, live=True):
             else:
                 entry.update(playback=f"transcoded/{item_id}.mp4", transcodedBecause=reason,
                              playbackSize=os.path.getsize(output))
+        else:
+            # Without a copy this one plays from the source folder, so it stops
+            # working if that folder goes away. A copy already made is always
+            # reused, so a later run without --self-contained never undoes it.
+            kept = os.path.join(library, "originals", f"{item_id}{record['extension']}")
+            if os.path.exists(kept):
+                entry.update(playback=f"originals/{item_id}{record['extension']}",
+                             playbackSize=os.path.getsize(kept))
+            elif self_contained:
+                os.makedirs(os.path.dirname(kept), exist_ok=True)
+                partial = kept + ".part"
+                try:
+                    shutil.copyfile(path, partial)
+                    os.replace(partial, kept)
+                except OSError as error:
+                    if os.path.exists(partial):
+                        os.remove(partial)
+                    skipped.append((record["path"], f"couldn't copy onto this Mac: {error}"))
+                else:
+                    entry.update(playback=f"originals/{item_id}{record['extension']}",
+                                 playbackSize=os.path.getsize(kept))
         entries[item_id] = entry
         print(f"  {entry['category']:>10}  {entry['title']}", flush=True)
 
@@ -1138,7 +1159,7 @@ def import_library(root, library, live=True):
     # (a scene left out, a video gone from the folder): only its own folders.
     used = {item.get(key) for item in catalog["items"] for key in ("playback", "thumbnail") if item.get(key)}
     used |= {item.get("still") for item in catalog["items"] if item.get("still")}
-    for folder in ("stills", "extracted", "transcoded", "thumbnails", "live"):
+    for folder in ("stills", "extracted", "transcoded", "thumbnails", "live", "originals"):
         directory = os.path.join(library, folder)
         for name in os.listdir(directory) if os.path.isdir(directory) else []:
             if f"{folder}/{name}" not in used and os.path.isfile(os.path.join(directory, name)):
@@ -1182,6 +1203,8 @@ def main():
     parser.add_argument("command", choices=["inventory", "import"])
     parser.add_argument("folder")
     parser.add_argument("--library", default=DEFAULT_LIBRARY, help="where the app's library lives")
+    parser.add_argument("--self-contained", action="store_true",
+                        help="copy every video onto this Mac, so the source folder can go away")
     parser.add_argument("--no-live", action="store_true",
                         help="keep scenes as stills instead of making them into looping videos")
     args = parser.parse_args()
@@ -1189,7 +1212,8 @@ def main():
     if args.command == "inventory":
         inventory(args.folder, args.library)
     else:
-        import_library(args.folder, args.library, live=not args.no_live)
+        import_library(args.folder, args.library, live=not args.no_live,
+                       self_contained=args.self_contained)
 
 
 if __name__ == "__main__":

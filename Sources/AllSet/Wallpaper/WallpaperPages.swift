@@ -314,13 +314,21 @@ private struct LibrarySection: View {
                     && (show == .all || (show == .live) == (video.kind == .video))
             })
             let stills = all.filter { $0.kind == .image }.count
-            let offline = store.libraryRoots.values.filter { !store.reachableRoots.contains($0.id) }
+            // Only the wallpapers that still have nothing on this Mac need the
+            // folder they came from. Once everything has a copy here, an
+            // unplugged drive changes nothing and isn't worth mentioning.
+            let waiting = store.library.filter { !store.canPlay($0) }
+            let offline = store.libraryRoots.values
+                .filter { root in waiting.contains { $0.root == root.id } }
             VStack(alignment: .leading, spacing: 14) {
                 Divider().padding(.vertical, 6)
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Library").font(.title.bold())
-                        Text("\(all.count - stills) live, \(stills) stills, from \(store.libraryRoots.values.compactMap(\.label).sorted().joined(separator: ", "))")
+                        Text("\(all.count - stills) live, \(stills) stills, "
+                             + (offline.isEmpty && waiting.isEmpty
+                                ? "kept on this Mac"
+                                : "from \(store.libraryRoots.values.compactMap(\.label).sorted().joined(separator: ", "))"))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -335,7 +343,7 @@ private struct LibrarySection: View {
                     }
                     .frame(width: 210)
                 }
-                Label("For your own desktop: these came from Steam Workshop with no author or license. Videos play from your drive; stills are each scene's artwork, kept on this Mac, without the scene's animation. Never shared.",
+                Label("For your own desktop: these came from Steam Workshop with no author or license. Scene wallpapers are rebuilt here, as a loop made from their own layers or as their artwork held still. Never shared.",
                       systemImage: "lock.shield")
                     .font(.caption)
                     .foregroundStyle(.secondary)
