@@ -2,7 +2,7 @@
 
 **Read this first at the start of every session, instead of reviewing the codebase.** It's rewritten at the end of every session. Dated session logs are in `Documentation/Reports/` (newest last). For what the app contains (widgets, themes, pages), see `CONTENT.md`. Only open the source files that the task at hand needs.
 
-_Last updated: 2026-09-27 (wallpaper library: scene stills made into moving loops)_
+_Last updated: 2026-09-27 (wallpaper library: self-contained). Read Documentation/spec.md, architecture.md and report.md's CURRENT STATE first._
 
 ---
 
@@ -126,7 +126,7 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 
 **Wallpaper library** (docs/wallpaper-import.md)
 - `WallpaperSource.library(id)`:
-  - videos play from where they live (an external drive);
+  - videos play from a copy in `originals/` (`--self-contained`); nothing needs the source folder at run time;
   - stills (`LibraryVideo.kind == .image`, a Wallpaper Engine scene's artwork) play from the Mac through `MovingStill` with the photo drift.
 - Catalog: `~/Library/Application Support/AllSet/Wallpaper/Library/catalog.json`, written by `scripts/wallpaper_library.py import <folder>` (needs Homebrew ffmpeg; run with `/usr/bin/python3`). The importer is idempotent, with IDs from SHA-256.
 - The library folder also holds:

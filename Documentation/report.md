@@ -47,6 +47,14 @@ more for final confirmation, then decide on merging `perf-audit`.
 
 ---
 
+## DRIFT AUDIT — 2026-09-27
+Code checked against `architecture.md`, section by section.
+- Library folders, catalog and resolution rule: **match.**
+- `originals/` reuse and orphan cleanup: **match.**
+- **One mismatch:** `HANDOFF.md` still said videos play from the drive.
+  Chose to **fix the doc to match the code**, since the code is verified.
+Result: no code changes needed; docs now agree with reality.
+
 ## HISTORY
 - Wallpaper library: importer, catalog, playback — 48 videos imported — `5b54296`
 - Wallpaper library: gallery, scale probe, no-regression checks — `7608ad4`
