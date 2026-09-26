@@ -150,7 +150,17 @@ final class WallpaperController {
         if services.ui.wallpaperPlaying != anyPlaying {
             services.ui.wallpaperPlaying = anyPlaying
         }
-        scheduleCoverageCheck(active: allowed && config.pauseWhenCovered)
+        scheduleCoverageCheck(active: allowed && config.pauseWhenCovered && Self.moves(config))
+    }
+
+    /// Whether the wallpaper has any motion to pause. A still photo looks the
+    /// same playing or not, so there's no need to keep checking what covers it.
+    private static func moves(_ config: WallpaperConfig) -> Bool {
+        switch config.source {
+        case .art, .video: true
+        case .photo(let source):
+            if case .art = source { true } else { config.motion != .still }
+        }
     }
 
     /// How much of a screen's desktop must show for its wallpaper to move.
@@ -188,6 +198,14 @@ final class WallpaperController {
     /// user's original first.
     private func matchSystemWallpaper(to source: WallpaperSource) {
         guard appliedSystemSource != source else { return }
+        // Already showing the still made for this wallpaper (from an earlier
+        // launch): drawing, encoding and writing it again would change nothing.
+        if let key = Self.stillKey(source), UserDefaults.standard.string(forKey: Self.stillSourceKey) == key,
+           let path = UserDefaults.standard.string(forKey: Self.stillPathKey), FileManager.default.fileExists(atPath: path),
+           NSScreen.screens.allSatisfy({ NSWorkspace.shared.desktopImageURL(for: $0)?.path == path }) {
+            appliedSystemSource = source
+            return
+        }
         // Claimed before the work starts: remembering the original below
         // changes the settings, which calls this again, and a second pass
         // would delete the still the first had just set.
@@ -199,6 +217,8 @@ final class WallpaperController {
             }
             // A newer choice has taken over.
             guard appliedSystemSource == source else { return }
+            UserDefaults.standard.set(Self.stillKey(source), forKey: Self.stillSourceKey)
+            UserDefaults.standard.set(still.path, forKey: Self.stillPathKey)
             for screen in NSScreen.screens {
                 let name = screen.localizedName
                 if services.wallpaper.config.originalWallpapers[name] == nil,
@@ -213,6 +233,16 @@ final class WallpaperController {
                 }
             }
         }
+    }
+
+    /// Which wallpaper the system still was last made from, and where it is.
+    private static let stillSourceKey = "wallpaper.still.source"
+    private static let stillPathKey = "wallpaper.still.path"
+
+    private static func stillKey(_ source: WallpaperSource) -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return (try? encoder.encode(source)).map { String(decoding: $0, as: UTF8.self) }
     }
 
     private func restoreSystemWallpapers() {

@@ -32,6 +32,15 @@ final class ScreenshotStudio {
     }
 
     private var states: [State] = []
+    /// Versions kept for undo besides the original. Each is a full-size
+    /// picture (about 60 MB for a 5K screenshot), so the history can't grow
+    /// without end; the oldest edits go first, the original never does.
+    private static let undoDepth = 24
+
+    private func push(_ state: State) {
+        states.append(state)
+        if states.count > Self.undoDepth + 1 { states.remove(at: 1) }
+    }
     private(set) var messages: [Message] = []
     private(set) var isWorking = false
     /// 2 for a Retina screenshot: Claude gets one pixel per point, which is plenty.
@@ -93,13 +102,13 @@ final class ScreenshotStudio {
                         state.image = edited
                     }
                 }
-                states.append(state)
+                push(state)
                 messages.append(Message(role: .assistant, text: reply.plan.reply.isEmpty ? "Done." : reply.plan.reply,
                                         detail: reply.usage.total > 0 ? reply.usage.summary : nil))
             case .openAI:
                 let edited = try await OpenAIImageEditor.edit(state.image, instruction: instruction, key: key)
                 // A new picture: Claude starts afresh on it.
-                states.append(State(image: edited, base: edited))
+                push(State(image: edited, base: edited))
                 messages.append(Message(role: .assistant, text: "Here's the new version."))
             }
         } catch {

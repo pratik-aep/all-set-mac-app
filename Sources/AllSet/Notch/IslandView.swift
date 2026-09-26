@@ -72,9 +72,12 @@ final class IslandView: NSView {
     }
 
     private func watch() {
-        AllSet.observe({ [model] in
-            State(size: model.shapeSize, top: model.topCornerRadius, bottom: model.bottomCornerRadius,
-                  isExpanded: model.isExpanded, isHovering: model.isHovering, tab: model.tab)
+        // The model is held weakly: the watcher is stored in the model's own
+        // observation registrar, so a strong reference would keep a
+        // short-lived island (the warm-up's) alive forever.
+        AllSet.observe({ [weak model] in
+            model.map { State(size: $0.shapeSize, top: $0.topCornerRadius, bottom: $0.bottomCornerRadius,
+                              isExpanded: $0.isExpanded, isHovering: $0.isHovering, tab: $0.tab) }
         }) { [weak self] _ in self?.apply(animated: true) }
     }
 
@@ -130,7 +133,8 @@ final class IslandView: NSView {
         CATransaction.commit()
     }
 
-    /// Opens a throwaway island once on every tab, off screen and unseen, so
+    /// Opens a throwaway island once on every tab, off screen and unseen (a few
+    /// seconds after launch, once starting up has settled), so
     /// SwiftUI's one-time setup of those views (a few dozen milliseconds, enough
     /// to drop frames) is done before anyone opens the real one.
     static func warmUp(geometry: NotchGeometry, services: AppServices) async {

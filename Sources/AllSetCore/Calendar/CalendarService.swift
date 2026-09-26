@@ -28,7 +28,9 @@ public final class CalendarService {
 
     @ObservationIgnored private let store = EKEventStore()
     @ObservationIgnored private var changeObserver: NSObjectProtocol?
-    @ObservationIgnored private var refreshLoop: Task<Void, Never>?
+    @ObservationIgnored private var dayObservers: [NSObjectProtocol] = []
+    /// A refresh for the moment the next event ends, so it leaves the list on time.
+    @ObservationIgnored private var nextRefresh: Task<Void, Never>?
 
     public init() {}
 
@@ -38,12 +40,29 @@ public final class CalendarService {
         changeObserver = NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: store, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
         }
-        // Keeps "in 10 min" labels and the day's list current.
-        refreshLoop = Task { [weak self] in
-            while !Task.isCancelled {
-                self?.refresh()
-                try? await Task.sleep(for: .seconds(300))
-            }
+        // No polling: the list changes when the calendar does, when the day
+        // turns (or the Mac wakes into a new one), and when an event ends,
+        // which `scheduleNextRefresh` waits for. Labels like "in 10 min" are
+        // worked out by the views as they draw.
+        let changed: @Sendable (Notification) -> Void = { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
+        }
+        dayObservers = [
+            NotificationCenter.default.addObserver(forName: .NSCalendarDayChanged, object: nil, queue: .main, using: changed),
+            NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil,
+                                                              queue: .main, using: changed),
+        ]
+        refresh()
+    }
+
+    private func scheduleNextRefresh() {
+        nextRefresh?.cancel()
+        guard let soonest = events.map(\.end).filter({ $0 > .now }).min() else { return }
+        let delay = soonest.timeIntervalSinceNow + 1
+        nextRefresh = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            self?.refresh()
         }
     }
 
@@ -82,6 +101,7 @@ public final class CalendarService {
             }
         let list = Array(upcoming)
         if list != events { events = list }
+        scheduleNextRefresh()
     }
 
     private func updateAccess() {

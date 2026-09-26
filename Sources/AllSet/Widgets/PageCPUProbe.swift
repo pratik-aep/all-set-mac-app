@@ -360,6 +360,61 @@ enum PageCPUProbe {
         return result == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : 0
     }
 
+    /// The neon sign for a minute with its flicker on, then off: what the
+    /// flicker itself costs (it re-renders glowing text a few times a burst).
+    static func runNeon(services: AppServices) async {
+        func cpuSeconds() -> Double {
+            var usage = rusage()
+            getrusage(RUSAGE_SELF, &usage)
+            return Double(usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) + Double(usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6
+        }
+        for flicker in [true, false] {
+            var instance = WidgetCatalog.entry("neon")?.make(size: .medium) ?? WidgetInstance(kind: .neon)
+            instance.options.neonFlicker = flicker
+            let window = NSWindow(contentRect: NSRect(x: 200, y: 200, width: 400, height: 240), styleMask: [.borderless],
+                                  backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView: WidgetBody(instance: instance, services: services)
+                .environment(\.widgetIsVisible, true).frame(width: 400, height: 240))
+            window.orderFrontRegardless()
+            try? await Task.sleep(for: .seconds(3))
+            let start = cpuSeconds()
+            try? await Task.sleep(for: .seconds(60))
+            print(String(format: "neon flicker %@: %.3f%% CPU over 60 s", flicker ? "on " : "off", (cpuSeconds() - start) / 60 * 100))
+            window.close()
+        }
+    }
+
+    /// Each widget on the desktop, alone for 20 seconds: which one costs
+    /// what, as it runs (visible, animating, with live stats flowing).
+    static func runDesktopWidgets(services: AppServices) async {
+        func cpuSeconds() -> Double {
+            var usage = rusage()
+            getrusage(RUSAGE_SELF, &usage)
+            return Double(usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) + Double(usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6
+        }
+        services.monitor.setViewer("probe", visible: true, interval: 2)
+        let only = ProcessInfo.processInfo.environment["ONLY_KIND"]
+        let widgets = services.widgets.widgets.filter { only == nil || $0.kind.rawValue == only }
+        for instance in [WidgetInstance?.none] + widgets.map(Optional.some) {
+            let size = instance?.size.dimensions ?? CGSize(width: 170, height: 170)
+            let window = NSWindow(contentRect: NSRect(x: 200, y: 200, width: size.width, height: size.height), styleMask: [.borderless],
+                                  backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            if let instance {
+                window.contentView = NSHostingView(rootView: WidgetBody(instance: instance, services: services)
+                    .environment(\.widgetIsVisible, true).frame(width: size.width, height: size.height))
+            }
+            window.orderFrontRegardless()
+            try? await Task.sleep(for: .seconds(3))
+            let start = cpuSeconds()
+            try? await Task.sleep(for: .seconds(Double(ProcessInfo.processInfo.environment["SECONDS"] ?? "20") ?? 20))
+            let name = instance.map { "\($0.kind.rawValue) \($0.size.rawValue) \($0.options.clockFace.rawValue)" } ?? "(empty window)"
+            print(String(format: "%-28@ %.3f%% CPU", name as NSString, (cpuSeconds() - start) / (Double(ProcessInfo.processInfo.environment["SECONDS"] ?? "20") ?? 20) * 100))
+            window.close()
+        }
+    }
+
     /// The spiral, charms, label and the mystic widgets.
     static func runMystic(services: AppServices) async {
         func widget(_ entry: String, _ size: WidgetSize) -> AnyView {

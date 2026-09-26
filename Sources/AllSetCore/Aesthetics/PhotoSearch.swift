@@ -89,7 +89,8 @@ public final class PhotoSearch {
     @ObservationIgnored private var openversePacer = SearchPacer()
     @ObservationIgnored private var wallhavenPacer = SearchPacer(limit: 40)
     @ObservationIgnored private var task: Task<Void, Never>?
-    @ObservationIgnored private var memoryCache: [String: CachedPage] = [:]
+    /// Recent pages in memory (older ones are read back from disk).
+    @ObservationIgnored private var memoryCache = CostCache<String, CachedPage>(costLimit: 200)
     @ObservationIgnored private let cacheDirectory: URL
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let log = Logger(subsystem: "com.pratik.allset", category: "search")
@@ -390,14 +391,14 @@ public final class PhotoSearch {
     }
 
     private func cachedPage(_ key: String, maxAge: TimeInterval) -> CachedPage? {
-        let entry = memoryCache[key] ?? (try? Data(contentsOf: cacheFile(key))).flatMap { try? JSONDecoder().decode(CachedPage.self, from: $0) }
+        let entry = memoryCache.value(forKey: key) ?? (try? Data(contentsOf: cacheFile(key))).flatMap { try? JSONDecoder().decode(CachedPage.self, from: $0) }
         guard let entry else { return nil }
-        memoryCache[key] = entry
+        memoryCache.insert(entry, forKey: key, cost: 1)
         return entry.date.timeIntervalSinceNow > -maxAge ? entry : nil
     }
 
     private func store(_ entry: CachedPage, key: String) {
-        memoryCache[key] = entry
+        memoryCache.insert(entry, forKey: key, cost: 1)
         if let data = try? JSONEncoder().encode(entry) {
             try? data.write(to: cacheFile(key), options: .atomic)
         }

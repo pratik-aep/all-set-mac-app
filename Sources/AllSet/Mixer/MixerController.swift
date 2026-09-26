@@ -39,6 +39,7 @@ final class MixerController {
     @ObservationIgnored private var lastApplied: (requests: [AppAudioRouter.Request], outputUID: String)?
     @ObservationIgnored private var isAskingPermission = false
     @ObservationIgnored private var isRefreshScheduled = false
+    @ObservationIgnored private var activationObserver: NSObjectProtocol?
 
     private struct Owner {
         let id: String
@@ -61,8 +62,8 @@ final class MixerController {
         }
         output.onOutputChange = { [weak self] in self?.route() }
         // Permission may have been given in System Settings meanwhile.
-        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
-                                               queue: .main) { [weak self] _ in
+        activationObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification,
+                                                                    object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.checkPermission() }
         }
         refresh()
@@ -70,6 +71,8 @@ final class MixerController {
 
     /// Hands every app its sound back.
     func stop() {
+        if let activationObserver { NotificationCenter.default.removeObserver(activationObserver) }
+        activationObserver = nil
         router.removeAll()
         store.save()
     }

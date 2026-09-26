@@ -98,7 +98,7 @@ final class NotchController {
             if !editing { self?.pointerMoved() }
         }
         Task { [services, model] in
-            try? await Task.sleep(for: .seconds(2))
+            try? await Task.sleep(for: .seconds(6))
             guard services.settings.notchEnabled else { return }
             await IslandView.warmUp(geometry: model.geometry, services: services)
         }
