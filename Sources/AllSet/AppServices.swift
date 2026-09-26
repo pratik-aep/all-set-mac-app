@@ -20,24 +20,9 @@ final class UIState {
     var scaleBeforeTheme: Double?
     /// A theme set being tried on the desktop, with what to go back to.
     var themePreview: ThemePreview?
-    /// How hard to save energy, from Low Power Mode, Reduce Motion and the charger.
-    var energy = EnergyMode()
-}
-
-/// What the Mac asks of apps right now, energy-wise.
-struct EnergyMode: Equatable {
-    var isLowPower = false
-    var reducesMotion = false
-    var isOnBattery = false
-
-    /// Stop decorative motion entirely: Low Power Mode, or Reduce Motion is on.
-    var pausesMotion: Bool { isLowPower || reducesMotion }
-
-    static func current(onBattery: Bool) -> EnergyMode {
-        EnergyMode(isLowPower: ProcessInfo.processInfo.isLowPowerModeEnabled,
-                   reducesMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
-                   isOnBattery: onBattery)
-    }
+    /// How hard All Set may work: from Low Power Mode, the Mac's temperature,
+    /// Reduce Motion and the charger. Every subsystem reads its limits here.
+    var performance = PerformancePolicy()
 }
 
 /// The app's long-lived models, shared by the notch, widgets, menu bar and settings.
@@ -146,6 +131,8 @@ final class AppServices {
         }
         energyObservers = [
             NotificationCenter.default.addObserver(forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main, using: update),
+            NotificationCenter.default.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification, object: nil,
+                                                   queue: .main, using: update),
             NSWorkspace.shared.notificationCenter.addObserver(
                 forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main, using: update),
         ]
@@ -154,18 +141,21 @@ final class AppServices {
     }
 
     private func updateEnergy() {
-        let mode = EnergyMode.current(onBattery: power.state.map { !$0.isPluggedIn } ?? false)
-        guard mode != ui.energy else { return }
-        ui.energy = mode
+        let policy = PerformancePolicy(isLowPower: ProcessInfo.processInfo.isLowPowerModeEnabled,
+                                       reducesMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+                                       isOnBattery: power.state.map { !$0.isPluggedIn } ?? false,
+                                       thermal: ProcessInfo.processInfo.thermalState)
+        guard policy != ui.performance else { return }
+        ui.performance = policy
         applyMonitorPace()
     }
 
-    /// On battery, live stats refresh at most once a second and idle
-    /// sampling slows down; plugged in, they follow the setting.
+    /// Live stats follow the setting, but no faster than the policy allows;
+    /// with nothing showing them, the monitor samples at the policy's idle pace.
     private func applyMonitorPace() {
-        let saving = ui.energy.isOnBattery || ui.energy.isLowPower
-        monitor.activeInterval = saving ? max(settings.refreshInterval, 1) : settings.refreshInterval
-        monitor.idleInterval = ui.energy.isLowPower ? 10 : saving ? 5 : 3
+        let policy = ui.performance
+        monitor.activeInterval = max(settings.refreshInterval, policy.monitorMinimumInterval)
+        monitor.idleInterval = policy.monitorIdleInterval
     }
 
     private static var widgetsFileURL: URL {

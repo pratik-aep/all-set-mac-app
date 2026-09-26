@@ -9,12 +9,13 @@ struct AirQualityWidget: View {
     let instance: WidgetInstance
     let weather: WeatherService
     let onConfigure: @MainActor () -> Void
+    @Environment(\.widgetRefreshScale) private var refreshScale
 
     @Environment(\.widgetStyle) private var style
 
     var body: some View {
         if let location = instance.options.location {
-            let interval = instance.options.refresh.interval(for: .weather)
+            let interval = instance.options.refresh.interval(for: .weather).map { $0 * refreshScale }
             Group {
                 if let report = weather.airQuality[location] {
                     content(report, location: location)

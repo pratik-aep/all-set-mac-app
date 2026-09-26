@@ -8,6 +8,7 @@ struct SystemMetricWidget: View {
     let instance: WidgetInstance
     let monitor: any SystemReadings
     let unit: TemperatureUnit
+    @Environment(\.widgetRefreshScale) private var refreshScale
 
     @Environment(\.widgetStyle) private var style
     @State private var wifi: WiFiStatus?
@@ -20,7 +21,7 @@ struct SystemMetricWidget: View {
         content(snapshot)
             .padding(WidgetMetrics.padding(size))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .widgetRefresh(every: instance.options.metric == .wifi ? instance.options.refresh.interval(for: .wifi) : nil,
+            .widgetRefresh(every: instance.options.metric == .wifi ? instance.options.refresh.interval(for: .wifi).map { $0 * refreshScale } : nil,
                            id: instance.options.metric) {
                 if instance.options.metric == .wifi { wifi = WiFiReader.read() }
             }

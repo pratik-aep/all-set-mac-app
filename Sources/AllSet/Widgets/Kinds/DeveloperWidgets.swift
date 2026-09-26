@@ -11,6 +11,7 @@ struct GitHubWidget: View {
     let instance: WidgetInstance
     let github: GitHubService
     let onConfigure: @MainActor () -> Void
+    @Environment(\.widgetRefreshScale) private var refreshScale
 
     @Environment(\.widgetStyle) private var style
 
@@ -18,7 +19,7 @@ struct GitHubWidget: View {
     private var size: WidgetSize { instance.size }
 
     var body: some View {
-        let interval = instance.options.refresh.interval(for: .github)
+        let interval = instance.options.refresh.interval(for: .github).map { $0 * refreshScale }
         Group {
             if !GitHubService.isConfigured(config) {
                 WidgetStateView(kind: .empty, symbol: "chevron.left.forwardslash.chevron.right", title: "Connect GitHub",
@@ -324,6 +325,7 @@ struct ContributionGraph: View {
 struct StatusWidget: View {
     let instance: WidgetInstance
     let status: StatusService
+    @Environment(\.widgetRefreshScale) private var refreshScale
 
     @Environment(\.widgetStyle) private var style
 
@@ -331,7 +333,7 @@ struct StatusWidget: View {
         let endpoints = Array(instance.options.endpoints.prefix(instance.size == .small ? 3 : instance.size == .medium ? 4 : 7))
         let checks = endpoints.map { status.check($0) }
         let down = checks.compactMap { $0 }.filter { $0.health != .up }.count
-        let interval = instance.options.refresh.interval(for: .status)
+        let interval = instance.options.refresh.interval(for: .status).map { $0 * refreshScale }
         VStack(alignment: .leading, spacing: instance.size == .small ? 8 : 9) {
             WidgetHeader(title: "Status", symbol: "waveform.path.ecg",
                          detail: checks.contains { $0 == nil } ? "Checking…" : down == 0 ? "All up" : "\(down) need attention")

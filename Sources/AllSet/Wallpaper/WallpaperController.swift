@@ -52,7 +52,7 @@ final class WallpaperController {
     func start() {
         sync()
         observe({ [services] in services.wallpaper.config }) { [weak self] _ in self?.sync() }
-        observe({ [services] in services.ui.energy }) { [weak self] _ in self?.updatePlayback() }
+        observe({ [services] in services.ui.performance }) { [weak self] _ in self?.updatePlayback() }
 
         let workspace = NSWorkspace.shared.notificationCenter
         observers.append(NotificationCenter.default.addObserver(
@@ -131,11 +131,11 @@ final class WallpaperController {
     /// decoding a 4K video or drawing art 30 times a second for.
     private func updatePlayback() {
         let config = services.wallpaper.config
-        let energy = services.ui.energy
+        let policy = services.ui.performance
         let allowed = config.isEnabled
             && !isLocked && !isAsleep
-            && !energy.pausesMotion
-            && !(config.pauseOnBattery && energy.isOnBattery)
+            && !policy.pausesDecorativeMotion
+            && !(config.pauseOnBattery && policy.isOnBattery)
         let covering = allowed && config.pauseWhenCovered ? DesktopCoverage.windowRects() : []
         var anyPlaying = false
         for window in windows.values {
@@ -284,7 +284,7 @@ private struct WallpaperRoot: View {
     /// On battery, drawn art runs at no more than 30 frames a second.
     private var config: WallpaperConfig {
         var config = services.wallpaper.config
-        if services.ui.energy.isOnBattery { config.frameRate = min(config.frameRate, 30) }
+        if let limit = services.ui.performance.videoFrameRateLimit { config.frameRate = min(config.frameRate, limit) }
         return config
     }
 

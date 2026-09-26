@@ -308,6 +308,9 @@ extension EnvironmentValues {
     /// False while the widget's window is covered. Unlike `widgetIsVisible`,
     /// Reduce Motion and Low Power Mode don't change it: data still updates.
     @Entry var widgetIsOnScreen = true
+    /// How much longer network-backed widgets wait between refreshes: 1
+    /// normally, more in Low Power Mode or when the Mac is hot.
+    @Entry var widgetRefreshScale = 1.0
 }
 
 extension View {

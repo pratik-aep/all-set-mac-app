@@ -6,13 +6,14 @@ struct WeatherWidget: View {
     let weather: WeatherService
     let unit: TemperatureUnit
     let onConfigure: @MainActor () -> Void
+    @Environment(\.widgetRefreshScale) private var refreshScale
 
     @Environment(\.widgetStyle) private var style
 
     var body: some View {
         if let location = instance.options.location {
             let report = weather.reports[location]
-            let interval = instance.options.refresh.interval(for: .weather)
+            let interval = instance.options.refresh.interval(for: .weather).map { $0 * refreshScale }
             ZStack {
                 if instance.material == .tinted, instance.designTheme == nil {
                     SkyBackground(code: report?.current.code ?? 1, isDay: report?.current.isDay ?? true)

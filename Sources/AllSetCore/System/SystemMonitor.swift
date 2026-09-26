@@ -33,7 +33,6 @@ public final class SystemMonitor {
     @ObservationIgnored private var isRunning = false
     @ObservationIgnored private var isSampling = false
     @ObservationIgnored private var loop: Task<Void, Never>?
-    @ObservationIgnored private var idleTicks = 0
 
     public init() {}
 
@@ -85,14 +84,11 @@ public final class SystemMonitor {
     }
 
     private func tick() async {
-        if isIdle {
-            idleTicks += 1
-            // Temperatures, battery detail, disk and per-app usage only matter
-            // on screen; refresh them occasionally so the first frame isn't stale.
-            await sample(detailed: idleTicks % 10 == 0)
-        } else {
-            await sample(detailed: true)
-        }
+        // With nothing on screen, only the cheap readings, for the sparkline
+        // history and the menu bar's CPU figure. Temperatures, battery detail,
+        // disk and per-app usage (a walk over every process) wait until a
+        // viewer appears, which samples them at once (`setViewer`).
+        await sample(detailed: !isIdle)
     }
 
     /// Samples right away without waiting, so a panel that just opened fills in.

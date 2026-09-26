@@ -25,17 +25,18 @@ final class ClipboardMonitor {
         self.services = services
     }
 
-    /// macOS doesn't announce clipboard changes, so check twice a second (once
-    /// on battery); it's a single number comparison, but each check wakes the Mac.
+    /// macOS doesn't announce clipboard changes, so check a couple of times a
+    /// second, less often on battery, in Low Power Mode or when hot (the
+    /// policy's pace); it's a single number comparison, but each check wakes the Mac.
     func start() {
         guard timer == nil else { return }
         schedule()
-        observe({ [services] in services.ui.energy.isOnBattery }) { [weak self] _ in self?.schedule() }
+        observe({ [services] in services.ui.performance.clipboardInterval }) { [weak self] _ in self?.schedule() }
     }
 
     private func schedule() {
         timer?.invalidate()
-        let interval = services.ui.energy.isOnBattery ? 1.0 : 0.5
+        let interval = services.ui.performance.clipboardInterval
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.check() }
         }

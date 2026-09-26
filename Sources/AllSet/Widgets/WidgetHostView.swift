@@ -111,11 +111,12 @@ struct WidgetHostView: View {
             WidgetBody(instance: instance, services: services, onConfigure: onConfigure)
             // Covered widgets, and all of them in Low Power Mode or with Reduce
             // Motion on, hold still.
-            .environment(\.widgetIsVisible, !window.isOccluded && !services.ui.energy.pausesMotion)
+            .environment(\.widgetIsVisible, !window.isOccluded && !services.ui.performance.pausesDecorativeMotion)
             // Data keeps coming while they can be seen, whatever the motion setting.
             .environment(\.widgetIsOnScreen, !window.isOccluded)
             // Slow, drifting art looks the same at fewer frames; fewer still on battery.
-            .environment(\.artFrameLimit, services.ui.energy.isOnBattery ? 15 : 24)
+            .environment(\.artFrameLimit, services.ui.performance.artFrameRate)
+            .environment(\.widgetRefreshScale, services.ui.performance.networkRefreshScale)
             .overlay {
                 if arranging {
                     // Covers the widget so its controls don't react while arranging.
