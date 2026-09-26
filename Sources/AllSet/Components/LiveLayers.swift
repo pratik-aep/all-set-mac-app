@@ -245,7 +245,9 @@ struct LiveArtwork<Content: View, Key: Hashable>: View {
             .frame(width: size.width, height: size.height)
             .padding(padding))
         renderer.scale = id.scale
-        guard let image = renderer.cgImage else { return nil }
+        // Kept as 8-bit screen-ready pixels: ImageRenderer's 16-bit output
+        // would take twice the memory for nothing a screen can show.
+        guard let image = renderer.cgImage.map(ImageLibrary.displayReady) else { return nil }
         var glowImage: CGImage?
         if let glow, let color = CIColor(color: NSColor(glow)) {
             let radius = glowRadius * id.scale * 0.5
@@ -277,17 +279,27 @@ enum ArtworkCache {
         let glow: CGImage?
     }
 
-    private static var artworks: [AnyHashable: Artwork] = [:]
-    private static var order: [AnyHashable] = []
-    /// About 60 widget-sized pictures: a few tens of megabytes at most.
-    private static let limit = 60
+    /// Widget-sized pictures and their glows, least recently used first out,
+    /// limited by bytes as well as count.
+    private static var artworks = CostCache<AnyHashable, Artwork>(costLimit: 64 << 20, countLimit: 60)
 
-    static func artwork(for id: AnyHashable) -> Artwork? { artworks[id] }
+    #if DEBUG
+    static var debugCacheReport: String {
+        String(format: "artworks %d (%.0f MB)", artworks.count, Double(artworks.totalCost) / 1_048_576)
+    }
+    #endif
+
+    static func artwork(for id: AnyHashable) -> Artwork? { artworks.value(forKey: id) }
 
     static func store(_ artwork: Artwork) {
-        if artworks[artwork.id] == nil { order.append(artwork.id) }
-        artworks[artwork.id] = artwork
-        while order.count > limit { artworks[order.removeFirst()] = nil }
+        let cost = artwork.image.bytesPerRow * artwork.image.height + (artwork.glow.map { $0.bytesPerRow * $0.height } ?? 0)
+        artworks.insert(artwork, forKey: artwork.id, cost: cost)
+    }
+
+    /// Lets go of cached artwork down to `fraction` of the limit (0 empties
+    /// it); widgets that are moving keep their layers' copies.
+    static func trim(to fraction: Double) {
+        artworks.trim(toCost: Int(Double(artworks.costLimit) * fraction))
     }
 
     /// One context for every glow: making one costs more than the blur.

@@ -330,10 +330,34 @@ enum PageCPUProbe {
         MainWindowController.shared.show(services: services)
         try? await Task.sleep(for: .seconds(3))
         print("window open:   viewers \(services.monitor.debugViewers)")
-        NSApp.windows.first { $0.title == "All Set" }?.performClose(nil)
+        NSApp.windows.first { $0.frameAutosaveName == "AllSetMain" && $0.isVisible }?.performClose(nil)
         try? await Task.sleep(for: .seconds(3))
         print("window closed: viewers \(services.monitor.debugViewers)")
         await measure("after closing")
+        // Reopening rebuilds the page, which asks for readings again.
+        MainWindowController.shared.show(services: services)
+        try? await Task.sleep(for: .seconds(2))
+        print("reopened:      viewers \(services.monitor.debugViewers)")
+        // The heaviest page: every theme's preview picture.
+        print(String(format: "footprint before Themes: %.0f MB", footprintMB()))
+        services.ui.page = .themes
+        try? await Task.sleep(for: .seconds(12))
+        print(String(format: "footprint on Themes:     %.0f MB", footprintMB()))
+        print("  caches: \(services.images.debugCacheReport); \(services.themePreviews.debugCacheReport); \(ArtworkCache.debugCacheReport)")
+        NSApp.windows.first { $0.frameAutosaveName == "AllSetMain" && $0.isVisible }?.performClose(nil)
+        try? await Task.sleep(for: .seconds(5))
+        print(String(format: "footprint after closing: %.0f MB", footprintMB()))
+        print("  caches: \(services.images.debugCacheReport); \(services.themePreviews.debugCacheReport); \(ArtworkCache.debugCacheReport)")
+    }
+
+    /// The process's physical footprint, as Activity Monitor's "Memory" shows it.
+    static func footprintMB() -> Double {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
+        }
+        return result == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : 0
     }
 
     /// The spiral, charms, label and the mystic widgets.

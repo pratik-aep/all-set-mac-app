@@ -42,12 +42,30 @@ enum AppPage: Hashable {
 /// The one window of the app, opened from the Dock, the menu bar, the notch
 /// and the widgets.
 @MainActor
-final class MainWindowController {
+final class MainWindowController: NSObject, NSWindowDelegate {
     static let shared = MainWindowController()
 
     private var window: NSWindow?
 
+    /// Closing lets the whole window go. Kept, a closed window's pages stay
+    /// alive unseen: no `onDisappear` runs, so a page that asked for live
+    /// system readings kept the monitor sampling every two seconds for the
+    /// rest of the session, and every picture it had shown stayed in memory.
+    /// The page on show is kept in `UIState`, so reopening lands on it again.
+    func windowWillClose(_ notification: Notification) {
+        guard let closing = notification.object as? NSWindow, closing === window else { return }
+        closing.delegate = nil
+        closing.contentViewController = nil
+        window = nil
+        // Theme previews and the Photos page's pictures were only for this
+        // window; desktop widgets keep the recent ones they use.
+        services?.releaseCachedPictures(keeping: 0.25)
+    }
+
+    private weak var services: AppServices?
+
     func show(services: AppServices) {
+        self.services = services
         if window == nil {
             let controller = NSHostingController(rootView: MainView(services: services, ui: services.ui))
             // The window's size limits are set here, not derived from the
@@ -63,6 +81,7 @@ final class MainWindowController {
             window.setContentSize(NSSize(width: 1120, height: 760))
             window.center()
             window.setFrameAutosaveName("AllSetMain")
+            window.delegate = self
             self.window = window
         }
         NSApp.activate()

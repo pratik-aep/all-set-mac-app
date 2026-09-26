@@ -53,7 +53,12 @@ final class AppServices {
     let themeStats = ThemeStats()
     /// The person's own photos for each theme set.
     let themePhotos = ThemePhotos()
-    private(set) lazy var themePreviews = ThemePreviewCache(photos: themePhotos)
+    private(set) lazy var themePreviews: ThemePreviewCache = {
+        hasThemePreviews = true
+        return ThemePreviewCache(photos: themePhotos)
+    }()
+    /// Whether the previews exist yet, so freeing memory doesn't create them.
+    private var hasThemePreviews = false
     let github = GitHubService()
     let status = StatusService()
     /// Wallpaper-aware accents for design themes.
@@ -81,6 +86,7 @@ final class AppServices {
 
     func start() {
         startWatchingEnergy()
+        startWatchingMemory()
         applyMonitorPace()
         observe({ [settings] in settings.refreshInterval }) { [weak self] _ in self?.applyMonitorPace() }
         monitor.start()
@@ -101,6 +107,33 @@ final class AppServices {
         monitor.stop()
         widgets.saveNow()
         clipboard.save()
+    }
+
+    // MARK: Memory
+
+    private var memoryPressure: DispatchSourceMemoryPressure?
+
+    /// When macOS runs short of memory, hand back what can be rebuilt.
+    private func startWatchingMemory() {
+        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
+        source.setEventHandler { [weak self, weak source] in
+            MainActor.assumeIsolated {
+                let critical = source?.data.contains(.critical) ?? false
+                self?.releaseCachedPictures(keeping: critical ? 0 : 0.5)
+            }
+        }
+        source.resume()
+        memoryPressure = source
+    }
+
+    /// Frees cached pictures (photos, artwork, theme previews) down to
+    /// `fraction` of each cache's limit. Everything freed is rebuilt from disk
+    /// or redrawn the next time it's needed; nothing on screen disappears,
+    /// since views hold what they show.
+    func releaseCachedPictures(keeping fraction: Double) {
+        if hasThemePreviews { themePreviews.purge() }
+        images.trimCaches(to: fraction)
+        ArtworkCache.trim(to: fraction)
     }
 
     // MARK: Energy

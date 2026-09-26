@@ -131,9 +131,11 @@ public final class ImageLibrary {
     public private(set) var userImages: [String] = []
 
     @ObservationIgnored private var nextPage = 1
-    @ObservationIgnored private var memoryCache: [ImageSource: NSImage] = [:]
+    /// Whole photos (a wallpaper, a big widget), limited by decoded bytes:
+    /// one screen-sized photo is 20–40 MB, so a count alone isn't a limit.
+    @ObservationIgnored private var memoryCache = CostCache<ImageSource, NSImage>(costLimit: 160 << 20, countLimit: 40)
     /// Smaller copies for small places (a widget, a print), by longest side.
-    @ObservationIgnored private var smallCache: [SizedSource: NSImage] = [:]
+    @ObservationIgnored private var smallCache = CostCache<SizedSource, NSImage>(costLimit: 96 << 20, countLimit: 120)
     @ObservationIgnored private var smallLoading: [SizedSource: Task<NSImage?, Never>] = [:]
 
     private struct SizedSource: Hashable {
@@ -231,8 +233,8 @@ public final class ImageLibrary {
 
     public func deleteUserImage(_ name: String) {
         try? FileManager.default.removeItem(at: userDirectory.appendingPathComponent(name))
-        memoryCache[.file(name)] = nil
-        smallCache = smallCache.filter { $0.key.source != .file(name) }
+        memoryCache.removeValue(forKey: .file(name))
+        smallCache.removeAll { $0.source == .file(name) }
         reloadUserImages()
     }
 
@@ -252,20 +254,38 @@ public final class ImageLibrary {
         userDirectory.appendingPathComponent(name)
     }
 
+    #if DEBUG
+    /// What the caches hold, for probes: images and decoded megabytes.
+    public var debugCacheReport: String {
+        let full = memoryCache.totalCost
+        let small = smallCache.totalCost
+        return String(format: "photos %d (%.0f MB), small copies %d (%.0f MB)", memoryCache.count, Double(full) / 1_048_576,
+                      smallCache.count, Double(small) / 1_048_576)
+    }
+    #endif
+
+    /// Lets go of cached pictures down to `fraction` of each cache's limit:
+    /// 0 empties them. Pictures on screen stay on screen (their views hold
+    /// them); only a later look may decode again.
+    public func trimCaches(to fraction: Double) {
+        memoryCache.trim(toCost: Int(Double(memoryCache.costLimit) * fraction))
+        smallCache.trim(toCost: Int(Double(smallCache.costLimit) * fraction))
+    }
+
     // MARK: Loading
 
     /// The image if it's already in memory, for drawing it at once without a fade.
     public func cachedImage(for source: ImageSource, maxPixels: Int? = nil) -> NSImage? {
-        guard let maxPixels, Self.pixelBucket(maxPixels) > 0 else { return memoryCache[source] }
+        guard let maxPixels, Self.pixelBucket(maxPixels) > 0 else { return memoryCache.value(forKey: source) }
         let wanted = Self.pixelBucket(maxPixels)
         // The size asked for or a larger copy, then the whole photo, then a
         // smaller copy to show until the right one loads.
         for bucket in Self.buckets where bucket >= wanted {
-            if let image = smallCache[SizedSource(source: source, pixels: bucket)] { return image }
+            if let image = smallCache.value(forKey: SizedSource(source: source, pixels: bucket)) { return image }
         }
-        if let whole = memoryCache[source] { return whole }
+        if let whole = memoryCache.value(forKey: source) { return whole }
         for bucket in Self.buckets.reversed() where bucket < wanted {
-            if let image = smallCache[SizedSource(source: source, pixels: bucket)] { return image }
+            if let image = smallCache.value(forKey: SizedSource(source: source, pixels: bucket)) { return image }
         }
         return nil
     }
@@ -277,20 +297,19 @@ public final class ImageLibrary {
         let bucket = Self.pixelBucket(maxPixels)
         guard bucket > 0 else { return await image(for: source) }
         let key = SizedSource(source: source, pixels: bucket)
-        if let cached = smallCache[key] { return cached }
+        if let cached = smallCache.value(forKey: key) { return cached }
         if let running = smallLoading[key] { return await running.value }
         let task = Task<NSImage?, Never> {
             guard await self.image(for: source) != nil, let file = fileURL(for: source) else { return nil }
             // The full image stays out of memory; only the small copy is kept.
-            memoryCache[source] = nil
+            memoryCache.removeValue(forKey: source)
             return await Task.detached(priority: .userInitiated) { Self.thumbnail(of: file, maxPixels: bucket) }.value
         }
         smallLoading[key] = task
         let small = await task.value
         smallLoading[key] = nil
         if let small {
-            if smallCache.count > 80 { smallCache.removeAll() }
-            smallCache[key] = small
+            smallCache.insert(small, forKey: key, cost: small.decodedByteCount)
         }
         return small
     }
@@ -314,7 +333,7 @@ public final class ImageLibrary {
     /// Redrawn once in the screen's colors and the pixel layout Core Animation
     /// keeps (32-bit BGRA, premultiplied), so drawing it later is a plain copy
     /// instead of a color conversion every time a widget redraws.
-    nonisolated static func displayReady(_ image: CGImage) -> CGImage {
+    public nonisolated static func displayReady(_ image: CGImage) -> CGImage {
         let space = displaySpace.withLock { $0 } ?? CGColorSpace(name: CGColorSpace.sRGB)!
         guard let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: 0,
                                       space: space,
@@ -328,16 +347,14 @@ public final class ImageLibrary {
     /// The image for a photo or file source, from memory, disk or the network.
     /// Nil for art, which is drawn rather than loaded.
     public func image(for source: ImageSource) async -> NSImage? {
-        if let cached = memoryCache[source] { return cached }
+        if let cached = memoryCache.value(forKey: source) { return cached }
         if let running = loading[source] { return await running.value }
         let task = Task { await load(source) }
         loading[source] = task
         let image = await task.value
         loading[source] = nil
         if let image {
-            // Photo widgets are few; a small cache is plenty.
-            if memoryCache.count > 40 { memoryCache.removeAll() }
-            memoryCache[source] = image
+            memoryCache.insert(image, forKey: source, cost: image.decodedByteCount)
         }
         return image
     }

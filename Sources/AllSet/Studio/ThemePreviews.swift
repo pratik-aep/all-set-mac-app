@@ -87,6 +87,12 @@ final class ThemePreviewCache {
 
     @ObservationIgnored private let photos: ThemePhotos
 
+    #if DEBUG
+    var debugCacheReport: String {
+        String(format: "previews %d (%.0f MB)", images.count, Double(bytes) / 1_048_576)
+    }
+    #endif
+
     init(photos: ThemePhotos) {
         self.photos = photos
         // Pictures from older ways of drawing (or naming) previews never match again.
@@ -144,21 +150,74 @@ final class ThemePreviewCache {
         "\(set.id)-\(dark ? "dark" : "light")-\(fingerprint(set))-\(Self.appVersion)-d\(Self.drawingVersion)-p\(photos.version(of: set.id))"
     }
 
-    func image(for set: ThemeSet, dark: Bool) -> NSImage? { images[key(set, dark: dark)] }
+    func image(for set: ThemeSet, dark: Bool) -> NSImage? {
+        let name = key(set, dark: dark)
+        guard let image = images[name] else { return nil }
+        useCount += 1
+        lastUse[name] = useCount
+        return image
+    }
+
+    /// Previews kept in memory beyond the cards on screen, which always keep
+    /// theirs. The rest come back from disk (a few milliseconds each, off the
+    /// main thread) when scrolled to again.
+    private static let memoryLimit = 48 << 20
+    /// Cards on screen, by preview: never evicted from under them.
+    @ObservationIgnored private var showing: [String: Int] = [:]
+    @ObservationIgnored private var lastUse: [String: Int] = [:]
+    @ObservationIgnored private var useCount = 0
+    @ObservationIgnored private var bytes = 0
+    @ObservationIgnored private var generation = 0
+
+    private func keep(_ image: CGImage, as name: String) {
+        // ImageRenderer draws 16 bits a channel; the screen shows 8. Half the
+        // memory, and Core Animation draws it without converting.
+        let ready = image.bitsPerPixel == 32 ? image : ImageLibrary.displayReady(image)
+        if let old = images[name] { bytes -= old.decodedByteCount }
+        let picture = NSImage(cgImage: ready, size: NSSize(width: ready.width, height: ready.height))
+        images[name] = picture
+        bytes += picture.decodedByteCount
+        useCount += 1
+        lastUse[name] = useCount
+        while bytes > Self.memoryLimit,
+              let oldest = lastUse.filter({ images[$0.key] != nil && $0.key != name && showing[$0.key] == nil })
+                  .min(by: { $0.value < $1.value })?.key {
+            if let dropped = images.removeValue(forKey: oldest) { bytes -= dropped.decodedByteCount }
+            lastUse[oldest] = nil
+        }
+    }
+
+    /// Lets go of every preview in memory (they stay on disk), for when the
+    /// window that shows them closes or memory runs short.
+    func purge() {
+        // Loads and drawings already under way finish (and still reach the
+        // disk) but don't come back into memory.
+        generation += 1
+        queue.removeAll()
+        inFlight.removeAll()
+        images.removeAll()
+        lastUse.removeAll()
+        showing.removeAll()
+        bytes = 0
+    }
 
     /// Asks for a preview. Pictures already on disk load at once, off the main
     /// thread; the rest are drawn one at a time, in the order asked, so a page
     /// full of new cards never floods the main thread (drawing uses it).
     func request(_ set: ThemeSet, dark: Bool, services: AppServices) {
         let name = key(set, dark: dark)
+        showing[name, default: 0] += 1
         guard images[name] == nil, !inFlight.contains(name) else { return }
         inFlight.insert(name)
+        let asked = generation
         Task {
             if let cached = await Self.load(folder.appendingPathComponent(name + ".png")) {
-                images[name] = cached
+                guard asked == generation else { return }
+                keep(cached, as: name)
                 inFlight.remove(name)
                 return
             }
+            guard asked == generation else { return }
             queue.append((name, set, dark))
             drawQueued(services: services)
         }
@@ -167,6 +226,7 @@ final class ThemePreviewCache {
     /// A card that scrolled away no longer needs its picture drawn first.
     func cancel(_ set: ThemeSet, dark: Bool) {
         let name = key(set, dark: dark)
+        if let count = showing[name] { showing[name] = count > 1 ? count - 1 : nil }
         guard let index = queue.firstIndex(where: { $0.name == name }) else { return }
         queue.remove(at: index)
         inFlight.remove(name)
@@ -180,8 +240,9 @@ final class ThemePreviewCache {
         drawing = Task {
             while !queue.isEmpty {
                 let (name, set, dark) = queue.removeFirst()
+                let asked = generation
                 if let image = await render(set, dark: dark, services: services) {
-                    images[name] = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+                    if asked == generation { keep(image, as: name) }
                     let file = folder.appendingPathComponent(name + ".png"), folder = folder
                     let picture = SendableImage(image)
                     let older = "\(set.id)-\(dark ? "dark" : "light")-"
@@ -243,11 +304,12 @@ final class ThemePreviewCache {
         return image
     }
 
-    private static func load(_ file: URL) async -> NSImage? {
-        let image = await Task.detached(priority: .userInitiated) { () -> CGImage? in
-            guard let source = CGImageSourceCreateWithURL(file as CFURL, nil) else { return nil }
-            return CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
+    private static func load(_ file: URL) async -> CGImage? {
+        await Task.detached(priority: .userInitiated) { () -> CGImage? in
+            guard let source = CGImageSourceCreateWithURL(file as CFURL, nil),
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
+            else { return nil }
+            return ImageLibrary.displayReady(image)
         }.value
-        return image.map { NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height)) }
     }
 }
