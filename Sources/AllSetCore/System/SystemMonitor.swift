@@ -61,6 +61,11 @@ public final class SystemMonitor {
         if currentInterval != oldInterval { restartLoop() }
     }
 
+    #if DEBUG
+    /// Who is asking for live readings, and how often (for probes).
+    public var debugViewers: [String: Double] { viewers }
+    #endif
+
     private var isIdle: Bool { viewers.isEmpty }
 
     private var currentInterval: Double {

@@ -311,6 +311,31 @@ enum PageCPUProbe {
         ], services: services)
     }
 
+    /// Opens the main window on the Dynamic Island page, closes it, and
+    /// reports whether the page is still asking for live system readings.
+    static func runWindowClose(services: AppServices) async {
+        func cpuSeconds() -> Double {
+            var usage = rusage()
+            getrusage(RUSAGE_SELF, &usage)
+            return Double(usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) + Double(usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6
+        }
+        func measure(_ label: String) async {
+            let start = cpuSeconds()
+            try? await Task.sleep(for: .seconds(30))
+            print(String(format: "%@: %.2f%% CPU over 30 s", label, (cpuSeconds() - start) / 30 * 100))
+        }
+        try? await Task.sleep(for: .seconds(5))
+        await measure("never opened ")
+        services.ui.page = .island
+        MainWindowController.shared.show(services: services)
+        try? await Task.sleep(for: .seconds(3))
+        print("window open:   viewers \(services.monitor.debugViewers)")
+        NSApp.windows.first { $0.title == "All Set" }?.performClose(nil)
+        try? await Task.sleep(for: .seconds(3))
+        print("window closed: viewers \(services.monitor.debugViewers)")
+        await measure("after closing")
+    }
+
     /// The spiral, charms, label and the mystic widgets.
     static func runMystic(services: AppServices) async {
         func widget(_ entry: String, _ size: WidgetSize) -> AnyView {

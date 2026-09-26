@@ -121,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case "widgets": await PageCPUProbe.runWidgets(services: services)
                 case "fans": await PageCPUProbe.runFans(services: services)
                 case "mystic": await PageCPUProbe.runMystic(services: services)
+                case "windowclose": await PageCPUProbe.runWindowClose(services: services)
                 case "windowserver": await PageCPUProbe.runWindowServer(services: services)
                 case "reveal": await PageCPUProbe.runReveal(services: services)
                 case "islandmotion": await PageCPUProbe.runIslandMotion(services: services)
