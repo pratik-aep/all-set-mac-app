@@ -48,7 +48,7 @@ struct ThemeComposition: View {
             ArtView(piece: piece, animated: isLive)
         case .photo(let source):
             PhotoContent(source: source, filter: .none, tint: .white, animated: false, library: services.images, maxPixels: 1200)
-        case .video, nil:
+        case .video, .library, nil:
             StudioBackdrop(piece: ArtPiece(style: .blobs, palette: dark ? .midnight : .pastel))
         }
     }

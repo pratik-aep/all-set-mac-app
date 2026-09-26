@@ -11,6 +11,9 @@ public enum WallpaperSource: Codable, Hashable, Sendable {
     case photo(ImageSource)
     /// A looping video, by file name in the wallpaper videos folder.
     case video(String)
+    /// A video in a wallpaper library outside All Set, by its id
+    /// (`LibraryVideo.id`); it plays from where it lives.
+    case library(String)
 }
 
 /// How a photo wallpaper moves.
@@ -78,6 +81,14 @@ public final class WallpaperStore {
     public var config: WallpaperConfig { didSet { if config != oldValue { save() } } }
     /// Imported video file names, newest first.
     public private(set) var videos: [String] = []
+    /// Videos in libraries outside All Set (`Library/catalog.json`, written by
+    /// `scripts/wallpaper_library.py`), in catalog order.
+    public private(set) var library: [LibraryVideo] = []
+    /// Library folders by id, and whether each can be reached right now (a
+    /// drive may be unplugged).
+    public private(set) var libraryRoots: [String: WallpaperLibraryCatalog.Root] = [:]
+    public private(set) var reachableRoots: Set<String> = []
+    @ObservationIgnored private var libraryIndex: [String: Int] = [:]
 
     @ObservationIgnored private let fileURL: URL
     @ObservationIgnored public let directory: URL
@@ -91,6 +102,7 @@ public final class WallpaperStore {
         try? FileManager.default.createDirectory(at: root.appendingPathComponent("Videos"), withIntermediateDirectories: true)
         config = StoreFile.load(WallpaperConfig.self, from: fileURL) ?? WallpaperConfig()
         reloadVideos()
+        reloadLibrary()
         // A video deleted outside All Set can't play; fall back to art.
         if case .video(let name) = config.source, !FileManager.default.fileExists(atPath: videoURL(name).path) {
             config.isEnabled = false
@@ -105,6 +117,54 @@ public final class WallpaperStore {
 
     public func videoURL(_ name: String) -> URL {
         directory.appendingPathComponent("Videos").appendingPathComponent(name)
+    }
+
+    // MARK: Library
+
+    /// Where the catalog, thumbnails and the few converted copies live.
+    public var libraryDirectory: URL { directory.appendingPathComponent("Library", isDirectory: true) }
+
+    /// Reads the catalog off the main thread (a big library is a big file).
+    public func reloadLibrary() {
+        let file = libraryDirectory.appendingPathComponent("catalog.json")
+        Task {
+            let catalog = await Task.detached(priority: .utility) { () -> WallpaperLibraryCatalog? in
+                guard let data = try? Data(contentsOf: file) else { return nil }
+                return try? JSONDecoder().decode(WallpaperLibraryCatalog.self, from: data)
+            }.value
+            let items = (catalog?.items ?? []).filter { $0.status != .unsupported }
+            library = items
+            libraryIndex = Dictionary(items.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+            libraryRoots = Dictionary((catalog?.roots ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            refreshLibraryReachability()
+        }
+    }
+
+    /// Checks which library folders can be reached, for when a drive comes or goes.
+    public func refreshLibraryReachability() {
+        let reachable = Set(libraryRoots.values.filter { FileManager.default.fileExists(atPath: $0.path) }.map(\.id))
+        if reachable != reachableRoots { reachableRoots = reachable }
+    }
+
+    public func libraryVideo(_ id: String) -> LibraryVideo? {
+        libraryIndex[id].map { library[$0] }
+    }
+
+    /// The file to play: the converted copy when there is one, otherwise the
+    /// original where it lives. Nil when its drive isn't connected.
+    public func libraryURL(_ id: String) -> URL? {
+        guard let video = libraryVideo(id) else { return nil }
+        if let playback = video.playback {
+            let copy = libraryDirectory.appendingPathComponent(playback)
+            if FileManager.default.fileExists(atPath: copy.path) { return copy }
+        }
+        guard let root = libraryRoots[video.root], reachableRoots.contains(video.root) else { return nil }
+        let url = URL(fileURLWithPath: root.path).appendingPathComponent(video.file)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    public func libraryThumbnailURL(_ video: LibraryVideo) -> URL? {
+        video.thumbnail.map { libraryDirectory.appendingPathComponent($0) }
     }
 
     /// Copies videos in, so the wallpaper keeps working if the originals move.

@@ -132,6 +132,12 @@ private struct WallpaperHero: View {
             } else {
                 "Your video, looping silently"
             }
+        case .library(let id):
+            if let video = services.wallpaper.libraryVideo(id) {
+                "\(video.title), from your library"
+            } else {
+                "A video from your library"
+            }
         }
     }
 }
@@ -160,7 +166,9 @@ private struct VideosPage: View {
                     .controlSize(.large)
                 }
                 let videos = store.videos.filter { !$0.hasPrefix("aerial-") }
-                if videos.isEmpty {
+                if videos.isEmpty, !store.library.isEmpty {
+                    Text("Drop your own videos here, or import them.").foregroundStyle(.secondary)
+                } else if videos.isEmpty {
                     VStack(spacing: 10) {
                         Image(systemName: "film.stack")
                             .font(.system(size: 40))
@@ -183,9 +191,12 @@ private struct VideosPage: View {
                         }
                     }
                 }
+                LibrarySection(services: services)
             }
             .padding(28)
         }
+        // Picks up a fresh import without restarting.
+        .onAppear { store.reloadLibrary() }
         .overlay {
             if isDropTarget {
                 RoundedRectangle(cornerRadius: 16).strokeBorder(Color.accentColor, lineWidth: 3).padding(8)
@@ -261,6 +272,170 @@ private struct VideoTile: View {
     }
 }
 
+/// Videos from a wallpaper library outside All Set (a folder or a drive,
+/// imported with `scripts/wallpaper_library.py`). They play from where they
+/// live, through the same player and the same pausing rules as any video;
+/// cards show a picture made at import, never the video itself until you
+/// rest the pointer on one.
+private struct LibrarySection: View {
+    let services: AppServices
+
+    @State private var query = ""
+    @State private var category: Aerial.Category?
+    @State private var sort = LibrarySort.title
+
+    var body: some View {
+        let store = services.wallpaper
+        let all = store.library
+        if !all.isEmpty {
+            let kinds = Aerial.Category.allCases.filter { kind in all.contains { $0.category == kind } }
+            let shown = sort.sorted(all.filter { (category == nil || $0.category == category) && $0.matches(query) })
+            let offline = store.libraryRoots.values.filter { !store.reachableRoots.contains($0.id) }
+            VStack(alignment: .leading, spacing: 14) {
+                Divider().padding(.vertical, 6)
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Library").font(.title.bold())
+                        Text("\(all.count) videos from \(store.libraryRoots.values.compactMap(\.label).sorted().joined(separator: ", "))")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Picker("Sort", selection: $sort) {
+                        ForEach(LibrarySort.allCases) { Text($0.title).tag($0) }
+                    }
+                    .frame(width: 210)
+                }
+                Label("For your own desktop: these came from Steam Workshop with no author or license, so they play from your drive and are never copied into All Set or shared.",
+                      systemImage: "lock.shield")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if !offline.isEmpty {
+                    Label("\(offline.compactMap(\.label).joined(separator: ", ")) isn't connected. Connect it to preview or play these.",
+                          systemImage: "externaldrive.badge.exclamationmark")
+                        .foregroundStyle(.orange)
+                }
+                HStack(spacing: 8) {
+                    TextField("Search your library", text: $query)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 240)
+                    chip(nil, title: "All", symbol: "sparkles")
+                    ForEach(kinds) { chip($0, title: $0.title, symbol: $0.symbol) }
+                }
+                if shown.isEmpty {
+                    ContentUnavailableView.search(text: query)
+                } else {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 14)], spacing: 14) {
+                        ForEach(shown) { video in
+                            LibraryTile(video: video, store: store, images: services.images,
+                                        isCurrent: store.config.source == .library(video.id)) {
+                                store.set(.library(video.id))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func chip(_ value: Aerial.Category?, title: String, symbol: String) -> some View {
+        let selected = category == value
+        return Button {
+            withMotion(Motion.quick) { category = value }
+        } label: {
+            Label(title, systemImage: symbol)
+                .font(.callout.weight(.medium))
+                .foregroundStyle(selected ? Color.white : .primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(selected ? Color.accentColor : Color.primary.opacity(0.07)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle())
+    }
+}
+
+private struct LibraryTile: View {
+    let video: LibraryVideo
+    let store: WallpaperStore
+    let images: ImageLibrary
+    let isCurrent: Bool
+    let onUse: () -> Void
+
+    @State private var thumbnail: NSImage?
+    @State private var isHovering = false
+    /// The video starts after a moment's rest, not as the pointer passes over.
+    @State private var isPreviewing = false
+
+    private static let thumbnailPixels = 512
+
+    var body: some View {
+        let url = store.libraryURL(video.id)
+        Color.clear
+            .aspectRatio(16 / 9, contentMode: .fit)
+            .overlay {
+                ZStack {
+                    Rectangle().fill(.quaternary)
+                    if let thumbnail {
+                        Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fill)
+                    }
+                    if isPreviewing, let url {
+                        LoopingVideo(url: url, isPlaying: true).transition(.opacity)
+                    }
+                }
+                .scaleEffect(isHovering ? 1.03 : 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.accentColor, lineWidth: isCurrent ? 3 : 0)
+            }
+            .overlay(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: video.category.symbol)
+                        Text(video.title).lineLimit(1)
+                        Spacer(minLength: 4)
+                        Text(video.resolutionLabel).foregroundStyle(.white.opacity(0.75))
+                    }
+                    .font(.caption.weight(.semibold))
+                    if isHovering {
+                        Button(action: onUse) {
+                            Label(isCurrent ? "Current" : url == nil ? "Drive Not Connected" : "Set as Wallpaper",
+                                  systemImage: "photo.artframe")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(isCurrent || url == nil)
+                    }
+                }
+                .foregroundStyle(.white)
+                .padding(8)
+                .background(LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .top, endPoint: .bottom))
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .onHover { hovering in
+                withMotion(Motion.quick) { isHovering = hovering }
+                if !hovering { isPreviewing = false }
+            }
+            .task(id: isHovering) {
+                guard isHovering else { return }
+                try? await Task.sleep(for: .milliseconds(600))
+                guard !Task.isCancelled, isHovering else { return }
+                withMotion(Motion.standard) { isPreviewing = true }
+            }
+            .task(id: video.id) {
+                guard let file = store.libraryThumbnailURL(video) else { return }
+                if let cached = images.cachedThumbnail(at: file, maxPixels: Self.thumbnailPixels) {
+                    thumbnail = cached
+                } else {
+                    thumbnail = await images.thumbnail(at: file, maxPixels: Self.thumbnailPixels)
+                }
+            }
+            .help(video.statusReason.map { "\(video.title): personal use (\($0))" } ?? video.title)
+    }
+}
+
 /// Apple's aerial videos: pick one and it downloads once, then loops offline.
 private struct AerialsPage: View {
     let services: AppServices
@@ -290,7 +465,10 @@ private struct AerialsPage: View {
 
                 HStack(spacing: 8) {
                     categoryChip(nil, title: "All", symbol: "sparkles")
-                    ForEach(Aerial.Category.allCases) { categoryChip($0, title: $0.title, symbol: $0.symbol) }
+                    // Only the kinds Apple's list has (the library adds others).
+                    ForEach(Aerial.Category.allCases.filter { kind in catalog.aerials.contains { $0.category == kind } }) {
+                        categoryChip($0, title: $0.title, symbol: $0.symbol)
+                    }
                     Spacer()
                     if !downloaded.isEmpty {
                         Menu("\(downloaded.count) downloaded") {

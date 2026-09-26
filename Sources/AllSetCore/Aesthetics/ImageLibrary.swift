@@ -264,6 +264,34 @@ public final class ImageLibrary {
     }
     #endif
 
+    /// A small copy of a picture file anywhere (a wallpaper library's
+    /// thumbnails), decoded off the main thread and kept in the same
+    /// byte-limited cache as photos, so it's released the same way.
+    public func thumbnail(at url: URL, maxPixels: Int) async -> NSImage? {
+        let key = Self.thumbnailKey(url, maxPixels)
+        if let cached = smallCache.value(forKey: key) { return cached }
+        if let running = smallLoading[key] { return await running.value }
+        let pixels = key.pixels
+        let task = Task<NSImage?, Never> {
+            await Task.detached(priority: .userInitiated) { Self.thumbnail(of: url, maxPixels: pixels) }.value
+        }
+        smallLoading[key] = task
+        let image = await task.value
+        smallLoading[key] = nil
+        if let image { smallCache.insert(image, forKey: key, cost: image.decodedByteCount) }
+        return image
+    }
+
+    /// The thumbnail if it's already in memory, to draw at once.
+    public func cachedThumbnail(at url: URL, maxPixels: Int) -> NSImage? {
+        smallCache.value(forKey: Self.thumbnailKey(url, maxPixels))
+    }
+
+    private static func thumbnailKey(_ url: URL, _ maxPixels: Int) -> SizedSource {
+        // "@" keeps these apart from imported pictures, which are named plainly.
+        SizedSource(source: .file("@" + url.path), pixels: max(pixelBucket(maxPixels), buckets[0]))
+    }
+
     /// Lets go of cached pictures down to `fraction` of each cache's limit:
     /// 0 empties them. Pictures on screen stay on screen (their views hold
     /// them); only a later look may decode again.

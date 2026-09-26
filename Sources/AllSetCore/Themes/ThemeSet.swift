@@ -80,7 +80,7 @@ public struct ThemeSet: Identifiable, Sendable {
     private var wallpaperIsDark: Bool {
         switch wallpaper {
         case .art(let piece): !piece.palette.isLight
-        case .photo, .video: true
+        case .photo, .video, .library: true
         case nil: true
         }
     }

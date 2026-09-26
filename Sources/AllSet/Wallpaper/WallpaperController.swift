@@ -74,6 +74,12 @@ final class WallpaperController {
         observers.append(NotificationCenter.default.addObserver(forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.updatePlayback() }
         })
+        // A library's drive coming or going changes what can play.
+        for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
+            observers.append(workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.services.wallpaper.refreshLibraryReachability() }
+            })
+        }
         // Switching apps usually changes what covers the desktop.
         observers.append(workspace.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.updatePlayback() }
@@ -157,7 +163,7 @@ final class WallpaperController {
     /// same playing or not, so there's no need to keep checking what covers it.
     private static func moves(_ config: WallpaperConfig) -> Bool {
         switch config.source {
-        case .art, .video: true
+        case .art, .video, .library: true
         case .photo(let source):
             if case .art = source { true } else { config.motion != .still }
         }
@@ -276,15 +282,23 @@ final class WallpaperController {
             _ = await services.images.image(for: imageSource)
             return services.images.fileURL(for: imageSource)
         case .video(let name):
-            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: services.wallpaper.videoURL(name)))
-            generator.appliesPreferredTrackTransform = true
-            // A moment in, past any fade from black.
-            generator.requestedTimeToleranceAfter = CMTime(seconds: 2, preferredTimescale: 600)
-            var frame = try? await generator.image(at: CMTime(seconds: 2, preferredTimescale: 600))
-            if frame == nil { frame = try? await generator.image(at: .zero) }
-            guard let (image, _) = frame else { return nil }
-            return await Task.detached(priority: .utility) { Self.writePNG(image, to: file) ? file : nil }.value
+            return await videoStill(services.wallpaper.videoURL(name), to: file)
+        case .library(let id):
+            guard let url = services.wallpaper.libraryURL(id) else { return nil }
+            return await videoStill(url, to: file)
         }
+    }
+
+    /// A frame from a video, a moment in, written as a PNG.
+    private func videoStill(_ url: URL, to file: URL) async -> URL? {
+        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+        generator.appliesPreferredTrackTransform = true
+        // A moment in, past any fade from black.
+        generator.requestedTimeToleranceAfter = CMTime(seconds: 2, preferredTimescale: 600)
+        var frame = try? await generator.image(at: CMTime(seconds: 2, preferredTimescale: 600))
+        if frame == nil { frame = try? await generator.image(at: .zero) }
+        guard let (image, _) = frame else { return nil }
+        return await Task.detached(priority: .utility) { Self.writePNG(image, to: file) ? file : nil }.value
     }
 
     /// Encodes and writes a PNG; false (and logged) if it couldn't.
@@ -349,6 +363,15 @@ struct WallpaperView: View {
                 MovingPhoto(source: source, motion: config.motion, library: services.images)
             case .video(let name):
                 LoopingVideo(url: services.wallpaper.videoURL(name), isPlaying: isPlaying)
+            case .library(let id):
+                // Same player and the same pausing rules as any other video.
+                if let url = services.wallpaper.libraryURL(id) {
+                    LoopingVideo(url: url, isPlaying: isPlaying)
+                } else {
+                    // Its drive isn't connected: the default art until it is.
+                    ArtView(piece: ArtPiece(style: .aurora, palette: .aurora), animated: true, speed: config.speed,
+                            frameRate: config.frameRate)
+                }
             }
             Color.black.opacity(config.dim)
         }

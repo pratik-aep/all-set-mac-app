@@ -190,7 +190,7 @@ extension WidgetTheme {
     public var isDark: Bool {
         switch wallpaper {
         case .art(let piece): !piece.palette.isLight
-        case .photo, .video: true
+        case .photo, .video, .library: true
         }
     }
 

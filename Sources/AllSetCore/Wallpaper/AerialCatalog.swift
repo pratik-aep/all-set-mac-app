@@ -8,6 +8,9 @@ import OSLog
 public struct Aerial: Codable, Hashable, Identifiable, Sendable {
     public enum Category: String, Codable, CaseIterable, Identifiable, Sendable {
         case landscapes, cities, underwater, space
+        /// For video libraries: game worlds and characters, and everything
+        /// that isn't a place.
+        case games, abstract
 
         public var id: String { rawValue }
 
@@ -17,6 +20,8 @@ public struct Aerial: Codable, Hashable, Identifiable, Sendable {
             case .cities: "Cities"
             case .underwater: "Underwater"
             case .space: "Space"
+            case .games: "Games"
+            case .abstract: "Abstract"
             }
         }
 
@@ -26,6 +31,8 @@ public struct Aerial: Codable, Hashable, Identifiable, Sendable {
             case .cities: "building.2.fill"
             case .underwater: "fish.fill"
             case .space: "globe.americas.fill"
+            case .games: "gamecontroller.fill"
+            case .abstract: "scribble.variable"
             }
         }
     }
