@@ -2,7 +2,7 @@
 
 **Read this first at the start of every session, instead of reviewing the codebase.** It's rewritten at the end of every session. Dated session logs are in `Documentation/Reports/` (newest last). For what the app contains (widgets, themes, pages), see `CONTENT.md`. Only open the source files that the task at hand needs.
 
-_Last updated: 2026-09-26 (evening: performance audit)_
+_Last updated: 2026-09-27 (wallpaper library import)_
 
 ---
 
@@ -32,7 +32,7 @@ _Last updated: 2026-09-26 (evening: performance audit)_
 | What | Command |
 |---|---|
 | Debug build (expect 0 warnings) | `swift build 2>&1 \| grep -c warning:` |
-| Tests (currently 200 in 63 suites) | `swift test` |
+| Tests (currently 205 in 64 suites) | `swift test` |
 | Optimised build with DEBUG tools | `swift build -c release -Xswiftc -DDEBUG --build-path .build-probe` |
 
 Run DEBUG tools as `.build-probe/release/AllSet <flag> -skip window,wallpaper,widgets,notch`.
@@ -56,6 +56,7 @@ Run DEBUG tools as `.build-probe/release/AllSet <flag> -skip window,wallpaper,wi
 | `covered` | A widget visible vs. covered; `ENTRY=`/`SIZE=` pick it |
 | `desktopwidgets` | Each of the user's desktop widgets alone; `ONLY_KIND=`, `SECONDS=` |
 | `neon` | Neon flicker on vs. off over 60 s |
+| `wallpaperlibrary` | 1,008 library entries in the real main window: scroll, switch, close, 5 cycles, plus pausing rules. **Quit the Dock app first**; restores your wallpaper |
 
 **`-render<X> <folder>`** saves PNGs to look at:
 
@@ -68,6 +69,7 @@ Run DEBUG tools as `.build-probe/release/AllSet <flag> -skip window,wallpaper,wi
 | `-renderScaling` | Widget scaling |
 | `-renderGPUArt` | GPU art |
 | `-renderDesign` | Real-window capture of design themes |
+| `-renderWallpaperLibrary` | My Videos with the imported library |
 
 **Scratchpad helpers** (session temp directory; they may be gone): `sheetL out.jpg cols files…` makes a contact sheet (sizes from the `CW`/`CH` environment variables); `load.sh` reads WindowServer load.
 
@@ -122,6 +124,15 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 - Openverse allows at most `page_size` 20 for anonymous requests; more returns a 401.
 - The UI is `Studio/LibraryPages.swift` (`WebPhotosPage`, `SearchFilters`, `RecentSearches`), shared by the Wallpaper page and the Library.
 
+**Wallpaper library** (docs/wallpaper-import.md)
+- `WallpaperSource.library(id)`: videos that play from where they live (an external drive).
+- Catalog: `~/Library/Application Support/AllSet/Wallpaper/Library/catalog.json`, written by `scripts/wallpaper_library.py import <folder>` (needs Homebrew ffmpeg; run with `/usr/bin/python3`). The importer is idempotent, with IDs from SHA-256.
+- The library also holds thumbnails and 3 transcoded copies (1.19 GB).
+- `WallpaperStore.library`, `libraryURL(id)` (disk check, for playback only) and `canPlay(video)` (no disk access, for cards).
+- UI: the `LibrarySection` in My Videos.
+- The user's library is a Wallpaper Engine folder on `/Volumes/KALI LINUX/Steam Wallpapers`: 48 videos imported, all **QUARANTINED** (Workshop, no license). Personal use only; never bundle or commit them.
+- Scene and web items (148) are unsupported.
+
 **Other areas**
 - Wallpaper: `Wallpaper/WallpaperController` (plays only if at least 15% of the screen is uncovered; shared video players).
 - Workspace: `Workspace/` (Carbon hotkeys, Accessibility window moves).
@@ -145,12 +156,13 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 - Theme preview cache keys use a content fingerprint and `drawingVersion`: bump `drawingVersion` when preview drawing changes.
 
 ## Current state (2026-09-26, evening)
-- Branch **`perf-audit`** (not merged, not pushed): baseline commit `6022ee5` (the island, search and widget work), then the audit commits. `main` is still at `e8dc7bc`.
+- Branch **`perf-audit`** (not merged, not pushed): baseline commit `6022ee5` (the island, search and widget work), the audit commits, then the wallpaper-library commits (`5b54296`, `7608ad4`). `main` is still at `e8dc7bc`.
 - The audit log and final report are in **`docs/perf-audit.md`**. 200 tests pass, 0 warnings, and the Dock app is rebuilt from the branch.
 - For A/B: `git worktree add ../allset-baseline <commit>`, then build the probe there (removed after the audit).
 
 ## Backlog (not started unless the user asks)
 - **Needs the user's decision:** a seconds clock costs 9–12 % CPU while visible (F15 in the audit). Either move the rolling digits to Core Animation, or let the digits change without rolling.
+- Wallpaper library: fast-scroll hitches (33–43 ms) over 1,000 cards; GPU-drawn cards break the hover preview. See docs/wallpaper-import.md.
 - Audit recommendations not done: align decorative frame rates to {10, 15, 30}; lazy calendar store; see `docs/perf-audit.md`, Phase 5.
 - Audit findings F1–F16 from the Phase 0 report are waiting for the user's "go".
 - Later waves: calendar in the notch, a brightness HUD, a menu-bar icon manager, Shortcuts/script live activities.
