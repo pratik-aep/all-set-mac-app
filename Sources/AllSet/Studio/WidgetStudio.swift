@@ -119,7 +119,8 @@ private struct GalleryCard: View {
     private var looks: [WidgetMaterial] {
         switch kind {
         case .note, .photo, .ambient, .vinyl, .moon, .daylight, .polaroids, .sticker, .jersey, .playerCard, .pitch,
-             .scoreboard, .cassette, .vhs, .visualizer, .ticket, .wordArt: []
+             .scoreboard, .cassette, .vhs, .visualizer, .ticket, .wordArt,
+             .spiral, .charm, .label, .aura, .tarot, .zodiac, .eightBall, .candle: []
         case .neon: [.clear, .outline, .dark]
         default: [.photo, .paper, .frosted, .outline, .mesh, .glass, .art, .clear, .tinted, .dark]
         }

@@ -52,6 +52,18 @@ public enum WidgetKind: String, Codable, CaseIterable, Identifiable, Sendable {
     case ticket
     /// Words in chrome, gold, neon or glitter, straight on the desktop.
     case wordArt
+    /// An op-art spiral that turns slowly.
+    case spiral
+    /// A chrome charm, hanging on the desktop.
+    case charm
+    /// A perfume-bottle label with your words.
+    case label
+    // Mystic
+    case aura
+    case tarot
+    case zodiac
+    case eightBall
+    case candle
 
     public var id: String { rawValue }
 
@@ -62,9 +74,11 @@ public enum WidgetKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .system, .battery, .metric, .terminal: .system
         case .github, .status: .developer
         case .weather, .nowPlaying, .quote, .photo, .moon, .daylight, .reading, .airQuality: .lifestyle
-        case .lockScreen, .polaroids, .sticker, .neon, .ambient, .vinyl, .retroWindow, .enso, .magazine, .wordArt: .aesthetic
+        case .lockScreen, .polaroids, .sticker, .neon, .ambient, .vinyl, .retroWindow, .enso, .magazine, .wordArt,
+             .spiral, .charm, .label: .aesthetic
         case .jersey, .playerCard, .pitch, .scoreboard, .milestone: .football
         case .cassette, .vhs, .visualizer, .ticket: .music
+        case .aura, .tarot, .zodiac, .eightBall, .candle: .mystic
         }
     }
 
@@ -116,6 +130,14 @@ public enum WidgetKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .visualizer: "Visualizer"
         case .ticket: "Ticket"
         case .wordArt: "Word Art"
+        case .spiral: "Spiral"
+        case .charm: "Charm"
+        case .label: "Label"
+        case .aura: "Aura"
+        case .tarot: "Tarot"
+        case .zodiac: "Star Sign"
+        case .eightBall: "Magic Ball"
+        case .candle: "Candle"
         }
     }
 
@@ -167,6 +189,14 @@ public enum WidgetKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .visualizer: "waveform"
         case .ticket: "ticket.fill"
         case .wordArt: "textformat"
+        case .spiral: "tornado"
+        case .charm: "heart.fill"
+        case .label: "drop.fill"
+        case .aura: "circle.hexagongrid.fill"
+        case .tarot: "rectangle.portrait.on.rectangle.portrait.angled.fill"
+        case .zodiac: "sparkles"
+        case .eightBall: "8.circle.fill"
+        case .candle: "flame.fill"
         }
     }
 
@@ -218,6 +248,14 @@ public enum WidgetKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .visualizer: "Glowing bars that dance to your music"
         case .ticket: "A ticket stub counting down to the show"
         case .wordArt: "Words in chrome, gold, neon or glitter"
+        case .spiral: "A hypnotic spiral that never stops turning"
+        case .charm: "A chrome charm that catches the light"
+        case .label: "Your name on a perfume label"
+        case .aura: "Today's aura, glowing in its colors"
+        case .tarot: "A card drawn for you each day"
+        case .zodiac: "Your sign's stars, twinkling"
+        case .eightBall: "Ask a question, shake for an answer"
+        case .candle: "A candle flickering on your desktop"
         }
     }
 
@@ -270,6 +308,14 @@ public enum WidgetKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .visualizer: "visualizer audio music bars equalizer glow spectrum"
         case .ticket: "ticket concert tour gig show event match stub"
         case .wordArt: "word art chrome gold neon glitter fire ice holographic text script name"
+        case .spiral: "spiral hypnotic hypnosis op art swirl vortex trippy black white illusion"
+        case .charm: "charm chrome heart star cross gothic wings angel butterfly moon bow y2k metal silver pendant"
+        case .label: "label perfume fragrance bottle luxury number no parfum name brand"
+        case .aura: "aura energy glow gradient mood colors orb spiritual vibe"
+        case .tarot: "tarot card daily reading fortune major arcana mystic witchy"
+        case .zodiac: "zodiac star sign horoscope astrology constellation stars birthday"
+        case .eightBall: "magic 8 ball eight fortune question answer yes no shake decide"
+        case .candle: "candle flame fire cozy dark academia light calm flicker"
         }
     }
 
@@ -278,6 +324,7 @@ public enum WidgetKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .battery, .nowPlaying, .focus, .stopwatch, .date, .reading, .airQuality: [.small, .medium]
         case .magazine: [.small, .large]
         case .milestone, .ticket: [.small, .medium]
+        case .label, .eightBall: [.small, .medium]
         case .pitch: [.medium, .large, .extraLarge]
         // Designed for the extra-large size too.
         case .weather, .system, .github: [.small, .medium, .large, .extraLarge]
@@ -286,13 +333,14 @@ public enum WidgetKind: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 
     /// Drawn straight onto the desktop, with no card behind it.
-    public var isFreeform: Bool { [.polaroids, .sticker, .wordArt, .ticket].contains(self) }
+    public var isFreeform: Bool { [.polaroids, .sticker, .wordArt, .ticket, .charm].contains(self) }
 
     /// Kinds that paint their own backgrounds, so card styles don't apply.
     public var paintsOwnBackground: Bool {
         switch self {
         case .ambient, .vinyl, .moon, .daylight, .polaroids, .sticker, .note, .jersey, .playerCard, .pitch, .scoreboard,
-             .cassette, .vhs, .visualizer, .ticket, .wordArt: true
+             .cassette, .vhs, .visualizer, .ticket, .wordArt,
+             .spiral, .charm, .label, .aura, .tarot, .zodiac, .eightBall, .candle: true
         default: false
         }
     }
@@ -301,7 +349,7 @@ public enum WidgetKind: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .clock, .nowPlaying, .photo, .ambient, .quote, .lockScreen, .vinyl, .daylight, .polaroids, .shortcuts,
              .neon, .terminal, .dots, .nextEvent, .goals, .habits, .github, .status, .retroWindow, .pitch, .scoreboard,
-             .cassette, .vhs, .visualizer, .ticket, .wordArt: .medium
+             .cassette, .vhs, .visualizer, .ticket, .wordArt, .zodiac: .medium
         case .magazine, .playerCard: .large
         default: .small
         }
@@ -391,6 +439,8 @@ public enum WidgetCategory: String, CaseIterable, Identifiable, Sendable {
     case aesthetic
     case football
     case music
+    /// Tarot, star signs, auras: a little magic.
+    case mystic
 
     public var id: String { rawValue }
 
@@ -404,6 +454,7 @@ public enum WidgetCategory: String, CaseIterable, Identifiable, Sendable {
         case .aesthetic: "Aesthetic"
         case .football: "Football"
         case .music: "Music"
+        case .mystic: "Mystic"
         }
     }
 
@@ -417,6 +468,7 @@ public enum WidgetCategory: String, CaseIterable, Identifiable, Sendable {
         case .aesthetic: "sparkles"
         case .football: "soccerball"
         case .music: "music.mic"
+        case .mystic: "moon.stars.fill"
         }
     }
 
@@ -761,6 +813,8 @@ public struct WidgetOptions: Codable, Equatable, Sendable {
     public var milestone = MilestoneDetails()
     public var visualizer: VisualizerStyle = .bars
     public var wordArt: WordArtFinish = .chrome
+    public var charm: CharmShape = .heart
+    public var zodiac: ZodiacSign = .leo
 
     public init() {}
 
@@ -827,6 +881,8 @@ public struct WidgetOptions: Codable, Equatable, Sendable {
         milestone = (try? container.decodeIfPresent(MilestoneDetails.self, forKey: .milestone)) ?? defaults.milestone
         visualizer = (try? container.decodeIfPresent(VisualizerStyle.self, forKey: .visualizer)) ?? defaults.visualizer
         wordArt = (try? container.decodeIfPresent(WordArtFinish.self, forKey: .wordArt)) ?? defaults.wordArt
+        charm = (try? container.decodeIfPresent(CharmShape.self, forKey: .charm)) ?? defaults.charm
+        zodiac = (try? container.decodeIfPresent(ZodiacSign.self, forKey: .zodiac)) ?? defaults.zodiac
     }
 }
 
@@ -964,6 +1020,40 @@ public struct WidgetInstance: Codable, Identifiable, Equatable, Sendable {
             tint = WidgetColor(hex: 0xFF3CAC)
             options.customText = "Legend"
             options.textStyle = .script
+        case .spiral:
+            material = .dark
+            tint = WidgetColor(hex: 0x0B0B0C)
+            options.ink = WidgetColor(hex: 0xF4F1EA)
+        case .charm:
+            // Metal straight on the wallpaper.
+            material = .clear
+            tint = WidgetColor(hex: 0xDDE3F0)
+        case .label:
+            material = .dark
+            tint = WidgetColor(hex: 0xF3EDE2)
+            options.ink = WidgetColor(hex: 0x1A1714)
+            options.customText = "MIDNIGHT"
+            options.caption = "Nº 07 · EAU DE NUIT"
+        case .aura:
+            material = .dark
+            tint = WidgetColor(hex: 0x0C0A12)
+        case .tarot:
+            material = .dark
+            tint = WidgetColor(hex: 0x0F0B16)
+            options.accent = WidgetColor(hex: 0xE8C15A)
+        case .zodiac:
+            material = .dark
+            tint = WidgetColor(hex: 0x070A1A)
+            options.accent = WidgetColor(hex: 0xCFE3FF)
+            options.zodiac = ZodiacSign.sign(on: .now)
+        case .eightBall:
+            material = .dark
+            tint = WidgetColor(hex: 0x0B0B12)
+            options.accent = WidgetColor(hex: 0x3D5AFE)
+        case .candle:
+            material = .dark
+            tint = WidgetColor(hex: 0x110C08)
+            options.customText = "light a candle, make a wish"
         default:
             material = .glass
         }
@@ -990,6 +1080,37 @@ public enum WidgetLayout {
     /// Distance from the edges of the visible area.
     public static let margin: CGFloat = 24
     public static let grid: CGFloat = 8
+
+    /// Keeps a widget of `size` fully inside `bounds`, without moving it otherwise.
+    public static func clamp(_ offset: CGPoint, size: CGSize, within bounds: CGSize) -> CGPoint {
+        CGPoint(x: min(max(offset.x, 0), max(bounds.width - size.width, 0)),
+                y: min(max(offset.y, 0), max(bounds.height - size.height, 0)))
+    }
+
+    /// Widgets moved and sized so their arrangement fills `bounds` (inside the
+    /// margins, as far as `range` allows) and sits centered, keeping every gap
+    /// in proportion. Offsets stay in layout points; `scale` is how much larger
+    /// than that to draw everything (position and size alike).
+    public static func fitted(_ widgets: [WidgetInstance], in bounds: CGSize,
+                              range: ClosedRange<Double>) -> (widgets: [WidgetInstance], scale: Double) {
+        guard let first = widgets.first else { return (widgets, 1) }
+        let box = widgets.dropFirst().reduce(CGRect(origin: first.offset, size: first.size.dimensions)) {
+            $0.union(CGRect(origin: $1.offset, size: $1.size.dimensions))
+        }
+        guard box.width > 0, box.height > 0 else { return (widgets, 1) }
+        let fits = Double(min((bounds.width - 2 * margin) / box.width, (bounds.height - 2 * margin) / box.height))
+        let scale = min(max(fits, range.lowerBound), range.upperBound)
+        // Centered on screen, in screen points; then back into layout points.
+        let factor = CGFloat(scale)
+        let origin = CGPoint(x: max((bounds.width - box.width * factor) / 2, 0) / factor,
+                             y: max((bounds.height - box.height * factor) / 2, 0) / factor)
+        let moved = widgets.map { widget in
+            var widget = widget
+            widget.offset = CGPoint(x: widget.offset.x - box.minX + origin.x, y: widget.offset.y - box.minY + origin.y)
+            return widget
+        }
+        return (moved, scale)
+    }
 
     /// Rounds to the grid and keeps the widget fully inside `bounds`.
     public static func snap(_ offset: CGPoint, size: CGSize, within bounds: CGSize) -> CGPoint {

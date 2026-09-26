@@ -56,7 +56,11 @@ final class NotchViewModel {
     var isExpanded = false
     /// Pointer resting on the closed notch; it grows slightly as a hint.
     var isHovering = false
-    var tab: Tab = .home
+    var tab: Tab = .home {
+        didSet { if tab != oldValue { tabDirection = (Tab.allCases.firstIndex(of: tab) ?? 0) - (Tab.allCases.firstIndex(of: oldValue) ?? 0) } }
+    }
+    /// Which way the last tab switch went along the row: positive to the right.
+    var tabDirection = 1
     /// Short-lived activities (volume, charging...) that take over for a moment.
     var transientActivity: LiveActivity?
     var showsNowPlaying = false

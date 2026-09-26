@@ -52,7 +52,7 @@ public enum WidgetCatalog {
 
     public static func entry(_ id: String) -> CatalogEntry? { entries.first { $0.id == id } }
 
-    public static let entries: [CatalogEntry] = time + productivity + system + developer + lifestyle + aesthetic + football + music
+    public static let entries: [CatalogEntry] = time + productivity + system + developer + lifestyle + aesthetic + football + music + mystic
 
     private static func face(_ face: ClockFace) -> @Sendable (inout WidgetInstance) -> Void {
         { $0.options.clockFace = face }
@@ -206,6 +206,27 @@ public enum WidgetCatalog {
                          widget.options.textStyle = .chunky
                          widget.tint = WidgetColor(hex: 0xFF5FA2)
                      }),
+        CatalogEntry("spiral", .spiral, .aesthetic, title: "Hypnotic Spiral"),
+        CatalogEntry("redSpiral", .spiral, .aesthetic, title: "Red Spiral", summary: "A slow red-and-black vortex",
+                     keywords: "red dark villain", configure: { widget in
+                         widget.tint = WidgetColor(hex: 0x120405)
+                         widget.options.ink = WidgetColor(hex: 0xE0233B)
+                     }),
+        CatalogEntry("chromeHeart", .charm, .aesthetic, title: "Chrome Heart", summary: "A puffy chrome heart that catches the light"),
+        CatalogEntry("angelWings", .charm, .aesthetic, title: "Angel Wings", summary: "Silver wings, for your angelic era",
+                     symbol: "bird.fill", keywords: "angel angelic heaven", configure: { $0.options.charm = .wings }),
+        CatalogEntry("gothicCross", .charm, .aesthetic, title: "Gothic Cross", summary: "A chrome cross with flared ends",
+                     symbol: "cross.fill", keywords: "gothic goth grunge rock", configure: { $0.options.charm = .cross }),
+        CatalogEntry("chromeButterfly", .charm, .aesthetic, title: "Chrome Butterfly", summary: "A silver butterfly, straight from 2003",
+                     symbol: "leaf.fill", keywords: "butterfly y2k", configure: { $0.options.charm = .butterfly }),
+        CatalogEntry("perfumeLabel", .label, .aesthetic, title: "Perfume Label"),
+        CatalogEntry("noirLabel", .label, .aesthetic, title: "Noir Label", summary: "Your name on a black-and-gold label",
+                     keywords: "noir black gold luxe", configure: { widget in
+                         widget.tint = WidgetColor(hex: 0x0E0D0C)
+                         widget.options.ink = WidgetColor(hex: 0xE8C77A)
+                         widget.options.customText = "DIVA"
+                         widget.options.caption = "Nº 01 · EXTRAIT DE NUIT"
+                     }),
     ]
 }
 
@@ -271,6 +292,19 @@ extension WidgetCatalog {
                          widget.options.ticket.seat = "BLOCK 7 · ROW 10"
                          widget.options.ticket.date = Calendar.current.date(byAdding: .day, value: 21, to: .now)
                          widget.tint = WidgetColor(hex: 0x0B5D3B)
+                     }),
+    ]
+
+    static let mystic: [CatalogEntry] = [
+        CatalogEntry("tarot", .tarot, .mystic, title: "Card of the Day"),
+        CatalogEntry("aura", .aura, .mystic, title: "Today's Aura"),
+        CatalogEntry("zodiac", .zodiac, .mystic),
+        CatalogEntry("eightBall", .eightBall, .mystic),
+        CatalogEntry("candle", .candle, .mystic),
+        CatalogEntry("academiaCandle", .candle, .mystic, title: "Study Candle", summary: "A candle for late nights with old books",
+                     keywords: "dark academia study library", configure: { widget in
+                         widget.tint = WidgetColor(hex: 0x1A120C)
+                         widget.options.customText = "one more chapter"
                      }),
     ]
 

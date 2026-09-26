@@ -355,7 +355,9 @@ extension WidgetRenderHarness {
     static func renderEntries(to folder: URL, services: AppServices, categories: [WidgetCategory]) async {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let pune = WeatherLocation(name: "Pune", latitude: 18.52, longitude: 73.86)
-        for entry in WidgetCatalog.entries where categories.contains(entry.category) {
+        // `-entryIDs a,b` narrows it to those entries.
+        let ids = UserDefaults.standard.string(forKey: "entryIDs").map { Set($0.split(separator: ",").map(String.init)) }
+        for entry in WidgetCatalog.entries where categories.contains(entry.category) && ids.map({ $0.contains(entry.id) }) ?? true {
             for image in entry.make().options.images { _ = await services.images.image(for: image) }
             for size in entry.sizes {
                 var widget = entry.make(size: size)
@@ -408,6 +410,80 @@ extension WidgetRenderHarness {
         }
     }
 
+    /// The island in a real (hidden) window, in each state and mid-spring.
+    static func renderIsland(to folder: URL, services: AppServices) async {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        services.monitor.setViewer("harness", visible: true)
+        let model = NotchViewModel(geometry: NotchGeometry(screenFrame: CGRect(x: 0, y: 0, width: 940, height: 340),
+                                                           safeAreaTop: 32, topLeftArea: nil, topRightArea: nil, menuBarHeight: 32))
+        let size = NotchViewModel.windowSize
+        let window = NSWindow(contentRect: CGRect(origin: CGPoint(x: 80, y: 80), size: size), styleMask: [.borderless],
+                              backing: .buffered, defer: false)
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
+        window.isReleasedWhenClosed = false
+        window.backgroundColor = NSColor(white: 0.55, alpha: 1)
+        window.contentView = IslandView(model: model, root: NotchRootView(model: model, services: services, expand: {}, openSettings: {}))
+        window.orderFrontRegardless()
+        func shot(_ name: String, after milliseconds: Int) async {
+            try? await Task.sleep(for: .milliseconds(milliseconds))
+            if let image = captureOwnWindow(window), let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+                try? png.write(to: folder.appendingPathComponent("island-\(name).png"))
+            }
+        }
+        await shot("1-closed", after: 1500)
+        withAnimation(NotchAnimation.activity) { model.transientActivity = .volume(level: 0.6, muted: false) }
+        await shot("2-volume", after: 900)
+        withAnimation(NotchAnimation.activity) { model.transientActivity = nil }
+        try? await Task.sleep(for: .milliseconds(600))
+        withAnimation(NotchAnimation.open) { model.isExpanded = true }
+        await shot("3-opening", after: 90)
+        await shot("4-home", after: 1500)
+        withAnimation(NotchAnimation.tab) { model.tab = .system }
+        await shot("5-to-system", after: 110)
+        await shot("6-system", after: 1500)
+        withAnimation(NotchAnimation.close) { model.isExpanded = false }
+        await shot("7-closing", after: 110)
+        await shot("8-closed", after: 1200)
+        window.close()
+    }
+
+    /// The same widgets at 130%, scaled by SwiftUI and by AppKit bounds, for
+    /// comparing how sharp each stays.
+    static func renderScaling(to folder: URL, services: AppServices) async {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let widgets = ["shirt", "visualizer", "vinyl"].compactMap { WidgetCatalog.entry($0)?.make(size: .medium) }
+        let base = CGSize(width: 352, height: 168 * 3 + 32)
+        let scale = 1.3
+        let column = VStack(spacing: 16) { ForEach(widgets) { WidgetBody(instance: $0, services: services) } }
+            .frame(width: base.width, height: base.height).background(Color.gray)
+            .environment(\.widgetIsPreview, true)
+        for (name, view, size) in [("native", AnyView(column), base),
+                                   ("swiftui", AnyView(column.scaleEffect(scale, anchor: .topLeading)
+                                        .frame(width: base.width * scale, height: base.height * scale, alignment: .topLeading)),
+                                    CGSize(width: base.width * scale, height: base.height * scale))] {
+            if let image = await capture(view, size: size), let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+                try? png.write(to: folder.appendingPathComponent("scale-\(name).png"))
+            }
+        }
+        // AppKit: the view lays out at its own size; its bounds are scaled into a bigger frame.
+        let host = NSHostingView(rootView: column)
+        host.sizingOptions = []
+        let size = CGSize(width: base.width * scale, height: base.height * scale)
+        host.frame = CGRect(origin: .zero, size: size)
+        host.setBoundsSize(base)
+        let window = NSWindow(contentRect: CGRect(origin: CGPoint(x: 80, y: 80), size: size), styleMask: [.borderless],
+                              backing: .buffered, defer: false)
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.orderFrontRegardless()
+        try? await Task.sleep(for: .milliseconds(900))
+        if let image = captureOwnWindow(window), let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+            try? png.write(to: folder.appendingPathComponent("scale-appkit.png"))
+        }
+        window.close()
+    }
+
     private static func capture(_ view: some View, size: CGSize) async -> CGImage? {
         let host = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
         host.frame = CGRect(origin: .zero, size: size)
@@ -422,6 +498,26 @@ extension WidgetRenderHarness {
         let image = captureOwnWindow(window)
         window.close()
         return image
+    }
+}
+
+extension WidgetRenderHarness {
+    /// `-renderPhotos folder`: the Photos page after a few real searches, as the window shows it.
+    static func renderPhotos(to folder: URL, services: AppServices) async {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for (index, text) in ["iron man", "coquette", "lambo"].enumerated() {
+            services.search.search(text, immediately: true)
+            let window = NSWindow(contentRect: NSRect(x: 80, y: 80, width: 1100, height: 900), styleMask: [.titled], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.appearance = NSAppearance(named: .darkAqua)
+            window.contentView = NSHostingView(rootView: WebPhotosPage(services: services).frame(width: 1100, height: 900))
+            window.orderFrontRegardless()
+            try? await Task.sleep(for: .seconds(7))
+            if let image = captureOwnWindow(window), let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+                try? png.write(to: folder.appendingPathComponent("photos-\(index + 1).png"))
+            }
+            window.close()
+        }
     }
 }
 

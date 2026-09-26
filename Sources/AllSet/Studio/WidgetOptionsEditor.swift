@@ -113,7 +113,8 @@ struct WidgetOptionsEditor: View {
     private func showsStylePicker(_ instance: WidgetInstance) -> Bool {
         switch instance.kind {
         case .ambient, .vinyl, .moon, .daylight, .polaroids, .sticker, .jersey, .playerCard, .pitch, .scoreboard,
-             .cassette, .vhs, .visualizer, .ticket, .wordArt: false
+             .cassette, .vhs, .visualizer, .ticket, .wordArt,
+             .spiral, .charm, .label, .aura, .tarot, .zodiac, .eightBall, .candle: false
         case .photo: instance.options.photoFrame == .inset || instance.options.photoFrame == .collage
         default: true
         }
@@ -484,6 +485,54 @@ struct WidgetOptionsEditor: View {
                 if [.neon, .glitter].contains(instance.options.wordArt) {
                     TintPicker(title: "Color", selection: binding(\.tint, instance))
                 }
+            }
+        case .spiral:
+            Section("Spiral") {
+                TintPicker(title: "Background", selection: binding(\.tint, instance))
+                OptionalColorRow(title: "Stripes", selection: binding(\.options.ink, instance))
+            }
+        case .charm:
+            Section("Charm") {
+                Picker("Shape", selection: binding(\.options.charm, instance)) {
+                    ForEach(CharmShape.allCases) { Text($0.title).tag($0) }
+                }
+                TintPicker(title: "Metal tint", selection: binding(\.tint, instance))
+            }
+        case .label:
+            Section("Label") {
+                TextField("Name", text: binding(\.options.customText, instance))
+                TextField("Line below, like Nº 07 · EAU DE NUIT", text: binding(\.options.caption, instance))
+                TintPicker(title: "Paper", selection: binding(\.tint, instance))
+                OptionalColorRow(title: "Ink", selection: binding(\.options.ink, instance))
+            }
+        case .zodiac:
+            Section("Star Sign") {
+                Picker("Sign", selection: binding(\.options.zodiac, instance)) {
+                    ForEach(ZodiacSign.allCases) { Text("\($0.glyph) \($0.title)").tag($0) }
+                }
+                OptionalColorRow(title: "Stars", selection: binding(\.options.accent, instance))
+            }
+        case .tarot, .eightBall:
+            Section {
+                TintPicker(title: "Background", selection: binding(\.tint, instance))
+                OptionalColorRow(title: instance.kind == .tarot ? "Gold" : "Window", selection: binding(\.options.accent, instance))
+            } header: {
+                Text(instance.kind == .tarot ? "Card" : "Magic Ball")
+            } footer: {
+                Text(instance.kind == .tarot ? "A new card is drawn each day." : "Think of a question, then tap the ball on your desktop.")
+            }
+        case .aura:
+            Section {
+                TintPicker(title: "Background", selection: binding(\.tint, instance))
+            } header: {
+                Text("Aura")
+            } footer: {
+                Text("Your aura changes every day.")
+            }
+        case .candle:
+            Section("Candle") {
+                TextField("Words beside the flame", text: binding(\.options.customText, instance))
+                TintPicker(title: "Background", selection: binding(\.tint, instance))
             }
         default:
             EmptyView()

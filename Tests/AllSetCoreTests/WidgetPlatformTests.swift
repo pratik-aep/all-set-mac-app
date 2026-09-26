@@ -223,7 +223,7 @@ import Testing
 @Suite struct DeepLinkTests {
     @Test func linksRoundTrip() {
         let id = UUID()
-        for link in [DeepLink.page("monitor"), .widget(id), .arrange, .theme("liquidGlass"), .focus(.start)] {
+        for link in [DeepLink.page("monitor"), .widget(id), .arrange, .fit, .theme("liquidGlass"), .focus(.start)] {
             #expect(DeepLink(link.url) == link)
         }
         #expect(DeepLink(URL(string: "allset://open/Monitor")!) == .page("monitor"))

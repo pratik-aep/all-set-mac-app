@@ -100,9 +100,20 @@ public struct WebPhoto: Codable, Hashable, Identifiable, Sendable {
         }
     }
 
-    /// "Photo by X" plus the license where there is one.
+    /// "Photo by X" plus the license where there is one; a Wallhaven
+    /// wallpaper by its size, since the uploader rarely made it.
     public var credit: String {
-        [author, license].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        if provider == "wallhaven" { return width > 0 ? "\(width) × \(height) · Wallhaven" : "Wallhaven" }
+        return [author, license].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// Where the picture came from, to credit it or find its creator.
+    public var pageURL: URL? {
+        switch provider {
+        case "wallhaven": Wallhaven.pageURL(id: id)
+        case "openverse": URL(string: "https://openverse.org/image/\(id)")
+        default: nil
+        }
     }
 
     var cacheName: String { "\(provider ?? "picsum")-\(id).jpg" }

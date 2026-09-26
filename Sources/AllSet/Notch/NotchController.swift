@@ -51,9 +51,7 @@ final class NotchController {
             expand: { [weak self] in self?.expand() },
             openSettings: { [weak self] in self?.openSettings() }
         )
-        let hostingView = FirstClickHostingView(rootView: root)
-        hostingView.sizingOptions = []
-        panel.contentView = hostingView
+        panel.contentView = IslandView(model: model, root: root)
     }
 
     func start() {
@@ -98,6 +96,11 @@ final class NotchController {
         // Done typing: close if the pointer has already left.
         observe({ [model] in model.isEditing }) { [weak self] editing in
             if !editing { self?.pointerMoved() }
+        }
+        Task { [services, model] in
+            try? await Task.sleep(for: .seconds(2))
+            guard services.settings.notchEnabled else { return }
+            await IslandView.warmUp(geometry: model.geometry, services: services)
         }
 
         #if DEBUG

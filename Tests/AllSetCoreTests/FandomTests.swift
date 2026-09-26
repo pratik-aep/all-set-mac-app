@@ -142,3 +142,30 @@ import Testing
         #expect(calm.snapshot == monitor.snapshot)
     }
 }
+
+@Suite struct FitToScreenTests {
+    @Test func themesFillWideScreensCenteredAndEvenly() {
+        let set = ThemeLibrary.set("setup.seven")!
+        let layout = set.widgets(screenName: nil, bounds: CGSize(width: 10_000, height: 10_000))
+        // A 13-inch MacBook Air's desktop, below the menu bar and above the Dock.
+        let screen = CGSize(width: 1470, height: 889)
+        let fitted = WidgetLayout.fitted(layout, in: screen, range: AppSettings.widgetScaleRange)
+        #expect(fitted.scale > 1.1 && fitted.scale < 1.25)
+        let rects = fitted.widgets.map {
+            CGRect(x: $0.offset.x * fitted.scale, y: $0.offset.y * fitted.scale,
+                   width: $0.size.dimensions.width * fitted.scale, height: $0.size.dimensions.height * fitted.scale)
+        }
+        let box = rects.dropFirst().reduce(rects[0]) { $0.union($1) }
+        // Fills the height inside the margins, and sits centered across.
+        #expect(abs(box.height - (screen.height - 2 * WidgetLayout.margin)) < 1)
+        #expect(abs(box.minX - (screen.width - box.maxX)) < 1)
+        #expect(box.minX >= 0 && box.maxX <= screen.width && box.maxY <= screen.height)
+        // Gaps stay in proportion: none overlap.
+        for (index, a) in rects.enumerated() {
+            for b in rects[(index + 1)...] { #expect(!a.insetBy(dx: 1, dy: 1).intersects(b)) }
+        }
+        // A screen the theme already fits exactly stays at natural size.
+        let natural = WidgetLayout.fitted(layout, in: CGSize(width: 1136, height: 768), range: AppSettings.widgetScaleRange)
+        #expect(abs(natural.scale - 1) < 0.01)
+    }
+}

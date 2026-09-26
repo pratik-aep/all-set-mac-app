@@ -6,6 +6,8 @@ struct ThemePreview: Equatable {
     let setID: String
     let widgets: [WidgetInstance]
     let wallpaper: WallpaperConfig
+    /// The widget size to go back to.
+    let scale: Double
 }
 
 /// How a theme set goes onto the desktop.
@@ -27,7 +29,10 @@ extension AppServices {
         switch mode {
         case .replace:
             ui.layoutBeforeTheme = widgets.widgets
-            widgets.replaceAll(with: prepared(ThemeSet.personalized(set.widgets(screenName: screen?.localizedName, bounds: bounds), with: photos)))
+            ui.scaleBeforeTheme = settings.widgetScale
+            // Sized and centered to fill this screen, whatever its size.
+            widgets.replaceAll(with: prepared(fittedToScreen(ThemeSet.personalized(
+                set.widgets(screenName: screen?.localizedName, bounds: Self.unbounded), with: photos))))
             themeStats.record(.install, for: set.id)
         case .add:
             for widget in prepared(ThemeSet.personalized(set.widgets(screenName: screen?.localizedName, bounds: bounds), with: photos)) {
@@ -57,10 +62,10 @@ extension AppServices {
     func previewOnDesktop(_ set: ThemeSet) {
         if ui.themePreview != nil { endThemePreview(keep: false) }
         let screen = NSScreen.screens.first
-        ui.themePreview = ThemePreview(setID: set.id, widgets: widgets.widgets, wallpaper: wallpaper.config)
-        widgets.replaceAll(with: prepared(ThemeSet.personalized(
-            set.widgets(screenName: screen?.localizedName, bounds: screen?.visibleFrame.size ?? CGSize(width: 1440, height: 860)),
-            with: themePhotos.sources(for: set.id))))
+        ui.themePreview = ThemePreview(setID: set.id, widgets: widgets.widgets, wallpaper: wallpaper.config, scale: settings.widgetScale)
+        widgets.replaceAll(with: prepared(fittedToScreen(ThemeSet.personalized(
+            set.widgets(screenName: screen?.localizedName, bounds: Self.unbounded),
+            with: themePhotos.sources(for: set.id)))))
         if let source = set.wallpaper { wallpaper.set(source) }
         settings.showWidgets = true
         themeStats.record(.preview, for: set.id)
@@ -71,12 +76,14 @@ extension AppServices {
         ui.themePreview = nil
         if keep {
             ui.layoutBeforeTheme = preview.widgets
+            ui.scaleBeforeTheme = preview.scale
             if let set = ThemeLibrary.set(preview.setID) {
                 settings.widgetDesignTheme = set.designTheme?.id
                 themeStats.record(.install, for: set.id)
             }
         } else {
             widgets.replaceAll(with: preview.widgets)
+            settings.widgetScale = preview.scale
             wallpaper.config = preview.wallpaper
         }
     }

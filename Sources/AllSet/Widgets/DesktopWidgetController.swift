@@ -41,6 +41,7 @@ final class DesktopWidgetController {
 
         observe({ [services] in services.widgets.widgets }) { [weak self] _ in self?.sync() }
         observe({ [services] in services.settings.showWidgets }) { [weak self] _ in self?.sync() }
+        observe({ [services] in services.settings.widgetScale }) { [weak self] _ in self?.sync() }
         observe({ [services] in services.ui.isArrangingWidgets }) { [weak self] arranging in
             self?.setArranging(arranging)
         }
@@ -238,11 +239,14 @@ final class DesktopWidgetController {
     private func frame(for instance: WidgetInstance) -> CGRect? {
         guard let screen = screen(named: instance.screenName) else { return nil }
         let visible = screen.visibleFrame
-        let size = instance.size.dimensions
-        let offset = WidgetLayout.snap(instance.offset, size: size, within: visible.size)
+        // Offsets are layout points: position and size both grow with the widget size.
+        let scale = services.settings.widgetScale
+        let size = CGSize(width: instance.size.dimensions.width * scale, height: instance.size.dimensions.height * scale)
+        let offset = WidgetLayout.clamp(CGPoint(x: instance.offset.x * scale, y: instance.offset.y * scale),
+                                        size: size, within: visible.size)
         let content = CGRect(x: visible.minX + offset.x, y: visible.maxY - offset.y - size.height,
                              width: size.width, height: size.height)
-        return content.insetBy(dx: -WidgetWindow.margin, dy: -WidgetWindow.margin)
+        return content.insetBy(dx: -WidgetWindow.margin * scale, dy: -WidgetWindow.margin * scale)
     }
 
     private func screen(named name: String?) -> NSScreen? {
@@ -283,14 +287,15 @@ final class DesktopWidgetController {
         case .ended:
             guard drag?.id == id else { return }
             drag = nil
-            let content = window.frame.insetBy(dx: WidgetWindow.margin, dy: WidgetWindow.margin)
+            let scale = services.settings.widgetScale
+            let content = window.frame.insetBy(dx: WidgetWindow.margin * scale, dy: WidgetWindow.margin * scale)
             let center = CGPoint(x: content.midX, y: content.midY)
             guard let screen = NSScreen.screens.first(where: { $0.frame.contains(center) }) ?? screen(named: nil) else { return }
             let visible = screen.visibleFrame
             let offset = WidgetLayout.snap(CGPoint(x: content.minX - visible.minX, y: visible.maxY - content.maxY),
                                            size: content.size, within: visible.size)
             services.widgets.update(id) {
-                $0.offset = offset
+                $0.offset = CGPoint(x: offset.x / scale, y: offset.y / scale)
                 $0.screenName = screen.localizedName
             }
             // Settle onto the grid even if the saved spot didn't change.
@@ -348,8 +353,16 @@ private struct WidgetRoot: View {
     let onConfigure: @MainActor () -> Void
 
     var body: some View {
-        WidgetHostView(id: id, services: services, window: window, onDrag: onDrag, onRemove: onRemove, onConfigure: onConfigure)
-            .id(id)
+        // Laid out at natural size, then drawn larger or smaller as a whole;
+        // SwiftUI redraws at the new size, so text and shapes stay sharp.
+        let scale = services.settings.widgetScale
+        GeometryReader { geometry in
+            WidgetHostView(id: id, services: services, window: window, onDrag: onDrag, onRemove: onRemove, onConfigure: onConfigure)
+                .id(id)
+                .frame(width: geometry.size.width / scale, height: geometry.size.height / scale)
+                .scaleEffect(scale, anchor: .topLeading)
+                .environment(\.widgetRenderScale, scale)
+        }
     }
 
     /// What a spare window holds: nothing (no widget has this id).

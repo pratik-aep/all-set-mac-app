@@ -11,6 +11,12 @@ import SwiftUI
 // Motion is on, and draws a still SwiftUI version for snapshots, which can't
 // capture AppKit views.
 
+extension EnvironmentValues {
+    /// How much larger than its layout a widget is drawn on the desktop, so
+    /// pictures made of it can be made at the resolution they're shown at.
+    @Entry var widgetRenderScale: CGFloat = 1
+}
+
 /// A layer-backed view whose sublayers sit in `root`, with y pointing down
 /// like SwiftUI. Subclasses lay out in `build` and animate in `refresh`.
 class LiveLayerView: NSView {
@@ -188,6 +194,7 @@ struct LiveArtwork<Content: View, Key: Hashable>: View {
     @Environment(\.widgetIsVisible) private var isVisible
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.widgetRenderScale) private var renderScale
     @State private var rendered: ArtworkCache.Artwork?
     @State private var failed = false
 
@@ -202,7 +209,7 @@ struct LiveArtwork<Content: View, Key: Hashable>: View {
     var body: some View {
         GeometryReader { geometry in
             let id = RenderID(key: key, size: geometry.size, glow: glow.map { "\($0)" } ?? "", glowRadius: glowRadius,
-                              scale: max(displayScale, 2))
+                              scale: max(displayScale, 2) * max(renderScale, 1))
             let artwork = rendered?.id == AnyHashable(id) ? rendered : ArtworkCache.artwork(for: id)
             Group {
                 if !snapshot, let artwork {

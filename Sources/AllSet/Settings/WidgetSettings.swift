@@ -14,8 +14,20 @@ struct WidgetSettings: View {
                 }
             }
             .disabled(!settings.showWidgets)
+            LabeledContent("Size") {
+                HStack(spacing: 10) {
+                    Slider(value: $settings.widgetScale, in: AppSettings.widgetScaleRange, step: 0.05)
+                        .frame(width: 160)
+                    Text(settings.widgetScale, format: .percent.precision(.fractionLength(0)))
+                        .monospacedDigit()
+                        .frame(width: 44, alignment: .trailing)
+                    Button("Fit to Screen") { services.fitWidgetsToScreen() }
+                        .help("Resize and center your widgets so they fill the screen")
+                }
+            }
+            .disabled(!settings.showWidgets)
         } footer: {
-            Text("While arranging, widgets float above your windows so you can drag them anywhere. They snap into line when you let go.")
+            Text("While arranging, widgets float above your windows so you can drag them anywhere. They snap into line when you let go. Applying a theme sizes it to fill your screen.")
         }
 
         Section {

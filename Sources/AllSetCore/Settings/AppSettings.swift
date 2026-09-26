@@ -57,6 +57,10 @@ public final class AppSettings {
     public var showWidgets: Bool { didSet { save(showWidgets, Key.showWidgets) } }
     public var widgetFont: WidgetFont { didSet { save(widgetFont.rawValue, Key.widgetFont) } }
     public var widgetCornerRadius: Double { didSet { save(widgetCornerRadius, Key.widgetCornerRadius) } }
+    /// How large desktop widgets are drawn, 1 for their natural size. Applying a
+    /// theme sets it so the theme's grid fills the screen.
+    public var widgetScale: Double { didSet { save(widgetScale, Key.widgetScale) } }
+    public nonisolated static let widgetScaleRange: ClosedRange<Double> = 0.7...1.6
     /// The theme last applied, by id; nil once widgets have been styled by hand.
     public var widgetTheme: String? { didSet { defaults.set(widgetTheme, forKey: Key.widgetTheme) } }
     /// The design theme new widgets start in; nil for their own looks.
@@ -86,6 +90,7 @@ public final class AppSettings {
         static let showWidgets = "widgets.show"
         static let widgetFont = "widgets.font"
         static let widgetCornerRadius = "widgets.cornerRadius"
+        static let widgetScale = "widgets.scale"
         static let widgetTheme = "widgets.theme"
         static let widgetDesignTheme = "widgets.designTheme"
         static let refreshInterval = "monitor.refreshInterval"
@@ -110,6 +115,8 @@ public final class AppSettings {
         showWidgets = defaults.object(forKey: Key.showWidgets) as? Bool ?? true
         widgetFont = defaults.string(forKey: Key.widgetFont).flatMap(WidgetFont.init) ?? .rounded
         widgetCornerRadius = defaults.object(forKey: Key.widgetCornerRadius) as? Double ?? 22
+        widgetScale = min(max(defaults.object(forKey: Key.widgetScale) as? Double ?? 1, Self.widgetScaleRange.lowerBound),
+                          Self.widgetScaleRange.upperBound)
         widgetTheme = defaults.string(forKey: Key.widgetTheme)
         widgetDesignTheme = defaults.string(forKey: Key.widgetDesignTheme)
         refreshInterval = defaults.object(forKey: Key.refreshInterval) as? Double ?? 1

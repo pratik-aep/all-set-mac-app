@@ -92,6 +92,18 @@ public enum AestheticSearch {
         return vocabulary[squashed]
     }
 
+    /// The name of the aesthetic in `text`, as the vocabulary knows it ("lo fi" → "lofi").
+    static func aestheticName(in text: String) -> String? {
+        if vocabulary[text] != nil { return text }
+        let words = text.split(separator: " ").map(String.init)
+        let kept = words.filter { !fillerWords.contains($0) }
+        for candidate in [kept.joined(separator: " "), kept.joined(), words.filter { $0 != "aesthetic" && $0 != "wallpaper" }.joined()]
+            where vocabulary[candidate] != nil {
+            return candidate
+        }
+        return nil
+    }
+
     /// What an aesthetic search is looking for, to show under the search box:
     /// "pink bow, pearls, pink roses". Nil for plain searches.
     public static func explanation(for query: String) -> String? {

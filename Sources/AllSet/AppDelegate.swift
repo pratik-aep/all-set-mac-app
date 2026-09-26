@@ -59,6 +59,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
+        if let folder = UserDefaults.standard.string(forKey: "renderPhotos") {
+            NSApp.setActivationPolicy(.accessory)
+            Task {
+                await WidgetRenderHarness.renderPhotos(to: URL(fileURLWithPath: folder), services: services)
+                exit(0)
+            }
+            return
+        }
+        if let folder = UserDefaults.standard.string(forKey: "renderIsland") {
+            NSApp.setActivationPolicy(.accessory)
+            services.monitor.start()
+            Task {
+                await WidgetRenderHarness.renderIsland(to: URL(fileURLWithPath: folder), services: services)
+                exit(0)
+            }
+            return
+        }
+        if let folder = UserDefaults.standard.string(forKey: "renderScaling") {
+            NSApp.setActivationPolicy(.accessory)
+            Task {
+                await WidgetRenderHarness.renderScaling(to: URL(fileURLWithPath: folder), services: services)
+                exit(0)
+            }
+            return
+        }
         if let folder = UserDefaults.standard.string(forKey: "renderThemeSets") {
             NSApp.setActivationPolicy(.accessory)
             Task {
@@ -95,8 +120,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switch probe {
                 case "widgets": await PageCPUProbe.runWidgets(services: services)
                 case "fans": await PageCPUProbe.runFans(services: services)
+                case "mystic": await PageCPUProbe.runMystic(services: services)
                 case "windowserver": await PageCPUProbe.runWindowServer(services: services)
                 case "reveal": await PageCPUProbe.runReveal(services: services)
+                case "islandmotion": await PageCPUProbe.runIslandMotion(services: services)
+                case "systembuild": await SystemTab.buildTimes(services: services)
+                case "search": await PageCPUProbe.runSearch(services: services)
                 case "apply":
                     let widgets = DesktopWidgetController(services: services)
                     widgets.start()

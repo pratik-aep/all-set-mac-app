@@ -5,12 +5,14 @@ import Foundation
 ///     allset://open/monitor        a page of the main window
 ///     allset://widget/<uuid>       a widget's settings
 ///     allset://arrange             arrange mode
+///     allset://fit                 size and center the widgets to fill the screen
 ///     allset://theme/<id>          apply a design theme to every widget
 ///     allset://focus/start|pause|reset   the first Focus Timer on the desktop
 public enum DeepLink: Equatable, Sendable {
     case page(String)
     case widget(UUID)
     case arrange
+    case fit
     case theme(String)
     case focus(FocusAction)
 
@@ -29,6 +31,8 @@ public enum DeepLink: Equatable, Sendable {
             self = .widget(id)
         case "arrange":
             self = .arrange
+        case "fit":
+            self = .fit
         case "theme":
             guard let argument else { return nil }
             self = .theme(argument)
@@ -45,6 +49,7 @@ public enum DeepLink: Equatable, Sendable {
         case .page(let page): "open/\(page)"
         case .widget(let id): "widget/\(id.uuidString)"
         case .arrange: "arrange"
+        case .fit: "fit"
         case .theme(let id): "theme/\(id)"
         case .focus(let action): "focus/\(action.rawValue)"
         }

@@ -155,7 +155,7 @@ private struct IslandStage: View {
                 Rectangle()
                     .fill(.black.opacity(0.35))
                     .frame(height: 32 * scale)
-                NotchRootView(model: model, services: services, expand: {}, openSettings: {})
+                IslandRepresentable(model: model, services: services)
                     .frame(width: size.width, height: size.height)
                     .scaleEffect(scale, anchor: .top)
                     .frame(width: size.width * scale, height: size.height * scale, alignment: .top)

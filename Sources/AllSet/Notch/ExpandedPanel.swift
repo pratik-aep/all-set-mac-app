@@ -9,6 +9,9 @@ struct ExpandedPanel: View {
     @Namespace private var tabHighlight
 
     var body: some View {
+        // The panel keeps the largest tab's size; the header's two ends glide in
+        // or out (a transform: nothing re-lays out) to meet the shape's edges.
+        let inset = (Self.largest.width - NotchViewModel.expandedSize(for: model.tab).width) / 2
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 HStack(spacing: 4) {
@@ -19,6 +22,7 @@ struct ExpandedPanel: View {
                     tabButton(.system, symbol: "gauge.with.dots.needle.50percent", help: "System")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .offset(x: inset)
 
                 Color.clear.frame(width: model.geometry.notchRect.width)
 
@@ -46,41 +50,48 @@ struct ExpandedPanel: View {
                     .help("Settings")
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
+                .offset(x: -inset)
             }
             .padding(.horizontal, 20)
             .frame(height: model.geometry.notchRect.height)
 
             // Each tab lays out at its final width, so nothing reflows while the
             // shape animates between sizes; the shape's edge clips it instead.
+            // Only the tab showing exists: every built view adds to the layout
+            // work SwiftUI repeats on each frame of an animation.
             ZStack(alignment: .top) {
-                switch model.tab {
-                case .home:
-                    HomeTab(services: services)
-                        .frame(width: Self.bodyWidth(for: .home))
-                        .transition(.reveal(in: .smooth(duration: 0.28).delay(0.1), out: .easeIn(duration: 0.12)))
-                case .tray:
-                    TrayTab(services: services)
-                        .frame(width: Self.bodyWidth(for: .tray))
-                        .transition(.reveal(in: .smooth(duration: 0.28).delay(0.1), out: .easeIn(duration: 0.12)))
-                case .mixer:
-                    MixerTab(services: services)
-                        .frame(width: Self.bodyWidth(for: .mixer))
-                        .transition(.reveal(in: .smooth(duration: 0.28).delay(0.1), out: .easeIn(duration: 0.12)))
-                case .notes:
-                    NotesTab(notes: services.notes, model: model, openNotes: { services.openWindow(.notes) })
-                        .frame(width: Self.bodyWidth(for: .notes))
-                        .transition(.reveal(in: .smooth(duration: 0.28).delay(0.1), out: .easeIn(duration: 0.12)))
-                case .system:
-                    SystemTab(services: services)
-                        .frame(width: Self.bodyWidth(for: .system))
-                        .transition(.reveal(in: .smooth(duration: 0.28).delay(0.1), out: .easeIn(duration: 0.12)))
-                }
+                tabBody(model.tab)
+                    .frame(width: Self.bodyWidth(for: model.tab), height: bodyHeight(for: model.tab))
+                    .id(model.tab)
+                    .transition(.tab(direction: model.tabDirection))
             }
             .padding(.top, 10)
             .padding(.bottom, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+        .frame(width: Self.largest.width, height: Self.largest.height)
         .foregroundStyle(.white)
+    }
+
+    @ViewBuilder
+    private func tabBody(_ tab: NotchViewModel.Tab) -> some View {
+        switch tab {
+        case .home: HomeTab(services: services)
+        case .tray: TrayTab(services: services)
+        case .mixer: MixerTab(services: services)
+        case .notes: NotesTab(notes: services.notes, model: model, openNotes: { services.openWindow(.notes) })
+        case .system: SystemTab(services: services)
+        }
+    }
+
+    /// The biggest the island gets, on any tab.
+    static let largest = CGSize(width: NotchViewModel.Tab.allCases.map { NotchViewModel.expandedSize(for: $0).width }.max() ?? 860,
+                                height: NotchViewModel.Tab.allCases.map { NotchViewModel.expandedSize(for: $0).height }.max() ?? 300)
+
+    /// Room below the header for a tab: its own height, not the panel's (which
+    /// is always the tallest tab's).
+    private func bodyHeight(for tab: NotchViewModel.Tab) -> CGFloat {
+        NotchViewModel.expandedSize(for: tab).height - model.geometry.notchRect.height - 26
     }
 
     private static func bodyWidth(for tab: NotchViewModel.Tab) -> CGFloat {
@@ -89,6 +100,10 @@ struct ExpandedPanel: View {
 
     private func tabButton(_ tab: NotchViewModel.Tab, symbol: String, help: String) -> some View {
         NotchTabButton(symbol: symbol, isSelected: model.tab == tab, highlight: tabHighlight) {
+            guard model.tab != tab else { return }
+            if services.settings.hapticFeedback {
+                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+            }
             withAnimation(NotchAnimation.tab) { model.tab = tab }
         }
         .help(help)

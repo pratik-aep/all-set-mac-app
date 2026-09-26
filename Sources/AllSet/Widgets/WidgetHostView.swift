@@ -402,6 +402,22 @@ struct WidgetContent: View {
             TicketWidget(instance: instance)
         case .wordArt:
             WordArtWidget(instance: instance)
+        case .spiral:
+            SpiralWidget(instance: instance)
+        case .charm:
+            CharmWidget(instance: instance)
+        case .label:
+            LabelWidget(instance: instance)
+        case .aura:
+            AuraWidget(instance: instance)
+        case .tarot:
+            TarotWidget(instance: instance)
+        case .zodiac:
+            ZodiacWidget(instance: instance)
+        case .eightBall:
+            EightBallWidget(instance: instance)
+        case .candle:
+            CandleWidget(instance: instance)
         }
     }
 }

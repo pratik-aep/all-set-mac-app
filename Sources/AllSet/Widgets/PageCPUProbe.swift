@@ -190,6 +190,72 @@ enum PageCPUProbe {
         window.close()
     }
 
+    /// The island in a real window: opens it, switches tabs and closes it,
+    /// reporting the longest main-thread hitch and frames lost for each step.
+    static func runIslandMotion(services: AppServices) async {
+        final class Gaps: @unchecked Sendable { var last = CACurrentMediaTime(); var worst = 0.0; var total = 0.0 }
+        let model = NotchViewModel(geometry: NotchGeometry(screenFrame: CGRect(x: 0, y: 0, width: 940, height: 340),
+                                                           safeAreaTop: 32, topLeftArea: nil, topRightArea: nil, menuBarHeight: 32))
+        let window = NSWindow(contentRect: NSRect(x: 200, y: 200, width: 940, height: 340),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.alphaValue = 0.01
+        window.ignoresMouseEvents = true
+        window.level = .floating
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.isReleasedWhenClosed = false
+        window.contentView = IslandView(model: model, root: NotchRootView(model: model, services: services, expand: {}, openSettings: {}))
+        window.orderFrontRegardless()
+        services.monitor.setViewer("probe", visible: true)
+        try? await Task.sleep(for: .seconds(3))
+        if ProcessInfo.processInfo.environment["COLD"] == nil {
+            await IslandView.warmUp(geometry: model.geometry, services: services)
+            try? await Task.sleep(for: .seconds(1))
+        }
+        func step(_ name: String, _ change: @MainActor () -> Void) async {
+            let gaps = Gaps()
+            let timer = Timer(timeInterval: 0.004, repeats: true) { _ in
+                let now = CACurrentMediaTime()
+                let gap = now - gaps.last
+                if gap > 0.017 { gaps.total += gap - 0.004 }
+                gaps.worst = max(gaps.worst, gap)
+                gaps.last = now
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            change()
+            try? await Task.sleep(for: .milliseconds(1200))
+            timer.invalidate()
+            print(String(format: "%-20@ longest hitch %4.0f ms, frames lost %4.0f ms", name as NSString, gaps.worst * 1000, gaps.total * 1000))
+        }
+        for round in 1...2 {
+            await step("open \(round)") { withAnimation(NotchAnimation.open) { model.isExpanded = true } }
+            await step("home → system \(round)") { withAnimation(NotchAnimation.tab) { model.tab = .system } }
+            await step("system → home \(round)") { withAnimation(NotchAnimation.tab) { model.tab = .home } }
+            await step("home → mixer \(round)") { withAnimation(NotchAnimation.tab) { model.tab = .mixer } }
+            await step("mixer → system \(round)") { withAnimation(NotchAnimation.tab) { model.tab = .system } }
+            await step("close \(round)") { withAnimation(NotchAnimation.close) { model.isExpanded = false } }
+            model.tab = .home
+        }
+        window.close()
+    }
+
+    /// Real searches through both sources: how many results, from where, how fast.
+    static func runSearch(services: AppServices) async {
+        let search = PhotoSearch(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent("probe-search-\(UUID())"))
+        for text in ["iron man", "jjk", "lambo", "anime", "coquette", "mountains", "naurto", "batman -lego", "gta 6", "dark academia"] {
+            let start = CACurrentMediaTime()
+            search.search(text, immediately: true)
+            while search.results.isEmpty, search.errorMessage == nil, CACurrentMediaTime() - start < 25 {
+                try? await Task.sleep(for: .milliseconds(100))
+                if !search.isSearching, CACurrentMediaTime() - start > 3 { break }
+            }
+            let sources = Dictionary(grouping: search.results, by: { $0.provider ?? "?" }).mapValues(\.count)
+            print(String(format: "%-16@ %3d results in %4.1f s %@ more:%@ %@ %@", text as NSString, search.results.count,
+                         CACurrentMediaTime() - start, sources.description as NSString, search.hasMore ? "yes" : "no",
+                         (search.interpretation ?? "") as NSString, (search.errorMessage ?? "") as NSString))
+        }
+    }
+
     /// WindowServer's CPU time so far, from `ps` (which may read other users' processes).
     private static func windowServerSeconds() -> Double {
         let find = Process(), read = Pipe()
@@ -242,6 +308,20 @@ enum PageCPUProbe {
             ("scene palms", scene(.palms, .americana)),
             ("scene smoke", scene(.smoke, .slime)),
             ("seven desktop", AnyView(world)),
+        ], services: services)
+    }
+
+    /// The spiral, charms, label and the mystic widgets.
+    static func runMystic(services: AppServices) async {
+        func widget(_ entry: String, _ size: WidgetSize) -> AnyView {
+            let instance = WidgetCatalog.entry(entry)?.make(size: size) ?? WidgetInstance(kind: .clock)
+            return AnyView(WidgetBody(instance: instance, services: services).environment(\.widgetIsVisible, true))
+        }
+        await run(pages: [], views: [
+            ("spiral", widget("spiral", .medium)), ("chrome heart", widget("chromeHeart", .small)),
+            ("perfume label", widget("perfumeLabel", .medium)), ("aura", widget("aura", .medium)),
+            ("tarot", widget("tarot", .medium)), ("zodiac", widget("zodiac", .medium)),
+            ("magic ball", widget("eightBall", .medium)), ("candle", widget("candle", .medium)),
         ], services: services)
     }
 

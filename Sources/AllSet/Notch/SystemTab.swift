@@ -10,25 +10,41 @@ struct SystemTab: View {
         let snapshot = monitor.snapshot
         let unit = services.settings.temperatureUnit
 
-        HStack(spacing: 10) {
-            VStack(spacing: 10) {
-                HStack(spacing: 10) {
-                    CPUCard(cpu: snapshot.cpu, temperature: snapshot.temperatures.soc, thermal: snapshot.thermal, unit: unit)
-                    GPUCard(gpu: snapshot.gpu, history: monitor.gpuHistory)
-                    MemoryCard(memory: snapshot.memory)
-                }
-                HStack(spacing: 10) {
-                    NetworkCard(network: snapshot.network, download: monitor.downloadHistory, upload: monitor.uploadHistory)
-                    DiskCard(disk: snapshot.disk, temperature: snapshot.temperatures.ssd, unit: unit)
-                    if let battery = snapshot.battery {
-                        BatteryCard(battery: battery, unit: unit)
-                    } else {
-                        CPUHistoryCard(history: monitor.cpuHistory)
+        // Every card gets its exact size up front. Left to share out flexible
+        // space, the stacks measure each card several times over, which made
+        // this the slowest tab to open.
+        GeometryReader { geometry in
+            let card = CGSize(width: ((geometry.size.width - 216 - 10 - 20) / 3).rounded(.down),
+                              height: ((geometry.size.height - 10) / 2).rounded(.down))
+            HStack(alignment: .top, spacing: 10) {
+                VStack(spacing: 10) {
+                    HStack(spacing: 10) {
+                        CPUCard(cpu: snapshot.cpu, temperature: snapshot.temperatures.soc, thermal: snapshot.thermal, unit: unit)
+                            .frame(width: card.width, height: card.height)
+                        GPUCard(gpu: snapshot.gpu, history: monitor.gpuHistory)
+                            .frame(width: card.width, height: card.height)
+                        MemoryCard(memory: snapshot.memory)
+                            .frame(width: card.width, height: card.height)
+                    }
+                    HStack(spacing: 10) {
+                        NetworkCard(network: snapshot.network, download: monitor.downloadHistory, upload: monitor.uploadHistory)
+                            .frame(width: card.width, height: card.height)
+                        DiskCard(disk: snapshot.disk, temperature: snapshot.temperatures.ssd, unit: unit)
+                            .frame(width: card.width, height: card.height)
+                        Group {
+                            if let battery = snapshot.battery {
+                                BatteryCard(battery: battery, unit: unit)
+                            } else {
+                                CPUHistoryCard(history: monitor.cpuHistory)
+                            }
+                        }
+                        .frame(width: card.width, height: card.height)
                     }
                 }
+                TopAppsCard(services: services)
+                    .frame(width: 216, height: geometry.size.height)
             }
-            TopAppsCard(services: services)
-                .frame(width: 216)
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
         }
     }
 }
@@ -230,3 +246,46 @@ private struct CoreBars: View {
                  })
     }
 }
+
+#if DEBUG
+extension SystemTab {
+    /// `AllSet -probe systembuild`: how long each part of this tab takes to build and lay out.
+    @MainActor static func buildTimes(services: AppServices) async {
+        let monitor = services.monitor
+        try? await Task.sleep(for: .seconds(3))
+        let snapshot = monitor.snapshot
+        let unit = services.settings.temperatureUnit
+        let parts: [(String, CGSize, () -> AnyView)] = [
+            ("whole tab", CGSize(width: 820, height: 240), { AnyView(SystemTab(services: services)) }),
+            ("cpu", CGSize(width: 190, height: 115), { AnyView(CPUCard(cpu: snapshot.cpu, temperature: snapshot.temperatures.soc, thermal: snapshot.thermal, unit: unit)) }),
+            ("gpu", CGSize(width: 190, height: 115), { AnyView(GPUCard(gpu: snapshot.gpu, history: monitor.gpuHistory)) }),
+            ("memory", CGSize(width: 190, height: 115), { AnyView(MemoryCard(memory: snapshot.memory)) }),
+            ("network", CGSize(width: 190, height: 115), { AnyView(NetworkCard(network: snapshot.network, download: monitor.downloadHistory, upload: monitor.uploadHistory)) }),
+            ("disk", CGSize(width: 190, height: 115), { AnyView(DiskCard(disk: snapshot.disk, temperature: snapshot.temperatures.ssd, unit: unit)) }),
+            ("battery", CGSize(width: 190, height: 115), { AnyView(snapshot.battery.map { AnyView(BatteryCard(battery: $0, unit: unit)) } ?? AnyView(EmptyView())) }),
+            ("top apps", CGSize(width: 216, height: 240), { AnyView(TopAppsCard(services: services)) }),
+            ("empty", CGSize(width: 190, height: 115), { AnyView(Color.clear) }),
+        ]
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 300), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.alphaValue = 0.01
+        window.orderFrontRegardless()
+        for (name, size, make) in parts {
+            var times: [Double] = []
+            for _ in 0..<9 {
+                let start = CACurrentMediaTime()
+                let host = NSHostingView(rootView: make().environment(\.colorScheme, .dark))
+                host.frame = CGRect(origin: .zero, size: size)
+                window.contentView = host
+                host.layoutSubtreeIfNeeded()
+                host.displayIfNeeded()
+                CATransaction.flush()
+                times.append(CACurrentMediaTime() - start)
+                try? await Task.sleep(for: .milliseconds(30))
+            }
+            times.sort()
+            print(String(format: "%-10@ first %5.1f ms, median %5.1f ms", name as NSString, times.first! * 1000, times[4] * 1000))
+        }
+        window.close()
+    }
+}
+#endif

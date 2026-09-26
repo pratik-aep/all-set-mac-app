@@ -16,6 +16,8 @@ final class UIState {
     var applyingWorkspace: UUID?
     /// The layout from before a theme's starter set replaced it, for Undo.
     var layoutBeforeTheme: [WidgetInstance]?
+    /// The widget size from before that, for Undo.
+    var scaleBeforeTheme: Double?
     /// A theme set being tried on the desktop, with what to go back to.
     var themePreview: ThemePreview?
     /// How hard to save energy, from Low Power Mode, Reduce Motion and the charger.
@@ -159,8 +161,8 @@ final class AppServices {
         if useKit {
             let screen = NSScreen.screens.first
             ui.layoutBeforeTheme = widgets.widgets
-            widgets.replaceAll(with: theme.kitWidgets(screenName: screen?.localizedName,
-                                                      bounds: screen?.visibleFrame.size ?? CGSize(width: 1440, height: 860)))
+            ui.scaleBeforeTheme = settings.widgetScale
+            widgets.replaceAll(with: fittedToScreen(theme.kitWidgets(screenName: screen?.localizedName, bounds: Self.unbounded)))
         } else {
             for widget in widgets.widgets {
                 widgets.update(widget.id) { $0 = theme.styled($0) }
@@ -201,6 +203,8 @@ final class AppServices {
             openWindow(widgets.instance(id) != nil ? .widget(id) : .gallery(nil))
         case .arrange:
             ui.isArrangingWidgets = true
+        case .fit:
+            fitWidgetsToScreen()
         case .theme(let id):
             if let theme = DesignTheme.named(id) {
                 apply(theme, wallpaper: false)
@@ -225,7 +229,9 @@ final class AppServices {
     func undoThemeLayout() {
         guard let previous = ui.layoutBeforeTheme else { return }
         widgets.replaceAll(with: previous)
+        if let scale = ui.scaleBeforeTheme { settings.widgetScale = scale }
         ui.layoutBeforeTheme = nil
+        ui.scaleBeforeTheme = nil
     }
 
     /// Puts a widget in the first free spot on the primary screen.
@@ -238,12 +244,15 @@ final class AppServices {
             instance.options.designTheme = theme
         }
         if let screen = NSScreen.screens.first {
+            // Offsets are in layout points: the screen, divided by the widget size.
             let occupied = widgets.widgets
                 .filter { $0.screenName == screen.localizedName || $0.screenName == nil }
                 .map { CGRect(origin: $0.offset, size: $0.size.dimensions) }
+            let scale = settings.widgetScale
             instance.screenName = screen.localizedName
             instance.offset = WidgetLayout.freeOffset(for: instance.size.dimensions, avoiding: occupied,
-                                                      within: screen.visibleFrame.size)
+                                                      within: CGSize(width: screen.visibleFrame.width / scale,
+                                                                     height: screen.visibleFrame.height / scale))
         }
         settings.showWidgets = true
         return widgets.add(instance)
@@ -261,5 +270,29 @@ func observe<Value>(_ value: @escaping @MainActor @Sendable () -> Value,
             onChange(value())
             observe(value, onChange: onChange)
         }
+    }
+}
+
+extension AppServices {
+    /// Room enough that laying out a theme's grid never clamps it; fitting
+    /// then places it on the real screen.
+    static let unbounded = CGSize(width: 10_000, height: 10_000)
+
+    /// A theme's arrangement sized and centered to fill the primary screen:
+    /// sets the widget size and returns the widgets moved to match.
+    func fittedToScreen(_ layout: [WidgetInstance]) -> [WidgetInstance] {
+        let bounds = NSScreen.screens.first?.visibleFrame.size ?? CGSize(width: 1440, height: 860)
+        let fitted = WidgetLayout.fitted(layout, in: bounds, range: AppSettings.widgetScaleRange)
+        settings.widgetScale = fitted.scale
+        return fitted.widgets
+    }
+
+    /// Resizes and recenters the widgets on the primary screen so they fill it.
+    func fitWidgetsToScreen() {
+        guard let screen = NSScreen.screens.first else { return }
+        let onScreen = widgets.widgets.filter { $0.screenName == screen.localizedName || $0.screenName == nil }
+        guard !onScreen.isEmpty else { return }
+        let moved = Dictionary(uniqueKeysWithValues: fittedToScreen(onScreen).map { ($0.id, $0.offset) })
+        for (id, offset) in moved { widgets.update(id) { $0.offset = offset } }
     }
 }

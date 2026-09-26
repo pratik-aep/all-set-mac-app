@@ -219,7 +219,7 @@ struct WebPhotosPage: View {
             VStack(alignment: .leading, spacing: 18) {
                 PageHeader(title: "Photos", subtitle: showsPicks
                            ? "Photos by Unsplash photographers. Search, or pick a topic, for more."
-                           : "Free photos from the WordPress Photo Directory, Rawpixel and Flickr. Hover a photo to see who took it.")
+                           : "Wallpapers from Wallhaven and free photos from Openverse, searched together. Hover one to see where it's from.")
                 SearchBar(text: $query, focused: $searchFocused, isSearching: search.isSearching)
                     .onChange(of: query) { _, text in
                         let trimmed = text.trimmingCharacters(in: .whitespaces)
@@ -229,7 +229,15 @@ struct WebPhotosPage: View {
                             search.search(trimmed)
                         }
                     }
-                    .onSubmit { if !typed.isEmpty { search.search(typed, immediately: true) } }
+                    .onSubmit {
+                        guard !typed.isEmpty else { return }
+                        search.search(typed, immediately: true)
+                        search.remember(typed)
+                    }
+
+                if typed.isEmpty, !search.recent.isEmpty {
+                    RecentSearches(recent: search.recent, clear: { search.clearRecent() }) { query = $0 }
+                }
 
                 TopicChips(selection: typed.isEmpty ? topic : nil) { choice in
                     query = ""
@@ -249,21 +257,16 @@ struct WebPhotosPage: View {
                     if !art.isEmpty {
                         artMatches(art)
                     }
-                    HStack(spacing: 14) {
-                        Toggle("High resolution", isOn: Binding(get: { search.highResolution }, set: { search.highResolution = $0 }))
-                        Toggle("Landscape only", isOn: Binding(get: { search.wideOnly }, set: { search.wideOnly = $0 }))
-                        Spacer()
-                    }
-                    .toggleStyle(.checkbox)
-                    .font(.callout)
+                    SearchFilters(search: search)
                     photoGrid(search.results) { search.loadMore() }
                     footer(loading: search.isSearching, error: search.errorMessage, hasMore: search.hasMore,
                            empty: search.results.isEmpty && !search.isSearching && search.errorMessage == nil
                                && (typed.count >= 2 || !typed.isEmpty == false),
                            retry: { search.search(typed.isEmpty ? (topic ?? "") : typed, immediately: true) },
                            more: { search.loadMore() })
-                    Text("Search by Openverse. Photos keep their free licenses; credits show on hover.")
+                    Text("Wallpapers come from the Wallhaven community (safe-for-work only) and belong to their creators: they're for your own desktop. Openverse photos keep their free licenses. Right-click any picture to open its source.")
                         .font(.caption).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else {
                     photoGrid(library.webPhotos) { library.loadMoreWebPhotos() }
                     footer(loading: library.isLoadingWebPhotos, error: library.webPhotosError, hasMore: library.hasMoreWebPhotos,
@@ -275,6 +278,10 @@ struct WebPhotosPage: View {
             .padding(28)
         }
         .onAppear {
+            if let screen = NSScreen.main {
+                search.screenPixels = CGSize(width: screen.frame.width * screen.backingScaleFactor,
+                                             height: screen.frame.height * screen.backingScaleFactor)
+            }
             if !search.query.isEmpty {
                 // Come back to what was showing.
                 if PhotoSearch.suggestions.contains(search.query) { topic = search.query } else { query = search.query }
@@ -326,13 +333,23 @@ struct WebPhotosPage: View {
                         TileButton(title: action.title, symbol: action.symbol) { action.run(.web(photo)) }
                     } else {
                         TileButton(title: "Photo Widget", symbol: "plus") {
+                            services.search.remember()
                             var widget = WidgetInstance(kind: .photo)
                             widget.options.images = [.web(photo)]
                             services.addWidget(widget)
                         }
                         TileButton(title: "Wallpaper", symbol: "photo.artframe") {
+                            services.search.remember()
                             services.wallpaper.set(.photo(.web(photo)))
                         }
+                    }
+                }
+                .contextMenu {
+                    if let page = photo.pageURL {
+                        Button("Open Source Page") { NSWorkspace.shared.open(page) }
+                    }
+                    if let full = photo.imageURLString.flatMap(URL.init(string:)) {
+                        Button("Open Full Size") { NSWorkspace.shared.open(full) }
                     }
                 }
                 // Fetch the next page before the end is reached.
@@ -376,7 +393,7 @@ private struct SearchBar: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.secondary)
-            TextField("Search photos: mountains, neon city, rain…", text: $text)
+            TextField("Search wallpapers: Marvel, anime, Lamborghini, rain…", text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 15))
                 .focused(focused)
@@ -430,6 +447,93 @@ private struct TopicChips: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())
+    }
+}
+
+/// Order, size, shape and color for a search. Sorting and colors come from
+/// Wallhaven, so choosing one searches Wallhaven alone.
+private struct SearchFilters: View {
+    let search: PhotoSearch
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Picker("Sort", selection: Binding(get: { search.sort }, set: { search.sort = $0 })) {
+                    ForEach(Wallhaven.Sort.allCases) { Text($0.title).tag($0) }
+                }
+                .frame(width: 180)
+                Picker("Size", selection: Binding(get: { search.minimumSize }, set: { search.minimumSize = $0 })) {
+                    ForEach(PhotoSearch.MinimumSize.allCases) { Text($0.title).tag($0) }
+                }
+                .frame(width: 220)
+                Picker("Shape", selection: Binding(get: { search.orientation }, set: { search.orientation = $0 })) {
+                    ForEach(PhotoSearch.Orientation.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 250)
+                Spacer(minLength: 0)
+            }
+            .controlSize(.small)
+            HStack(spacing: 6) {
+                Text("Color").font(.callout).foregroundStyle(.secondary)
+                swatch(nil)
+                ForEach(Wallhaven.colors, id: \.self) { swatch($0) }
+            }
+        }
+        .font(.callout)
+    }
+
+    private func swatch(_ hex: String?) -> some View {
+        let selected = search.color == hex
+        return Button {
+            withMotion(Motion.quick) { search.color = selected ? nil : hex }
+        } label: {
+            Circle()
+                .fill(hex.map { Color(hex: Int($0, radix: 16) ?? 0) } ?? Color.clear)
+                .overlay {
+                    if hex == nil {
+                        Image(systemName: "circle.slash").font(.system(size: 13)).foregroundStyle(.secondary)
+                    }
+                }
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.25), lineWidth: 1))
+                .frame(width: 18, height: 18)
+                .padding(2)
+                .overlay(Circle().strokeBorder(Color.accentColor, lineWidth: selected ? 2 : 0))
+                .contentShape(Circle())
+        }
+        .buttonStyle(PressableStyle())
+        .help(hex == nil ? "Any color" : "Mostly #\(hex!)")
+    }
+}
+
+/// Searches that led somewhere, to run again with one click.
+private struct RecentSearches: View {
+    let recent: [String]
+    let clear: () -> Void
+    let pick: (String) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                Image(systemName: "clock.arrow.circlepath").foregroundStyle(.secondary)
+                ForEach(recent, id: \.self) { text in
+                    Button { pick(text) } label: {
+                        Text(text)
+                            .font(.callout)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().strokeBorder(Color.primary.opacity(0.18)))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(PressableStyle())
+                }
+                Button("Clear", action: clear)
+                    .buttonStyle(.link)
+                    .font(.callout)
+            }
+            .padding(.vertical, 2)
+        }
     }
 }
 
