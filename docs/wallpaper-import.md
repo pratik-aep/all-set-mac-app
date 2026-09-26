@@ -389,3 +389,61 @@ Asked: "import all if possible." A scene is a package of pictures plus Wallpaper
 - **The skip list is by Workshop id.** A new scene that renders wrong would need a look and an entry there. The contact-sheet review is the check: the preview hash can't do it, because previews are square crops, zoomed, or start on a black GIF frame.
 - **Gothic Wallpaper** keeps a grey background where Wallpaper Engine shows black (its background is drawn by an effect). It's recognisable, so it's kept.
 - **Rights:** the same as above. Everything is quarantined.
+
+---
+
+## Making the stills move (2026-09-27, third pass)
+
+Asked: "check if the pkg and json behind the preview can be live, check all stills for any possibility."
+
+**They can.** A scene package isn't a flat picture: it's a stack of separate layers plus the numbers describing how each one moves. Wallpaper Engine animates them with GPU shaders, which can't run here — but the *movement* those effects describe is stored as plain values that can be read and rebuilt.
+
+### What the scenes actually carry [measured]
+Of the 106 stills, **79 had motion data**:
+
+| | |
+|---|---|
+| `parallaxDepth` on layers | 458 layers across the folder; 17 stills with two or more distinct depths |
+| foliage sway | 35 stills |
+| shake | 32 |
+| water flow / ripple / waves | 31 / 28 / 25 |
+| pulse, cloud motion | 13 each |
+| god rays, shine, light shafts, scroll | 5–11 each |
+
+Effect settings are readable, e.g. shake stores `ui_editor_properties_speed`, `_strength` and `_friction`.
+
+### How a still becomes a loop
+`compose_live()` renders the layer stack as a seamless looping video, moved by the scene's own numbers:
+- **Parallax:** Wallpaper Engine offsets a layer against the camera by its `parallaxDepth`. The same formula is used here, against a slow automatic camera drift instead of the mouse.
+- **Sway, water, shake, scroll, cloud, pulse, light:** each becomes a movement of that layer, with amplitude and speed taken from the effect's own settings where it has them.
+- **Seamless:** every term runs a whole number of cycles per loop, so the last frame equals the first. **Measured: 0.000 of 255 difference** between the first frame and the last.
+- **No edge gaps:** the scene is drawn 6 % wider than it's shown and cropped back, so a moving layer never uncovers an edge.
+- Output: 15 s, 30 fps, 2560 px long side, HEVC.
+
+### Only when it's worth it
+A still is a sharp 4K picture; a loop is compressed video that also runs the decoder all day. So after rendering, `frame_movement()` measures how much the picture really changes across the loop, and anything under 0.8 of 255 is thrown away and stays a still. **16 scenes were rejected this way.**
+
+### Speed
+Rendering every frame through the full layer graph was too slow to run over a library. Two changes:
+- each layer is scaled, flipped, rotated and faded **once** into a picture, instead of on all 450 frames;
+- runs of layers that never move are **flattened into one picture**, so the per-frame work is only what moves.
+
+Together: **2.25× the resolution for the same time** (measured: 90 s at 1280 px before, 90 s at 1920 px after). About 3 minutes per scene at 2560 px.
+
+### Result
+| | |
+|---|---|
+| **Wallpapers** | **181**: 138 live, 43 stills (was 75 live, 106 stills) |
+| Scenes turned into loops | **63** |
+| Kept as stills | 43 (16 measured as barely moving, 27 with no motion data) |
+| Plays | all 63 pass `scripts/playcheck.swift` |
+| Looked at | all 63 first frames checked on contact sheets: no gaps, no artefacts |
+| Added on the Mac | 987 MB of loops; 4.3 GB library in total |
+| Tests | 205 pass, 0 warnings |
+
+Rerun with `--no-live` to keep scenes as stills instead.
+
+### Remaining risks
+- **It's a rebuilt motion, not Wallpaper Engine's.** Sway and water are movements of whole layers, where the original warps the picture itself. It reads as gentle life, not as the exact original animation.
+- **A loop is softer than the still it replaces** (2560 px video against a 3840 px JPEG) and runs the video decoder. That's the trade the 0.8 threshold is there to police; lower it to convert more, raise it to convert fewer.
+- Particles, text, lights and 3D models are still skipped, so scenes whose motion lives only there stay stills.

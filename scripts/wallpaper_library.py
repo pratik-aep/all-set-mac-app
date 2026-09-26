@@ -404,11 +404,189 @@ def scene_layers(package, scene, work, wetex):
         if size[0] * abs(sx) < 1 or size[1] * abs(sy) < 1:
             skipped["zero size"] += 1
             continue
-        layers.append({"file": info["file"], "x": x, "y": y, "width": size[0] * abs(sx), "height": size[1] * abs(sy),
+        motion = {}
+        for effect in obj.get("effects") or []:
+            if not isinstance(effect, dict) or not value(effect.get("visible"), True):
+                continue
+            path = effect.get("file") or ""
+            kind = path.split("/")[-2] if path.endswith("effect.json") else ""
+            if kind not in MOTION_EFFECTS:
+                continue
+            settings = {}
+            for pass_ in effect.get("passes") or []:
+                settings.update((pass_ or {}).get("constantshadervalues") or {})
+            motion[kind] = settings
+        layers.append({"motion": motion, "depth": vector(obj.get("parallaxDepth"), [0.0, 0.0])[0],
+                       "file": info["file"], "x": x, "y": y, "width": size[0] * abs(sx), "height": size[1] * abs(sy),
                        "flipX": sx < 0, "flipY": sy < 0, "angle": vector(obj.get("angles"), [0.0, 0.0, 0.0])[2],
                        "alpha": float(value(obj.get("alpha"), 1.0) or 1.0), "animated": info.get("animated", False),
                        "pixels": info["width"] * info["height"]})
     return layers, skipped
+
+
+# Wallpaper Engine effects that move their layer. Their shaders can't run here,
+# but their own speed and strength values drive an equivalent movement.
+MOTION_EFFECTS = ("foliagesway", "waterwaves", "waterflow", "waterripple", "watercaustics",
+                  "shake", "scroll", "cloudmotion", "pulse", "shine", "lightshafts", "godrays")
+
+
+def motion_terms(layer, index, seconds, width, height, span, mid):
+    """How one layer moves, as ffmpeg x and y expressions. Every term runs a
+    whole number of cycles per loop, so the last frame joins the first."""
+    across, down = [], []
+    relative = (layer["depth"] - mid) / span if span else 0.0
+    # Wallpaper Engine offsets a layer against the camera by its parallax depth.
+    if abs(relative) > 0.02:
+        across.append(f"{-relative:.4f}*CAMX")
+        down.append(f"{relative:.4f}*CAMY")
+    settings = layer.get("motion") or {}
+
+    def setting(kind, key, fallback):
+        try:
+            return float(settings.get(kind, {}).get(key, fallback))
+        except (TypeError, ValueError):
+            return fallback
+
+    if "shake" in settings:
+        strength = setting("shake", "ui_editor_properties_strength", 0.03)
+        cycles = max(1, min(12, round(setting("shake", "ui_editor_properties_speed", 0.4) * 8)))
+        amount = min(width, height) * strength * 0.5
+        across.append(f"{amount:.2f}*sin(2*PI*{cycles}*t/{seconds})")
+        down.append(f"{amount * 0.7:.2f}*cos(2*PI*{cycles}*t/{seconds})")
+    if "foliagesway" in settings:
+        across.append(f"{max(1.0, width * 0.004):.2f}*sin(2*PI*3*t/{seconds}+{index})")
+    for kind in ("waterwaves", "waterflow", "waterripple", "watercaustics"):
+        if kind in settings:
+            down.append(f"{max(1.0, height * 0.003):.2f}*sin(2*PI*2*t/{seconds}+{index})")
+            break
+    if "scroll" in settings or "cloudmotion" in settings:
+        across.append(f"{width * 0.01:.2f}*sin(2*PI*t/{seconds})")
+    if "pulse" in settings or "shine" in settings or "lightshafts" in settings or "godrays" in settings:
+        down.append(f"{max(1.0, height * 0.002):.2f}*sin(2*PI*2*t/{seconds}+{index})")
+    return across, down
+
+
+def compose_live(layers, canvas, clear, output, work, long_side=2560, seconds=15, fps=30, zoom=1.06):
+    """The scene as a seamless looping video: its layers moved by its own
+    parallax depths and effect settings. Returns (stats, problem)."""
+    layers = [layer for layer in layers if "file" in layer]
+    if not layers:
+        return None, "nothing drawable"
+    depths = [layer["depth"] for layer in layers]
+    span = (max(depths) - min(depths)) or 1.0
+    mid = (max(depths) + min(depths)) / 2
+    factor = min(1.0, long_side / max(canvas))
+    width = max(2, int(canvas[0] * factor) // 2 * 2)
+    height = max(2, int(canvas[1] * factor) // 2 * 2)
+    # Drawn wider than it's shown, so a moving layer never uncovers an edge.
+    big_w, big_h = int(width * zoom) // 2 * 2, int(height * zoom) // 2 * 2
+    left, top = (big_w - width) / 2, (big_h - height) / 2
+    amount = min(big_w, big_h) * 0.010
+    camera_x = f"({amount:.2f}*sin(2*PI*t/{seconds}))"
+    camera_y = f"({amount * 0.6:.2f}*sin(4*PI*t/{seconds}))"
+
+    # Each layer is scaled, flipped, turned and faded once, not on every frame.
+    baked = []
+    for index, layer in enumerate(layers, 1):
+        layer_w = max(2, int(layer["width"] * factor))
+        layer_h = max(2, int(layer["height"] * factor))
+        filters = [f"scale={layer_w}:{layer_h}", "format=rgba"]
+        if layer["flipX"]:
+            filters.append("hflip")
+        if layer["flipY"]:
+            filters.append("vflip")
+        if abs(layer["angle"]) > 0.01:
+            angle = -layer["angle"]
+            filters.append(f"rotate={angle}:c=none:ow=rotw({angle}):oh=roth({angle})")
+        if layer["alpha"] < 0.999:
+            filters.append(f"colorchannelmixer=aa={layer['alpha']:.3f}")
+        path = os.path.join(work, f"bake{index}.png")
+        run = subprocess.run([FFMPEG, "-v", "error", "-y", "-i", layer["file"],
+                              "-vf", ",".join(filters), "-frames:v", "1", path],
+                             capture_output=True, text=True)
+        if run.returncode != 0 or not os.path.exists(path):
+            continue
+        across, down = motion_terms(layer, index, seconds, layer_w, layer_h, span, mid)
+        baked.append({"path": path, "across": across, "down": down, "moves": bool(across or down),
+                      "x": layer["x"] * factor + left, "y": big_h - (layer["y"] * factor + top)})
+    if not any(item["moves"] for item in baked):
+        return None, "nothing moves"
+
+    # Runs of still layers are flattened, so the per-frame work is only movement.
+    groups, still = [], []
+
+    def flush():
+        if not still:
+            return
+        if len(still) == 1:
+            groups.append(still.pop())
+            return
+        flat = os.path.join(work, f"flat{len(groups)}.png")
+        inputs = ["-f", "lavfi", "-i", f"color=c=black@0.0:s={big_w}x{big_h}"]
+        chains, last = [], "0:v"
+        for number, item in enumerate(still, 1):
+            inputs += ["-i", item["path"]]
+            chains.append(f"[{last}][{number}:v]overlay=x={item['x']:.1f}-overlay_w/2:"
+                          f"y={item['y']:.1f}-overlay_h/2:format=auto[g{number}]")
+            last = f"g{number}"
+        subprocess.run([FFMPEG, "-v", "error", "-y"] + inputs +
+                       ["-filter_complex", ";".join(chains), "-map", f"[{last}]", "-frames:v", "1", flat],
+                       capture_output=True, text=True)
+        groups.append({"path": flat, "across": [], "down": [], "moves": False,
+                       "x": big_w / 2, "y": big_h / 2})
+        still.clear()
+
+    for item in baked:
+        if item["moves"]:
+            flush()
+            groups.append(item)
+        else:
+            still.append(item)
+    flush()
+
+    inputs = ["-f", "lavfi", "-i", f"color=c=0x{clear}:s={big_w}x{big_h}:d={seconds}:r={fps}"]
+    chains, last = [], "0:v"
+    for index, group in enumerate(groups, 1):
+        inputs += ["-loop", "1", "-framerate", str(fps), "-t", str(seconds), "-i", group["path"]]
+        x = f"{group['x']:.1f}" + ("+" + "+".join(group["across"]) if group["across"] else "") + "-overlay_w/2"
+        y = f"{group['y']:.1f}" + ("+" + "+".join(group["down"]) if group["down"] else "") + "-overlay_h/2"
+        x = x.replace("CAMX", camera_x).replace("CAMY", camera_y)
+        y = y.replace("CAMX", camera_x).replace("CAMY", camera_y)
+        chains.append(f"[{last}][{index}:v]overlay=x='{x}':y='{y}':format=auto"
+                      f"{':eval=frame' if group['moves'] else ''}[b{index}]")
+        last = f"b{index}"
+    chains.append(f"[{last}]crop={width}:{height}:{left:.0f}:{top:.0f}[out]")
+    result = subprocess.run([FFMPEG, "-v", "error", "-y"] + inputs +
+                            ["-filter_complex", ";".join(chains), "-map", "[out]",
+                             "-t", str(seconds), "-r", str(fps), "-c:v", "hevc_videotoolbox",
+                             "-b:v", "10M", "-tag:v", "hvc1", "-pix_fmt", "yuv420p",
+                             "-movflags", "+faststart", output], capture_output=True, text=True)
+    if result.returncode != 0 or not os.path.exists(output):
+        return None, (result.stderr.strip()[-300:] or "ffmpeg failed")
+    # A loop is only worth it if it visibly moves: otherwise the sharp still is
+    # the better wallpaper. Measured on the rendered frames, not guessed.
+    movement = frame_movement(output, seconds)
+    if movement is not None and movement < 0.8:
+        os.remove(output)
+        return None, f"barely moves ({movement:.2f} of 255)"
+    return {"layers": len(layers), "groups": len(groups), "movement": movement,
+            "moving": sum(1 for g in groups if g["moves"])}, None
+
+
+def frame_movement(video, seconds):
+    """How much the picture actually changes over the loop: the mean difference
+    between small grey copies of three frames, 0-255."""
+    frames = []
+    for at in (0.0, seconds / 3, 2 * seconds / 3):
+        run = subprocess.run([FFMPEG, "-v", "error", "-ss", f"{at:.2f}", "-i", video,
+                              "-frames:v", "1", "-vf", "scale=160:90", "-pix_fmt", "gray",
+                              "-f", "rawvideo", "-"], capture_output=True)
+        if run.returncode != 0 or len(run.stdout) < 100:
+            return None
+        frames.append(run.stdout)
+    pairs = [(frames[0], frames[1]), (frames[0], frames[2]), (frames[1], frames[2])]
+    scores = [sum(abs(a - b) for a, b in zip(x, y)) / len(x) for x, y in pairs]
+    return max(scores)
 
 
 def compose(layers, canvas, clear, output, long_side=3840):
@@ -480,7 +658,7 @@ def gif_video(package, texture, work, wetex, output):
     return None if result.returncode == 0 else result.stderr.strip()[-300:]
 
 
-def import_scene(folder, project, library, wetex, item_id):
+def import_scene(folder, project, library, wetex, item_id, live=True):
     """A still (or, for GIF scenes and video textures, a video) for one scene.
     Returns (entry fields, problem)."""
     import tempfile
@@ -533,6 +711,18 @@ def import_scene(folder, project, library, wetex, item_id):
         problem = compose(layers, canvas, clear, output)
         if problem:
             return None, f"couldn't compose: {problem}"
+        # Its own depths and effects say it moves: make the loop as well, and
+        # play that instead of the still.
+        if live and any(layer.get("motion") or abs(layer.get("depth", 0.0)) > 0.01
+                        for layer in layers if "file" in layer):
+            moving = os.path.join(library, "live", f"{item_id}.mp4")
+            os.makedirs(os.path.dirname(moving), exist_ok=True)
+            stats, trouble = compose_live(layers, canvas, clear, moving, work)
+            if stats:
+                return {"kind": "video", "playback": f"live/{item_id}.mp4", "source": "animated layers",
+                        "still": f"stills/{item_id}.jpg", "layers": stats["layers"],
+                        "movingLayers": stats["moving"]}, None
+            print(f"    (no loop: {trouble})", flush=True)
         reference = preview_hash(folder, project)
         composed = dhash(output, square=True)
         distance = bin(reference ^ composed).count("1") if reference is not None and composed is not None else None
@@ -730,10 +920,10 @@ SCENE_REVIEWED_SKIP = {
 
 # Bumped whenever scenes would come out differently: cached results from an
 # older renderer are redone.
-SCENE_RENDERER = 3
+SCENE_RENDERER = 4
 
 
-def import_scenes(root, library, summary, entries, existing, skipped, now, root_id):
+def import_scenes(root, library, summary, entries, existing, skipped, now, root_id, live=True):
     """Every Wallpaper Engine scene item in the folder, as catalog entries."""
     items = workshop_items(root)
     wetex = wetex_tool(library)
@@ -769,13 +959,13 @@ def import_scenes(root, library, summary, entries, existing, skipped, now, root_
         output_ok = result and current and os.path.exists(os.path.join(library, result.get("playback", "")))
         if not output_ok:
             if not current:
-                for stale in ("stills/{}.jpg", "extracted/{}.mp4", "transcoded/{}.mp4"):
+                for stale in ("stills/{}.jpg", "extracted/{}.mp4", "transcoded/{}.mp4", "live/{}.mp4"):
                     path = os.path.join(library, stale.format(item_id))
                     if os.path.exists(path):
                         os.remove(path)
             known["renderer"] = SCENE_RENDERER
             try:
-                result, problem = import_scene(folder, project, library, wetex, item_id)
+                result, problem = import_scene(folder, project, library, wetex, item_id, live=live)
             except Exception as error:  # one broken scene must not stop the batch
                 result, problem = None, f"failed: {type(error).__name__}: {error}"
             if problem:
@@ -811,6 +1001,7 @@ def import_scenes(root, library, summary, entries, existing, skipped, now, root_
             "tags": sorted({t.lower() for t in tags} | {category, resolution_tag(result.get("width"), result.get("height")),
                                                         "still" if result["kind"] == "image" else "live"}),
             "root": root_id, "file": os.path.relpath(package_path, root), "playback": result["playback"],
+            **({"still": result["still"]} if result.get("still") else {}),
             "thumbnail": f"thumbnails/{item_id}.jpg", "duration": result.get("duration"),
             "width": result.get("width"), "height": result.get("height"), "fps": result.get("fps"),
             "size": os.path.getsize(media), "sha256": digest, "contentRating": rating,
@@ -839,7 +1030,7 @@ def import_scenes(root, library, summary, entries, existing, skipped, now, root_
     return imported
 
 
-def import_library(root, library):
+def import_library(root, library, live=True):
     """Turns a folder into catalog entries: one per unique video, keyed by content.
     Rerunning updates entries (and adds new files) instead of duplicating them."""
     summary = inventory(root, library)
@@ -929,7 +1120,7 @@ def import_library(root, library):
 
     # Wallpaper Engine scenes: their artwork as a sharp still, or, when the
     # scene is really a video (a video texture, a GIF), that video.
-    scene_ids = import_scenes(root, library, summary, entries, existing, skipped, now, root_id)
+    scene_ids = import_scenes(root, library, summary, entries, existing, skipped, now, root_id, live=live)
     print(f"scenes: {len(scene_ids)} imported", flush=True)
 
     # Other folders' entries stay; this folder's are replaced by this scan.
@@ -946,7 +1137,8 @@ def import_library(root, library):
     # Pictures and copies this importer made that no entry uses any more
     # (a scene left out, a video gone from the folder): only its own folders.
     used = {item.get(key) for item in catalog["items"] for key in ("playback", "thumbnail") if item.get(key)}
-    for folder in ("stills", "extracted", "transcoded", "thumbnails"):
+    used |= {item.get("still") for item in catalog["items"] if item.get("still")}
+    for folder in ("stills", "extracted", "transcoded", "thumbnails", "live"):
         directory = os.path.join(library, folder)
         for name in os.listdir(directory) if os.path.isdir(directory) else []:
             if f"{folder}/{name}" not in used and os.path.isfile(os.path.join(directory, name)):
@@ -990,12 +1182,14 @@ def main():
     parser.add_argument("command", choices=["inventory", "import"])
     parser.add_argument("folder")
     parser.add_argument("--library", default=DEFAULT_LIBRARY, help="where the app's library lives")
+    parser.add_argument("--no-live", action="store_true",
+                        help="keep scenes as stills instead of making them into looping videos")
     args = parser.parse_args()
     FFPROBE, FFMPEG = tool("ffprobe"), tool("ffmpeg")
     if args.command == "inventory":
         inventory(args.folder, args.library)
     else:
-        import_library(args.folder, args.library)
+        import_library(args.folder, args.library, live=not args.no_live)
 
 
 if __name__ == "__main__":

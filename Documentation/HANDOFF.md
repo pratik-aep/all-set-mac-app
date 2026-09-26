@@ -2,7 +2,7 @@
 
 **Read this first at the start of every session, instead of reviewing the codebase.** It's rewritten at the end of every session. Dated session logs are in `Documentation/Reports/` (newest last). For what the app contains (widgets, themes, pages), see `CONTENT.md`. Only open the source files that the task at hand needs.
 
-_Last updated: 2026-09-27 (wallpaper library: scenes and web imported too)_
+_Last updated: 2026-09-27 (wallpaper library: scene stills made into moving loops)_
 
 ---
 
@@ -130,6 +130,7 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
   - stills (`LibraryVideo.kind == .image`, a Wallpaper Engine scene's artwork) play from the Mac through `MovingStill` with the photo drift.
 - Catalog: `~/Library/Application Support/AllSet/Wallpaper/Library/catalog.json`, written by `scripts/wallpaper_library.py import <folder>` (needs Homebrew ffmpeg; run with `/usr/bin/python3`). The importer is idempotent, with IDs from SHA-256.
 - The library folder also holds:
+  - `live/`: scene loops, made from the layers by `compose_live()`;
   - `stills/`: scene artwork;
   - `extracted/`: videos taken out of scenes;
   - `transcoded/`;
@@ -141,7 +142,8 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 - `WallpaperStore.library`, `libraryURL(id)` (disk check, for playback only) and `canPlay(video)` (no disk access, for cards).
 - UI: the `LibrarySection` in My Videos.
 - The user's library is a Wallpaper Engine folder on `/Volumes/KALI LINUX/Steam Wallpapers`:
-  - **181 imported** (75 live, 106 stills), from 48 video items, 7 web loops and 126 of 138 scenes;
+  - **181 imported** (138 live, 43 stills), from 48 video items, 7 web loops and 126 of 138 scenes;
+  - 63 scene stills are rendered as seamless loops from their own parallax depths and effect settings; a loop is kept only if `frame_movement()` measures real movement (threshold 0.8 of 255), else the sharp still wins;
   - all **QUARANTINED** (Workshop, no license). Personal use only; never bundle or commit them.
 - Scenes left out after review are listed by Workshop id in `SCENE_REVIEWED_SKIP`, each with its reason. To check new scenes, lay the thumbnails out on a contact sheet and look: the preview hash can't tell.
 
