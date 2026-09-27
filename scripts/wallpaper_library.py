@@ -23,6 +23,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -346,282 +347,515 @@ def decode_texture(package, name, work, wetex, frames=False):
     return None if "error" in info else info
 
 
-def scene_layers(package, scene, work, wetex):
-    """The picture layers of a scene, bottom first, in scene coordinates (y up)."""
-    objects = scene.get("objects") or []
-    by_id = {o.get("id"): o for o in objects if isinstance(o, dict)}
-    layers, skipped = [], collections.Counter()
-
-    def transform(obj, depth=0):
-        origin = vector(obj.get("origin"), [0.0, 0.0, 0.0])
-        scale = vector(obj.get("scale"), [1.0, 1.0, 1.0])
-        parent = by_id.get(obj.get("parent"))
-        if parent is not None and depth < 8:
-            (px, py), (sx, sy) = transform(parent, depth + 1)
-            return (px + origin[0] * sx, py + origin[1] * sy), (scale[0] * sx, scale[1] * sy)
-        return (origin[0], origin[1]), (scale[0], scale[1])
-
-    for obj in objects:
-        if not isinstance(obj, dict):
-            continue
-        kind = next((k for k in ("image", "particle", "text", "sound", "light", "model") if k in obj), "other")
-        if kind != "image" or not isinstance(obj.get("image"), str):
-            skipped[kind] += 1
-            continue
-        if not value(obj.get("visible"), True) or float(value(obj.get("alpha"), 1.0) or 0) <= 0.01:
-            skipped["hidden"] += 1
-            continue
-        model = package.json(obj["image"]) or {}
-        # A solid colour layer under every picture is the background the artwork
-        # sits on. Anywhere else, or carrying effects, it's a mask or a tint
-        # that only makes sense with the effects drawn, so it's left out.
-        if obj["image"].endswith("util/solidlayer.json"):
-            size = vector(obj.get("size"), [0.0, 0.0])
-            (x, y), (sx, sy) = transform(obj)
-            if not layers and not obj.get("effects") and size[0] * abs(sx) >= 1 and size[1] * abs(sy) >= 1:
-                rgb = vector(obj.get("color"), [1.0, 1.0, 1.0])
-                layers.append({"color": "".join(f"{max(0, min(255, int(c * 255))):02x}" for c in rgb[:3]),
-                               "x": x, "y": y, "width": size[0] * abs(sx), "height": size[1] * abs(sy),
-                               "flipX": False, "flipY": False, "angle": vector(obj.get("angles"), [0.0, 0.0, 0.0])[2],
-                               "alpha": float(value(obj.get("alpha"), 1.0) or 1.0), "animated": False, "pixels": 0})
-            continue
-        if model.get("fullscreen") or "util/" in obj["image"]:
-            skipped["effect layer"] += 1
-            continue
-        material = package.json(model.get("material", "")) or {}
-        passes = material.get("passes") or [{}]
-        textures = passes[0].get("textures") or []
-        texture = textures[0] if textures else None
-        if not isinstance(texture, str) or texture.startswith("_rt_") or texture.startswith("util/"):
-            skipped["no picture"] += 1
-            continue
-        info = decode_texture(package, texture, work, wetex)
-        if not info or info.get("kind") != "image":
-            skipped["undecodable"] += 1
-            continue
-        size = vector(obj.get("size"), [float(model.get("width") or info["width"]), float(model.get("height") or info["height"])])
-        (x, y), (sx, sy) = transform(obj)
-        if size[0] * abs(sx) < 1 or size[1] * abs(sy) < 1:
-            skipped["zero size"] += 1
-            continue
-        motion = {}
-        for effect in obj.get("effects") or []:
-            if not isinstance(effect, dict) or not value(effect.get("visible"), True):
-                continue
-            path = effect.get("file") or ""
-            kind = path.split("/")[-2] if path.endswith("effect.json") else ""
-            if kind not in MOTION_EFFECTS:
-                continue
-            settings = {}
-            for pass_ in effect.get("passes") or []:
-                settings.update((pass_ or {}).get("constantshadervalues") or {})
-            motion[kind] = settings
-        layers.append({"motion": motion, "depth": vector(obj.get("parallaxDepth"), [0.0, 0.0])[0],
-                       "file": info["file"], "x": x, "y": y, "width": size[0] * abs(sx), "height": size[1] * abs(sy),
-                       "flipX": sx < 0, "flipY": sy < 0, "angle": vector(obj.get("angles"), [0.0, 0.0, 0.0])[2],
-                       "alpha": float(value(obj.get("alpha"), 1.0) or 1.0), "animated": info.get("animated", False),
-                       "pixels": info["width"] * info["height"]})
-    return layers, skipped
-
-
-# Wallpaper Engine effects that move their layer. Their shaders can't run here,
-# but their own speed and strength values drive an equivalent movement.
-MOTION_EFFECTS = ("foliagesway", "waterwaves", "waterflow", "waterripple", "watercaustics",
-                  "shake", "scroll", "cloudmotion", "pulse", "shine", "lightshafts", "godrays")
-
-
-def motion_terms(layer, index, seconds, width, height, span, mid):
-    """How one layer moves, as ffmpeg x and y expressions. Every term runs a
-    whole number of cycles per loop, so the last frame joins the first."""
-    across, down = [], []
-    relative = (layer["depth"] - mid) / span if span else 0.0
-    # Wallpaper Engine offsets a layer against the camera by its parallax depth.
-    if abs(relative) > 0.02:
-        across.append(f"{-relative:.4f}*CAMX")
-        down.append(f"{relative:.4f}*CAMY")
-    settings = layer.get("motion") or {}
-
-    def setting(kind, key, fallback):
-        try:
-            return float(settings.get(kind, {}).get(key, fallback))
-        except (TypeError, ValueError):
-            return fallback
-
-    if "shake" in settings:
-        strength = setting("shake", "ui_editor_properties_strength", 0.03)
-        cycles = max(1, min(12, round(setting("shake", "ui_editor_properties_speed", 0.4) * 8)))
-        amount = min(width, height) * strength * 0.5
-        across.append(f"{amount:.2f}*sin(2*PI*{cycles}*t/{seconds})")
-        down.append(f"{amount * 0.7:.2f}*cos(2*PI*{cycles}*t/{seconds})")
-    if "foliagesway" in settings:
-        across.append(f"{max(1.0, width * 0.004):.2f}*sin(2*PI*3*t/{seconds}+{index})")
-    for kind in ("waterwaves", "waterflow", "waterripple", "watercaustics"):
-        if kind in settings:
-            down.append(f"{max(1.0, height * 0.003):.2f}*sin(2*PI*2*t/{seconds}+{index})")
-            break
-    if "scroll" in settings or "cloudmotion" in settings:
-        across.append(f"{width * 0.01:.2f}*sin(2*PI*t/{seconds})")
-    if "pulse" in settings or "shine" in settings or "lightshafts" in settings or "godrays" in settings:
-        down.append(f"{max(1.0, height * 0.002):.2f}*sin(2*PI*2*t/{seconds}+{index})")
-    return across, down
-
-
-def compose_live(layers, canvas, clear, output, work, long_side=2560, seconds=15, fps=30, zoom=1.06):
-    """The scene as a seamless looping video: its layers moved by its own
-    parallax depths and effect settings. Returns (stats, problem)."""
-    layers = [layer for layer in layers if "file" in layer]
-    if not layers:
-        return None, "nothing drawable"
-    depths = [layer["depth"] for layer in layers]
-    span = (max(depths) - min(depths)) or 1.0
-    mid = (max(depths) + min(depths)) / 2
-    factor = min(1.0, long_side / max(canvas))
-    width = max(2, int(canvas[0] * factor) // 2 * 2)
-    height = max(2, int(canvas[1] * factor) // 2 * 2)
-    # Drawn wider than it's shown, so a moving layer never uncovers an edge.
-    big_w, big_h = int(width * zoom) // 2 * 2, int(height * zoom) // 2 * 2
-    left, top = (big_w - width) / 2, (big_h - height) / 2
-    amount = min(big_w, big_h) * 0.010
-    camera_x = f"({amount:.2f}*sin(2*PI*t/{seconds}))"
-    camera_y = f"({amount * 0.6:.2f}*sin(4*PI*t/{seconds}))"
-
-    # Each layer is scaled, flipped, turned and faded once, not on every frame.
-    baked = []
-    for index, layer in enumerate(layers, 1):
-        layer_w = max(2, int(layer["width"] * factor))
-        layer_h = max(2, int(layer["height"] * factor))
-        filters = [f"scale={layer_w}:{layer_h}", "format=rgba"]
-        if layer["flipX"]:
-            filters.append("hflip")
-        if layer["flipY"]:
-            filters.append("vflip")
-        if abs(layer["angle"]) > 0.01:
-            angle = -layer["angle"]
-            filters.append(f"rotate={angle}:c=none:ow=rotw({angle}):oh=roth({angle})")
-        if layer["alpha"] < 0.999:
-            filters.append(f"colorchannelmixer=aa={layer['alpha']:.3f}")
-        path = os.path.join(work, f"bake{index}.png")
-        run = subprocess.run([FFMPEG, "-v", "error", "-y", "-i", layer["file"],
-                              "-vf", ",".join(filters), "-frames:v", "1", path],
-                             capture_output=True, text=True)
-        if run.returncode != 0 or not os.path.exists(path):
-            continue
-        across, down = motion_terms(layer, index, seconds, layer_w, layer_h, span, mid)
-        baked.append({"path": path, "across": across, "down": down, "moves": bool(across or down),
-                      "x": layer["x"] * factor + left, "y": big_h - (layer["y"] * factor + top)})
-    if not any(item["moves"] for item in baked):
-        return None, "nothing moves"
-
-    # Runs of still layers are flattened, so the per-frame work is only movement.
-    groups, still = [], []
-
-    def flush():
-        if not still:
-            return
-        if len(still) == 1:
-            groups.append(still.pop())
-            return
-        flat = os.path.join(work, f"flat{len(groups)}.png")
-        inputs = ["-f", "lavfi", "-i", f"color=c=black@0.0:s={big_w}x{big_h}"]
-        chains, last = [], "0:v"
-        for number, item in enumerate(still, 1):
-            inputs += ["-i", item["path"]]
-            chains.append(f"[{last}][{number}:v]overlay=x={item['x']:.1f}-overlay_w/2:"
-                          f"y={item['y']:.1f}-overlay_h/2:format=auto[g{number}]")
-            last = f"g{number}"
-        subprocess.run([FFMPEG, "-v", "error", "-y"] + inputs +
-                       ["-filter_complex", ";".join(chains), "-map", f"[{last}]", "-frames:v", "1", flat],
-                       capture_output=True, text=True)
-        groups.append({"path": flat, "across": [], "down": [], "moves": False,
-                       "x": big_w / 2, "y": big_h / 2})
-        still.clear()
-
-    for item in baked:
-        if item["moves"]:
-            flush()
-            groups.append(item)
-        else:
-            still.append(item)
-    flush()
-
-    inputs = ["-f", "lavfi", "-i", f"color=c=0x{clear}:s={big_w}x{big_h}:d={seconds}:r={fps}"]
-    chains, last = [], "0:v"
-    for index, group in enumerate(groups, 1):
-        inputs += ["-loop", "1", "-framerate", str(fps), "-t", str(seconds), "-i", group["path"]]
-        x = f"{group['x']:.1f}" + ("+" + "+".join(group["across"]) if group["across"] else "") + "-overlay_w/2"
-        y = f"{group['y']:.1f}" + ("+" + "+".join(group["down"]) if group["down"] else "") + "-overlay_h/2"
-        x = x.replace("CAMX", camera_x).replace("CAMY", camera_y)
-        y = y.replace("CAMX", camera_x).replace("CAMY", camera_y)
-        chains.append(f"[{last}][{index}:v]overlay=x='{x}':y='{y}':format=auto"
-                      f"{':eval=frame' if group['moves'] else ''}[b{index}]")
-        last = f"b{index}"
-    chains.append(f"[{last}]crop={width}:{height}:{left:.0f}:{top:.0f}[out]")
-    result = subprocess.run([FFMPEG, "-v", "error", "-y"] + inputs +
-                            ["-filter_complex", ";".join(chains), "-map", "[out]",
-                             "-t", str(seconds), "-r", str(fps), "-c:v", "hevc_videotoolbox",
-                             "-b:v", "10M", "-tag:v", "hvc1", "-pix_fmt", "yuv420p",
-                             "-movflags", "+faststart", output], capture_output=True, text=True)
-    if result.returncode != 0 or not os.path.exists(output):
-        return None, (result.stderr.strip()[-300:] or "ffmpeg failed")
-    # A loop is only worth it if it visibly moves: otherwise the sharp still is
-    # the better wallpaper. Measured on the rendered frames, not guessed.
-    movement = frame_movement(output, seconds)
-    if movement is not None and movement < 0.8:
-        os.remove(output)
-        return None, f"barely moves ({movement:.2f} of 255)"
-    return {"layers": len(layers), "groups": len(groups), "movement": movement,
-            "moving": sum(1 for g in groups if g["moves"])}, None
+# The smallest movement that counts as the wallpaper moving: how much the most
+# changed 1/144th of the picture differs across the loop, 0-255. Measured on
+# rendered loops (docs/wallpaper-import.md): encoder noise on a static scene
+# of a static picture measured 0.33; rain shimmering on water measured 2.5.
+MOTION_VISIBLE = 1.0
 
 
 def frame_movement(video, seconds):
-    """How much the picture actually changes over the loop: the mean difference
+    """How much the picture actually changes over the loop, where it changes
+    most: the mean difference of the most-changed block of a 16x9 grid,
     between small grey copies of three frames, 0-255."""
-    frames = []
+    width, height, frames = 160, 90, []
     for at in (0.0, seconds / 3, 2 * seconds / 3):
-        run = subprocess.run([FFMPEG, "-v", "error", "-ss", f"{at:.2f}", "-i", video,
-                              "-frames:v", "1", "-vf", "scale=160:90", "-pix_fmt", "gray",
-                              "-f", "rawvideo", "-"], capture_output=True)
-        if run.returncode != 0 or len(run.stdout) < 100:
+        run = subprocess.run([FFMPEG, "-v", "error", "-ss", f"{at:.2f}", "-i", video, "-frames:v", "1",
+                              "-vf", f"scale={width}:{height}", "-pix_fmt", "gray", "-f", "rawvideo", "-"], capture_output=True)
+        if run.returncode != 0 or len(run.stdout) < width * height:
             return None
         frames.append(run.stdout)
-    pairs = [(frames[0], frames[1]), (frames[0], frames[2]), (frames[1], frames[2])]
-    scores = [sum(abs(a - b) for a, b in zip(x, y)) / len(x) for x, y in pairs]
-    return max(scores)
+    best = 0.0
+    for a, b in ((0, 1), (0, 2), (1, 2)):
+        x, y = frames[a], frames[b]
+        for by in range(0, height, 10):
+            for bx in range(0, width, 10):
+                total = sum(abs(x[(by + j) * width + bx + i] - y[(by + j) * width + bx + i])
+                            for j in range(10) for i in range(10))
+                best = max(best, total / 100)
+    return best
 
 
-def compose(layers, canvas, clear, output, long_side=3840):
-    """Draws the layers onto the canvas with ffmpeg, scaled to at most `long_side`."""
-    width, height = canvas
-    factor = min(1.0, long_side / max(width, height))
-    W, H = max(2, int(width * factor) // 2 * 2), max(2, int(height * factor) // 2 * 2)
-    inputs = ["-f", "lavfi", "-i", f"color=c=0x{clear}:s={W}x{H}:d=1"]
-    chains, last = [], "0:v"
-    for index, layer in enumerate(layers, 1):
-        w, h = max(2, int(layer["width"] * factor)), max(2, int(layer["height"] * factor))
-        filters = [f"scale={w}:{h}", "format=rgba"]
-        if layer["flipX"]:
-            filters.append("hflip")
-        if layer["flipY"]:
-            filters.append("vflip")
-        if abs(layer["angle"]) > 0.01:
-            filters.append(f"rotate={-layer['angle']}:c=none:ow=rotw({-layer['angle']}):oh=roth({-layer['angle']})")
-        if layer["alpha"] < 0.999:
-            filters.append(f"colorchannelmixer=aa={layer['alpha']:.3f}")
-        if "color" in layer:
-            inputs += ["-f", "lavfi", "-i", f"color=c=0x{layer['color']}:s={w}x{h}:d=1"]
+# ---------------------------------------------------------------------------
+# Scene normalisation: a Wallpaper Engine scene as data that the renderer
+# (scripts/wescene.swift) executes with the scene's own shaders. Nothing is
+# invented: values are the scene's, effect defaults come from the shader the
+# package ships, and whatever can't be carried is listed under "unsupported".
+# ---------------------------------------------------------------------------
+
+UNIFORM_DECLARATION = re.compile(r"uniform\s+(\w+)\s+(\w+)\s*(?:\[\s*\d+\s*\])?\s*;\s*//\s*(\{.*\})")
+COMBO_DECLARATION = re.compile(r"//\s*\[COMBO\]\s*(\{.*\})")
+# Texture header flags (TEXI): 1 draws without interpolation, 2 clamps UVs,
+# 4 is a sprite sheet.
+TEXTURE_NEAREST, TEXTURE_CLAMP, TEXTURE_SPRITES = 1, 2, 4
+COMPONENTS = {"float": 1, "int": 1, "vec2": 2, "vec3": 3, "vec4": 4}
+
+
+def scene_track(field, default):
+    """A scene value as a track: its static value, plus its keyframes when the
+    scene animates it (bezier keys per channel, in seconds, looped, mirrored
+    or played once)."""
+    static = [float(v) for v in vector(field, default)]
+    track = {"value": static}
+    animation = field.get("animation") if isinstance(field, dict) else None
+    if isinstance(animation, dict):
+        options = animation.get("options") or {}
+        fps = float(options.get("fps") or 30) or 30.0
+        channels = []
+        for channel in range(len(static)):
+            keys = []
+            for key in animation.get(f"c{channel}") or []:
+                if not isinstance(key, dict):
+                    continue
+                back, front = key.get("back") or {}, key.get("front") or {}
+                keys.append({"t": float(key.get("frame", 0)) / fps, "v": float(key.get("value", static[channel])),
+                             "inX": float(back.get("x", 0)) / fps if back.get("enabled", True) else 0.0,
+                             "inY": float(back.get("y", 0)) if back.get("enabled", True) else 0.0,
+                             "outX": float(front.get("x", 0)) / fps if front.get("enabled", True) else 0.0,
+                             "outY": float(front.get("y", 0)) if front.get("enabled", True) else 0.0})
+            channels.append(sorted(keys, key=lambda k: k["t"]))
+        if any(channels):
+            track.update(keys=channels, length=float(options.get("length") or 0) / fps,
+                         mode=str(options.get("mode") or "loop"))
+    return track
+
+
+def texture_flags(package, name):
+    raw = package.read(f"materials/{name}.tex")[:26] if package.has(f"materials/{name}.tex") else b""
+    import struct
+    return struct.unpack("<i", raw[22:26])[0] if len(raw) >= 26 and raw[9:17] == b"TEXI0001" else 0
+
+
+def shader_interface(sources):
+    """What a shader declares: material uniforms with their defaults, samplers,
+    and combos with their defaults."""
+    uniforms, samplers, combos = {}, {}, {}
+    for source in sources:
+        for line in source.splitlines():
+            match = COMBO_DECLARATION.search(line)
+            if match:
+                try:
+                    note = json.loads(match.group(1))
+                except json.JSONDecodeError:
+                    continue
+                if note.get("combo"):
+                    combos.setdefault(note["combo"], int(note.get("default", 0) or 0))
+                continue
+            match = UNIFORM_DECLARATION.search(line)
+            if not match:
+                continue
+            kind, name, note_text = match.groups()
+            try:
+                note = json.loads(note_text)
+            except json.JSONDecodeError:
+                note = {}
+            if kind == "sampler2D":
+                samplers[name] = note
+            elif kind in COMPONENTS:
+                uniforms[name] = (kind, note)
+    return uniforms, samplers, combos
+
+
+class SceneNormaliser:
+    """Turns one scene package into the renderer's input, with a report of
+    everything it couldn't carry over."""
+
+    def __init__(self, folder, project, work, wetex):
+        self.folder, self.project, self.work, self.wetex = folder, project, work, wetex
+        name = project.get("file") or "scene.json"
+        self.package = Package(folder, os.path.splitext(name)[0] + ".pkg")
+        self.scene = self.package.json(name) or {}
+        self.unsupported = collections.Counter()
+        self.missing = []
+        self.shaders = {}
+        self.decoded = {}
+
+    def note(self, what):
+        self.unsupported[what] += 1
+
+    def save_shader(self, source):
+        key = hashlib.sha1(source.encode()).hexdigest()[:12]
+        if key not in self.shaders:
+            path = os.path.join(self.work, f"shader-{key}.glsl")
+            with open(path, "w") as handle:
+                handle.write(source)
+            self.shaders[key] = path
+        return self.shaders[key]
+
+    def texture(self, name):
+        """What a texture name refers to: a picture, frames, a built-in, or a
+        render target. None when the picture isn't in the package."""
+        if not isinstance(name, str) or not name:
+            return None
+        if name.startswith("util/"):
+            return {"builtin": name[5:]}
+        if name.startswith("_rt_"):
+            match = re.match(r"_rt_imageLayerComposite_(\d+)_[ab]$", name)
+            if match:
+                return {"layer": int(match.group(1))}
+            if name == "_rt_FullFrameBuffer":
+                return {"scene": True}
+            return {"fbo": name}
+        if name in self.decoded:
+            return self.decoded[name]
+        flags = texture_flags(self.package, name)
+        result = None
+        if flags & TEXTURE_SPRITES:
+            info = decode_texture(self.package, name, self.work, self.wetex, frames=True)
+            if info and info.get("kind") == "frames" and info.get("count"):
+                result = {"frames": [{"file": os.path.join(info["dir"], f"frame-{i:04d}.png"), "duration": max(float(d), 0.02)}
+                                     for i, d in enumerate(info["times"], 1)]}
+        if result is None:
+            info = decode_texture(self.package, name, self.work, self.wetex)
+            if info and info.get("kind") == "image":
+                result = {"file": info["file"], "width": info["width"], "height": info["height"]}
+        if result is None:
+            self.missing.append(name)
         else:
-            inputs += ["-i", layer["file"]]
-        chains.append(f"[{index}:v]{','.join(filters)}[l{index}]")
-        # Scene y points up from the bottom; images are placed by their centre.
-        x = f"{layer['x'] * factor:.1f}-overlay_w/2"
-        y = f"{H - layer['y'] * factor:.1f}-overlay_h/2"
-        chains.append(f"[{last}][l{index}]overlay=x={x}:y={y}:format=auto[b{index}]")
-        last = f"b{index}"
-    graph = ";".join(chains) if chains else "[0:v]null[b0]"
-    command = [FFMPEG, "-v", "error", "-y"] + inputs + ["-filter_complex", graph, "-map", f"[{last if chains else 'b0'}]",
-                                                         "-frames:v", "1", "-q:v", "2", output]
+            result.update(clamp=bool(flags & TEXTURE_CLAMP), nearest=bool(flags & TEXTURE_NEAREST))
+        self.decoded[name] = result
+        return result
+
+    def effect(self, entry, material_pass=None, kind=None):
+        """One effect as passes of the scene's own shaders. `material_pass` is
+        used for an object's own non-generic shader, run as its first effect."""
+        scene_passes = entry.get("passes") or []
+        if material_pass is not None:
+            spec = {"passes": [{"inline": material_pass}]}
+        else:
+            path = entry.get("file") or ""
+            kind = path.split("/")[-2] if path.endswith("effect.json") else path
+            spec = self.package.json(path)
+            if not spec:
+                self.note(f"effect {kind}: definition not in the package")
+                return None
+        fbos = [{"name": f.get("name"), "scale": float(f.get("scale") or 1)} for f in spec.get("fbos") or [] if f.get("name")]
+        passes, timed = [], False
+        for index, step in enumerate(spec.get("passes") or []):
+            if "inline" in step:
+                mpass = step["inline"]
+            else:
+                material = self.package.json(step.get("material", "")) or {}
+                mpass = (material.get("passes") or [{}])[0]
+            shader = mpass.get("shader")
+            vert = self.package.read(f"shaders/{shader}.vert").decode("utf-8", "replace") if shader and self.package.has(f"shaders/{shader}.vert") else None
+            frag = self.package.read(f"shaders/{shader}.frag").decode("utf-8", "replace") if shader and self.package.has(f"shaders/{shader}.frag") else None
+            if not vert or not frag:
+                self.note(f"effect {kind}: shader {shader} not in the package")
+                return None
+            timed = timed or "g_Time" in vert or "g_Time" in frag
+            declared, samplers, combos = shader_interface([vert, frag])
+            overrides = scene_passes[index] if index < len(scene_passes) and isinstance(scene_passes[index], dict) else {}
+            combos.update({k: int(value(v, 0)) for k, v in (mpass.get("combos") or {}).items()})
+            combos.update({k: int(value(v, 0)) for k, v in (overrides.get("combos") or {}).items()})
+            values = dict(mpass.get("constantshadervalues") or {})
+            values.update(overrides.get("constantshadervalues") or {})
+            uniforms = {}
+            for name, (typ, note) in declared.items():
+                key = note.get("material")
+                if not key:
+                    continue
+                default = vector(note.get("default", 0), [0.0] * COMPONENTS[typ])
+                uniforms[name] = scene_track(values.get(key, note.get("default", 0)), default)
+            textures = {}
+            defaults = list(mpass.get("textures") or [])
+            chosen = list(overrides.get("textures") or [])
+            for sampler, note in samplers.items():
+                match = re.match(r"g_Texture(\d+)$", sampler)
+                if not match:
+                    continue
+                slot = int(match.group(1))
+                name = chosen[slot] if slot < len(chosen) and chosen[slot] else None
+                given = name is not None
+                if name is None and slot < len(defaults) and defaults[slot]:
+                    name = defaults[slot]
+                if slot == 0 and name is None:
+                    textures["0"] = {"previous": True}
+                    continue
+                if name is None:
+                    name = note.get("default")
+                resolved = self.texture(name)
+                if resolved is None and name is not None:
+                    self.note(f"effect {kind}: texture {name} not in the package")
+                    return None
+                if resolved is not None:
+                    textures[str(slot)] = resolved
+                # Wallpaper Engine switches a texture's combo on when one is chosen.
+                if given and note.get("combo"):
+                    combos[note["combo"]] = 1
+            for binding in step.get("bind") or []:
+                slot = str(int(binding.get("index", 0)))
+                textures[slot] = {"previous": True} if binding.get("name") == "previous" else self.texture(binding.get("name"))
+            passes.append({"vert": self.save_shader(vert), "frag": self.save_shader(frag), "combos": combos,
+                           "uniforms": uniforms, "textures": textures, "target": step.get("target"),
+                           "blending": mpass.get("blending", "normal")})
+        return {"kind": kind, "fbos": fbos, "passes": passes, "timed": timed}
+
+    def normalise(self):
+        general = self.scene.get("general") or {}
+        projection = general.get("orthogonalprojection") or {}
+        canvas = [int(projection.get("width") or 0), int(projection.get("height") or 0)]
+        clear = [float(c) for c in vector(general.get("clearcolor"), [0.0, 0.0, 0.0])[:3]]
+        objects = [o for o in self.scene.get("objects") or [] if isinstance(o, dict)]
+        by_id = {o.get("id"): o for o in objects}
+        if value(general.get("cameraparallax"), False):
+            self.note("camera parallax (follows the mouse; nothing to follow here)")
+        if value(general.get("camerashake"), False):
+            self.note("camera shake (engine-side, not described by the scene)")
+        scripted = []
+
+        def find_scripts(node, path):
+            if isinstance(node, dict):
+                if isinstance(node.get("script"), str):
+                    scripted.append(path)
+                for key, child in node.items():
+                    find_scripts(child, f"{path}.{key}")
+            elif isinstance(node, list):
+                for child in node:
+                    find_scripts(child, path)
+        find_scripts(self.scene.get("objects"), "objects")
+        self.scripted = len(scripted)
+        if scripted:
+            self.note(f"SceneScript-driven values (code isn't run here): {len(scripted)}")
+
+        def chain(obj):
+            nodes, seen, current = [], set(), obj
+            while current is not None and id(current) not in seen and len(nodes) < 16:
+                seen.add(id(current))
+                nodes.append({"origin": scene_track(current.get("origin"), [0.0, 0.0, 0.0]),
+                              "scale": scene_track(current.get("scale"), [1.0, 1.0, 1.0]),
+                              "angles": scene_track(current.get("angles"), [0.0, 0.0, 0.0])})
+                current = by_id.get(current.get("parent"))
+            return list(reversed(nodes))
+
+        layers = []
+        for obj in objects:
+            kind = next((k for k in ("image", "particle", "text", "sound", "light", "model")
+                         if obj.get(k) is not None), "other")
+            if kind != "image" or not isinstance(obj.get("image"), str):
+                self.note(f"{kind} object")
+                continue
+            alpha = scene_track(obj.get("alpha"), [1.0])
+            # Hidden layers stay available to other layers' effects (some exist
+            # only for that); the renderer never draws them itself.
+            hidden = not value(obj.get("visible"), True) or ("keys" not in alpha and alpha["value"][0] <= 0.001)
+            model = self.package.json(obj["image"]) or {}
+            material = self.package.json(model.get("material", "")) or {}
+            mpass = (material.get("passes") or [{}])[0]
+            base_name = (mpass.get("textures") or [None])[0]
+            layer = {"id": obj.get("id"), "name": str(obj.get("name") or ""), "alignment": str(obj.get("alignment") or "center"),
+                     "chain": chain(obj), "alpha": alpha, "color": scene_track(obj.get("color"), [1.0, 1.0, 1.0]),
+                     "brightness": scene_track(obj.get("brightness"), [1.0]),
+                     "colorBlendMode": int(value(obj.get("colorBlendMode"), 0) or 0),
+                     "blending": mpass.get("blending", "translucent"), "effects": [], "hidden": hidden}
+            if obj["image"].endswith("util/solidlayer.json"):
+                layer["solid"] = True
+                size = vector(obj.get("size"), [float(canvas[0]), float(canvas[1])])
+            elif model.get("fullscreen"):
+                # Drawn over the whole frame, on what's been drawn so far.
+                layer["background"] = True
+                layer["chain"] = [{"origin": {"value": [canvas[0] / 2, canvas[1] / 2, 0.0]}, "scale": {"value": [1.0, 1.0, 1.0]},
+                                   "angles": {"value": [0.0, 0.0, 0.0]}}]
+                size = [float(canvas[0]), float(canvas[1])]
+            elif isinstance(base_name, str) and base_name.startswith("_rt_"):
+                # Its picture is a render target (what's behind it). The
+                # "copybackground" flag isn't this: it only lets effects read
+                # the background, and 377 ordinary layers carry it.
+                layer["background"] = True
+                size = vector(obj.get("size"), [float(model.get("width") or 0), float(model.get("height") or 0)])
+            else:
+                base = self.texture(base_name)
+                if base is None or "builtin" in base:
+                    self.note("image layer without its picture")
+                    continue
+                layer.update(texture=base)
+                first = base.get("file") or (base.get("frames") or [{}])[0].get("file")
+                width, height = base.get("width"), base.get("height")
+                if not width and first:
+                    width, height = image_size(first)
+                size = vector(obj.get("size"), [float(model.get("width") or width or 0), float(model.get("height") or height or 0)])
+            layer["size"] = [float(size[0]), float(size[1])]
+            if size[0] < 1 or size[1] < 1:
+                continue
+            shader = mpass.get("shader") or ""
+            if shader and not shader.startswith("genericimage") and not layer.get("solid"):
+                own = self.effect({}, material_pass=mpass, kind=f"object shader {shader}")
+                if own:
+                    layer["effects"].append(own)
+            for entry in obj.get("effects") or []:
+                if not isinstance(entry, dict) or not value(entry.get("visible"), True):
+                    continue
+                effect = self.effect(entry)
+                if effect:
+                    layer["effects"].append(effect)
+            if layer["colorBlendMode"]:
+                self.note(f"colour blend mode {layer['colorBlendMode']} (engine enum not shipped; assumed)")
+            layers.append(layer)
+        return {"canvas": canvas, "clear": clear, "layers": layers}
+
+    def report(self):
+        return {"unsupported": dict(self.unsupported), "missing": sorted(set(self.missing)),
+                "scripted": getattr(self, "scripted", 0)}
+
+
+def image_size(path):
+    result = subprocess.run([FFPROBE, "-v", "error", "-select_streams", "v", "-show_entries", "stream=width,height",
+                             "-of", "csv=p=0", path], capture_output=True, text=True)
+    try:
+        width, height = [int(v) for v in result.stdout.strip().split(",")[:2]]
+        return width, height
+    except ValueError:
+        return None, None
+
+
+# How fast each effect's time runs, from its own speed uniform: only used to
+# choose a loop length that its cycles fit. The rendering itself never uses this.
+EFFECT_PERIODS = {
+    "foliagesway": ("g_Speed", lambda s: 2 * 3.141592653589793 / s),
+    "waterwaves": ("g_Speed", lambda s: 2 * 3.141592653589793 / s),
+    "shake": ("g_Speed", lambda s: 2 * 3.141592653589793 / s),
+    "pulse": ("g_PulseSpeed", lambda s: 2 * 3.141592653589793 / s),
+    "waterflow": ("g_FlowSpeed", lambda s: 1 / s),
+    "scroll": ("g_ScrollX", lambda s: 1 / (s * s)),
+}
+
+
+def effect_period(effect):
+    known = EFFECT_PERIODS.get(effect["kind"])
+    if not known:
+        return None
+    name, period = known
+    for step in effect["passes"]:
+        speed = step["uniforms"].get(name, {}).get("value", [0.0])[0]
+        if abs(speed) > 1e-6:
+            return abs(period(abs(speed)))
+    return None
+
+
+def track_period(track):
+    if "keys" not in track or not track.get("length"):
+        return None
+    return track["length"] * (2 if track.get("mode") == "mirror" else 1)
+
+
+STEADY_STATE = 60.0
+
+
+def plan_loop(normalised, low=10, high=30, tolerance=0.04):
+    """Picks a loop length that the scene's own cycles fit, then gives each
+    timed part the smallest speed change (≤ tolerance) that makes it land on
+    a whole number of cycles. What can't be fitted is joined by a short
+    crossfade instead of being changed further. Returns whether anything moves."""
+    parts = []   # (holder dict, period)
+
+    def add(holder, period):
+        if period and period > 0:
+            parts.append((holder, period))
+
+    moving = False
+    for layer in normalised["layers"]:
+        if layer.get("hidden"):
+            continue
+        for track_holder in [layer, *layer["chain"]]:
+            for key in ("alpha", "color", "brightness", "origin", "scale", "angles"):
+                track = track_holder.get(key)
+                if isinstance(track, dict) and "keys" in track:
+                    moving = True
+                    add(track, track_period(track))
+        frames = (layer.get("texture") or {}).get("frames")
+        if frames and len(frames) > 1:
+            moving = True
+            add(layer["texture"], sum(f["duration"] for f in frames))
+        for effect in layer["effects"]:
+            if effect["timed"]:
+                moving = True
+                add(effect, effect_period(effect))
+            for step in effect["passes"]:
+                for track in step["uniforms"].values():
+                    if "keys" in track:
+                        moving = True
+                        add(track, track_period(track))
+    if not moving:
+        return False
+    best = None
+    for seconds in range(low, high + 1):
+        misses = 0.0
+        for _, period in parts:
+            count = round(seconds / period)
+            error = abs(count * period / seconds - 1) if count >= 1 else 1.0
+            misses += error if error > tolerance else error * 0.1
+        score = misses + seconds * 0.002
+        if best is None or score < best[0]:
+            best = (score, seconds)
+    seconds = best[1]
+    for holder, period in parts:
+        count = round(seconds / period)
+        error = abs(count * period / seconds - 1) if count >= 1 else 1.0
+        holder["timeScale"] = count * period / seconds if error <= tolerance else 1.0
+    normalised["seconds"] = float(seconds)
+    normalised["crossfade"] = 1.0
+    # Recorded from a minute after load: one-shot start-up animations (intros,
+    # fade-ins) are over, and this is what's on screen almost all the time.
+    # Cycles that fit the loop are unaffected by where it starts.
+    normalised["start"] = STEADY_STATE
+    return True
+
+
+def wescene_tool(library):
+    """The scene renderer (scripts/wescene.swift), compiled once into the library."""
+    source = os.path.join(HERE, "wescene.swift")
+    binary = os.path.join(library, "bin", "wescene")
+    if not os.path.exists(binary) or os.path.getmtime(binary) < os.path.getmtime(source):
+        os.makedirs(os.path.dirname(binary), exist_ok=True)
+        result = subprocess.run(["xcrun", "swiftc", "-O", "-Xcc", "-DGL_SILENCE_DEPRECATION", source, "-o", binary],
+                                capture_output=True, text=True)
+        if result.returncode != 0:
+            sys.exit(f"couldn't compile wescene.swift:\n{result.stderr[:800]}")
+    return binary
+
+
+def render_scene(normalised, output, library, work, still=False):
+    """Runs the renderer on a normalised scene. Returns (result, problem)."""
+    path = os.path.join(work, "normalised.json")
+    with open(path, "w") as handle:
+        json.dump(normalised, handle)
+    command = [wescene_tool(library), path, output] + (["--still", "--width", "3840"] if still else ["--width", "2560"])
     result = subprocess.run(command, capture_output=True, text=True)
-    return None if result.returncode == 0 and os.path.exists(output) else (result.stderr.strip()[-300:] or "ffmpeg failed")
+    try:
+        info = json.loads(result.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError):
+        return None, (result.stderr.strip()[-300:] or "renderer failed")
+    return (None, info["error"]) if "error" in info else (info, None)
+
+
+def inspect_scene(folder, library, output=None):
+    """What a scene contains and what the renderer can't carry over: layers,
+    effects and their passes, animated values, sprite sheets, missing assets,
+    the loop plan. With `output`, renders it too."""
+    import tempfile
+    project = json.load(open(os.path.join(folder, "project.json"), encoding="utf-8", errors="replace"))
+    with tempfile.TemporaryDirectory() as work:
+        normaliser = SceneNormaliser(folder, project, work, wetex_tool(library))
+        normalised = normaliser.normalise()
+        moving = plan_loop(normalised)
+        report = normaliser.report()
+        print(f"{project.get('title')}  canvas {normalised['canvas'][0]}x{normalised['canvas'][1]}")
+        tracks = sum(1 for l in normalised["layers"] for h in [l, *l["chain"]]
+                     for k in ("alpha", "color", "brightness", "origin", "scale", "angles")
+                     if isinstance(h.get(k), dict) and "keys" in h[k])
+        for layer in normalised["layers"]:
+            what = ("solid" if layer.get("solid") else "background" if layer.get("background")
+                    else f"{len(layer['texture']['frames'])} frames" if layer.get("texture", {}).get("frames") else "picture")
+            effects = ", ".join(f"{e['kind']}({len(e['passes'])}p{', timed' if e['timed'] else ''}"
+                                f"{', x%.3f' % e['timeScale'] if 'timeScale' in e else ''})" for e in layer["effects"])
+            print(f"  {layer['name'][:28]:28s} {what:10s} {int(layer['size'][0])}x{int(layer['size'][1])} {layer['alignment']:8s} {effects}")
+        print(f"animated values: {tracks}; moves: {moving}"
+              + (f"; loop {normalised['seconds']:.0f} s, crossfade {normalised['crossfade']} s" if moving else ""))
+        print("unsupported:", report["unsupported"] or "nothing")
+        print("missing assets:", report["missing"] or "none")
+        if output:
+            info, problem = render_scene(normalised, output, library, work, still=not moving or output.endswith(".jpg"))
+            print("render:", problem or info)
 
 
 def preview_hash(folder, project):
@@ -685,9 +919,7 @@ def import_scene(folder, project, library, wetex, item_id, live=True):
             os.makedirs(os.path.dirname(output), exist_ok=True)
             shutil.copyfile(max(videos)[1], output)
             return {"kind": "video", "playback": f"extracted/{item_id}.mp4", "source": "video texture"}, None
-        layers, skipped = scene_layers(package, scene, work, wetex)
-        pictures = [layer for layer in layers if "file" in layer]
-        if file_name.startswith("gifscene") or (len(pictures) == 1 and pictures[0]["animated"]):
+        if file_name.startswith("gifscene"):
             obj = next((o for o in scene.get("objects", []) if isinstance(o, dict) and isinstance(o.get("image"), str)
                         and "util/" not in o["image"]), None)
             model = package.json(obj["image"]) if obj else {}
@@ -699,37 +931,43 @@ def import_scene(folder, project, library, wetex, item_id, live=True):
             if problem:
                 return None, f"GIF scene: {problem}"
             return {"kind": "video", "playback": f"extracted/{item_id}.mp4", "source": "gif frames"}, None
-        # Sprite sheets drawn whole would show every frame at once.
-        layers = [layer for layer in layers if not layer["animated"]]
-        if not any("file" in layer for layer in layers):
-            return None, "nothing drawable (" + ", ".join(f"{k} {v}" for k, v in skipped.items()) + ")"
-        if canvas[0] < 2 or canvas[1] < 2:
-            biggest = max(layers, key=lambda l: l["width"] * l["height"])
-            canvas = (max(2, int(biggest["width"])), max(2, int(biggest["height"])))
-        output = os.path.join(library, "stills", f"{item_id}.jpg")
-        os.makedirs(os.path.dirname(output), exist_ok=True)
-        problem = compose(layers, canvas, clear, output)
+        # Everything else: the scene's own layers, run through its own shaders.
+        normaliser = SceneNormaliser(folder, project, work, wetex)
+        normalised = normaliser.normalise()
+        report = normaliser.report()
+        if not normalised["layers"]:
+            summary = ", ".join(f"{k} {v}" for k, v in sorted(report["unsupported"].items()))
+            return None, f"nothing drawable ({summary})"
+        if normalised["canvas"][0] < 2 or normalised["canvas"][1] < 2:
+            biggest = max(normalised["layers"], key=lambda l: l["size"][0] * l["size"][1])
+            normalised["canvas"] = [max(2, int(biggest["size"][0])), max(2, int(biggest["size"][1]))]
+        moving = plan_loop(normalised)
+        still_output = os.path.join(library, "stills", f"{item_id}.jpg")
+        os.makedirs(os.path.dirname(still_output), exist_ok=True)
+        info, problem = render_scene(normalised, still_output, library, work, still=True)
         if problem:
-            return None, f"couldn't compose: {problem}"
-        # Its own depths and effects say it moves: make the loop as well, and
-        # play that instead of the still.
-        if live and any(layer.get("motion") or abs(layer.get("depth", 0.0)) > 0.01
-                        for layer in layers if "file" in layer):
-            moving = os.path.join(library, "live", f"{item_id}.mp4")
-            os.makedirs(os.path.dirname(moving), exist_ok=True)
-            stats, trouble = compose_live(layers, canvas, clear, moving, work)
-            if stats:
-                return {"kind": "video", "playback": f"live/{item_id}.mp4", "source": "animated layers",
-                        "still": f"stills/{item_id}.jpg", "layers": stats["layers"],
-                        "movingLayers": stats["moving"]}, None
-            print(f"    (no loop: {trouble})", flush=True)
+            return None, f"couldn't render: {problem}"
+        notes = {"unsupported": report["unsupported"], "missing": report["missing"], "renderer": info.get("notes", [])}
+        if live and moving:
+            loop_output = os.path.join(library, "live", f"{item_id}.mp4")
+            os.makedirs(os.path.dirname(loop_output), exist_ok=True)
+            loop, trouble = render_scene(normalised, loop_output, library, work)
+            if loop:
+                movement = frame_movement(loop_output, loop["seconds"])
+                if movement is not None and movement >= MOTION_VISIBLE:
+                    return {"kind": "video", "playback": f"live/{item_id}.mp4", "source": "scene shaders",
+                            "still": f"stills/{item_id}.jpg", "loopSeconds": loop["seconds"], "movement": round(movement, 2),
+                            "sceneNotes": notes}, None
+                os.remove(loop_output)
+                print(f"    (kept still: movement {movement} under {MOTION_VISIBLE})", flush=True)
+            else:
+                print(f"    (no loop: {trouble})", flush=True)
         reference = preview_hash(folder, project)
-        composed = dhash(output, square=True)
+        composed = dhash(still_output, square=True)
         distance = bin(reference ^ composed).count("1") if reference is not None and composed is not None else None
-        factor = min(1.0, 3840 / max(canvas))
-        return {"kind": "image", "playback": f"stills/{item_id}.jpg", "source": "composed layers",
-                "layers": len(layers), "previewDistance": distance,
-                "width": int(canvas[0] * factor) // 2 * 2, "height": int(canvas[1] * factor) // 2 * 2}, None
+        return {"kind": "image", "playback": f"stills/{item_id}.jpg", "source": "scene shaders",
+                "layers": len(normalised["layers"]), "previewDistance": distance,
+                "width": info["width"], "height": info["height"], "sceneNotes": notes}, None
 
 
 # MARK: Import
@@ -911,16 +1149,17 @@ SCENE_REVIEWED_SKIP = {
     "3577452645": "the towers are drawn by effects: only the sky comes out",
     "3572340969": "only the sky strip comes out, not the characters",
     "3684060242": "the city photos sit under an effect: only the menu ring comes out",
-    "3299228616": "a black audio-visualizer layer covers the picture",
+    "3299228616": "96 of its values are driven by SceneScript code, which isn't run here; renders dark and covered",
     "3448877775": "the video inside is a chroma mask, not the picture",
     "3645009840": "the statue comes out cut into bars (glitch effect layers)",
     "3682811008": "the same picture as 3624164256 (Resident Evil 9 - Requiem), at 1080p instead of 4K",
+    "3367609708": "interactive: a click-to-play intro whose layers SceneScript code animates, which isn't run here",
 }
 
 
 # Bumped whenever scenes would come out differently: cached results from an
 # older renderer are redone.
-SCENE_RENDERER = 4
+SCENE_RENDERER = 5
 
 
 def import_scenes(root, library, summary, entries, existing, skipped, now, root_id, live=True):
@@ -1204,17 +1443,20 @@ def import_library(root, library, live=True, self_contained=False):
 def main():
     global FFPROBE, FFMPEG
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("command", choices=["inventory", "import"])
+    parser.add_argument("command", choices=["inventory", "import", "inspect-scene", "render-scene"])
     parser.add_argument("folder")
     parser.add_argument("--library", default=DEFAULT_LIBRARY, help="where the app's library lives")
     parser.add_argument("--self-contained", action="store_true",
                         help="copy every video onto this Mac, so the source folder can go away")
+    parser.add_argument("--output", help="render-scene: where to write the loop (.mp4) or still (.jpg)")
     parser.add_argument("--no-live", action="store_true",
                         help="keep scenes as stills instead of making them into looping videos")
     args = parser.parse_args()
     FFPROBE, FFMPEG = tool("ffprobe"), tool("ffmpeg")
     if args.command == "inventory":
         inventory(args.folder, args.library)
+    elif args.command in ("inspect-scene", "render-scene"):
+        inspect_scene(args.folder, args.library, args.output if args.command == "render-scene" else None)
     else:
         import_library(args.folder, args.library, live=not args.no_live,
                        self_contained=args.self_contained)
