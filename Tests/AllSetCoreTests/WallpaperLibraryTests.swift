@@ -102,6 +102,65 @@ import Testing
         #expect(!store.canPlay(store.libraryVideo("a")!))
     }
 
+    /// The user's delete button: gone from the app, gone from disk, and it
+    /// never comes back — without silently losing data the importer wrote
+    /// for every *other* wallpaper (the risk in editing the catalog by hand).
+    @MainActor @Test func deletingALibraryVideoIsPermanentAndLeavesOthersIntact() async throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("wallpaper-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let store = WallpaperStore(directory: home.appendingPathComponent("AllSet"))
+        for folder in ["live", "stills", "thumbnails"] {
+            try FileManager.default.createDirectory(at: store.libraryDirectory.appendingPathComponent(folder),
+                                                    withIntermediateDirectories: true)
+        }
+        try Data("loop".utf8).write(to: store.libraryDirectory.appendingPathComponent("live/a.mp4"))
+        try Data("still".utf8).write(to: store.libraryDirectory.appendingPathComponent("stills/a.jpg"))
+        try Data("thumb-a".utf8).write(to: store.libraryDirectory.appendingPathComponent("thumbnails/a.jpg"))
+        try Data("thumb-b".utf8).write(to: store.libraryDirectory.appendingPathComponent("thumbnails/b.jpg"))
+        // Fields the importer writes that the app's model doesn't know about
+        // (a stand-in for sha256, sceneNotes, movement…): must survive.
+        let catalog: [String: Any] = [
+            "version": 1, "roots": [["id": "r1", "path": "/Volumes/Drive", "label": "Drive"]],
+            "items": [
+                ["id": "a", "title": "Delete Me", "category": "games", "root": "r1", "file": "1/a.mp4",
+                 "playback": "live/a.mp4", "still": "stills/a.jpg", "thumbnail": "thumbnails/a.jpg", "sha256": "deadbeef"],
+                ["id": "b", "title": "Keep Me", "category": "games", "root": "r1", "file": "2/b.mp4",
+                 "thumbnail": "thumbnails/b.jpg", "sha256": "cafef00d", "sceneNotes": ["unsupported": ["particle object": 3]]],
+            ],
+        ]
+        let catalogURL = store.libraryDirectory.appendingPathComponent("catalog.json")
+        try JSONSerialization.data(withJSONObject: catalog).write(to: catalogURL)
+        store.reloadLibrary()
+        for _ in 0..<100 where store.library.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(store.library.map(\.id).sorted() == ["a", "b"])
+
+        store.deleteLibraryVideo("a")
+
+        #expect(store.libraryVideo("a") == nil)
+        #expect(store.library.map(\.id) == ["b"])
+        for path in ["live/a.mp4", "stills/a.jpg", "thumbnails/a.jpg"] {
+            #expect(!FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent(path).path))
+        }
+        // Untouched: not this wallpaper's file, and not referenced by it.
+        #expect(FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("thumbnails/b.jpg").path))
+
+        let removed = try JSONSerialization.jsonObject(with: Data(contentsOf: store.libraryDirectory.appendingPathComponent("removed.json")))
+        #expect((removed as? [String: Any])?["a"] != nil)
+
+        // The rewritten catalog.json still has "b"'s importer-only fields —
+        // proof this went through raw JSON, not a lossy decode/re-encode.
+        let after = try JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any]
+        let items = after?["items"] as? [[String: Any]]
+        #expect(items?.count == 1)
+        #expect(items?.first?["id"] as? String == "b")
+        #expect(items?.first?["sha256"] as? String == "cafef00d")
+        #expect(items?.first?["sceneNotes"] != nil)
+
+        // A re-import of the same folder must not bring "a" back: this is
+        // what makes the delete permanent, not just a session-local hide.
+        #expect((removed as? [String: Any])?.keys.contains("a") == true)
+    }
+
     /// The promise behind `--self-contained`: once every wallpaper has a copy
     /// here, deleting the folder they came from changes nothing.
     @MainActor @Test func copiedLibraryOutlivesTheFolderItCameFrom() async throws {

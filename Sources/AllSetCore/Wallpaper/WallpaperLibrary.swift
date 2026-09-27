@@ -45,6 +45,9 @@ public struct LibraryVideo: Codable, Identifiable, Hashable, Sendable {
     public var thumbnail: String?
     /// A converted copy to play instead, relative to the library directory.
     public var playback: String?
+    /// For a live scene loop, its still picture (the loop's fallback and the
+    /// thumbnail source), relative to the library directory.
+    public var still: String?
     public var duration: Double?
     public var width: Int?
     public var height: Int?
@@ -67,12 +70,12 @@ public struct LibraryVideo: Codable, Identifiable, Hashable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, title, kind, category, tags, root, file, thumbnail, playback, duration, width, height, fps, size
+        case id, title, kind, category, tags, root, file, thumbnail, playback, still, duration, width, height, fps, size
         case status, statusReason, provenance, contentRating, addedAt
     }
 
     public init(id: String, title: String, kind: Kind = .video, category: Aerial.Category, tags: [String] = [], root: String, file: String,
-                thumbnail: String? = nil, playback: String? = nil, duration: Double? = nil, width: Int? = nil,
+                thumbnail: String? = nil, playback: String? = nil, still: String? = nil, duration: Double? = nil, width: Int? = nil,
                 height: Int? = nil, fps: Double? = nil, size: Int64? = nil, status: Status = .quarantined,
                 statusReason: String? = nil, provenance: Provenance? = nil, contentRating: String? = nil, addedAt: String? = nil) {
         self.id = id
@@ -84,6 +87,7 @@ public struct LibraryVideo: Codable, Identifiable, Hashable, Sendable {
         self.file = file
         self.thumbnail = thumbnail
         self.playback = playback
+        self.still = still
         self.duration = duration
         self.width = width
         self.height = height
@@ -109,6 +113,7 @@ public struct LibraryVideo: Codable, Identifiable, Hashable, Sendable {
         file = try c.decode(String.self, forKey: .file)
         thumbnail = try? c.decodeIfPresent(String.self, forKey: .thumbnail)
         playback = try? c.decodeIfPresent(String.self, forKey: .playback)
+        still = try? c.decodeIfPresent(String.self, forKey: .still)
         duration = try? c.decodeIfPresent(Double.self, forKey: .duration)
         width = try? c.decodeIfPresent(Int.self, forKey: .width)
         height = try? c.decodeIfPresent(Int.self, forKey: .height)

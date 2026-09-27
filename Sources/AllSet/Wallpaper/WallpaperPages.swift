@@ -367,6 +367,8 @@ private struct LibrarySection: View {
                             LibraryTile(video: video, store: store, images: services.images,
                                         isCurrent: store.config.source == .library(video.id)) {
                                 store.set(.library(video.id))
+                            } onDelete: {
+                                store.deleteLibraryVideo(video.id)
                             }
                         }
                     }
@@ -398,11 +400,13 @@ private struct LibraryTile: View {
     let images: ImageLibrary
     let isCurrent: Bool
     let onUse: () -> Void
+    let onDelete: () -> Void
 
     @State private var thumbnail: NSImage?
     @State private var isHovering = false
     /// The video starts after a moment's rest, not as the pointer passes over.
     @State private var isPreviewing = false
+    @State private var confirmingDelete = false
 
     private static let thumbnailPixels = 512
 
@@ -429,6 +433,29 @@ private struct LibraryTile: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .strokeBorder(Color.accentColor, lineWidth: isCurrent ? 3 : 0)
+            }
+            .overlay(alignment: .topTrailing) {
+                if isHovering {
+                    Button {
+                        confirmingDelete = true
+                    } label: {
+                        Image(systemName: "trash.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(6)
+                            .background(.black.opacity(0.55), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(8)
+                    .transition(.opacity)
+                    .help("Delete this wallpaper — permanent, not a re-importable skip")
+                    .confirmationDialog("Delete “\(video.title)” for good?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+                        Button("Delete Permanently", role: .destructive) { onDelete() }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("This removes it from All Set and this Mac. It won't come back even if you re-import the same folder.")
+                    }
+                }
             }
             .overlay(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 6) {

@@ -197,6 +197,47 @@ public final class WallpaperStore {
         video.thumbnail.map { libraryDirectory.appendingPathComponent($0) }
     }
 
+    /// Takes a library wallpaper out for good: deletes this Mac's own copies
+    /// of it (never anything on the drive or folder it came from), records it
+    /// in `removed.json` so re-importing that folder won't bring it back, and
+    /// removes it from `catalog.json` on disk and in memory.
+    ///
+    /// Both files are edited as loose JSON, not through the typed models:
+    /// `scripts/wallpaper_library.py` writes fields (`sha256`, `sceneNotes`,
+    /// `movement`…) that the app's model doesn't carry, and a decode-reencode
+    /// through it would silently drop those for every other wallpaper too.
+    public func deleteLibraryVideo(_ id: String) {
+        guard let video = libraryVideo(id) else { return }
+        if config.source == .library(id) {
+            config.isEnabled = false
+            config.source = WallpaperConfig().source
+        }
+        for relative in Set([video.playback, video.thumbnail, video.still].compactMap({ $0 })) {
+            try? FileManager.default.removeItem(at: libraryDirectory.appendingPathComponent(relative))
+        }
+        let removedURL = libraryDirectory.appendingPathComponent("removed.json")
+        var removed = (try? Data(contentsOf: removedURL)).flatMap {
+            try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
+        } ?? [:]
+        removed[id] = ["reason": "removed by the user in the app"]
+        if let data = try? JSONSerialization.data(withJSONObject: removed, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: removedURL, options: .atomic)
+        }
+        let catalogURL = libraryDirectory.appendingPathComponent("catalog.json")
+        if let data = try? Data(contentsOf: catalogURL),
+           var catalog = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           var items = catalog["items"] as? [[String: Any]] {
+            items.removeAll { ($0["id"] as? String) == id }
+            catalog["items"] = items
+            if let updated = try? JSONSerialization.data(withJSONObject: catalog, options: [.sortedKeys]) {
+                try? updated.write(to: catalogURL, options: .atomic)
+            }
+        }
+        library.removeAll { $0.id == id }
+        libraryIndex = Dictionary(library.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+        libraryCopies.remove(id)
+    }
+
     /// Copies videos in, so the wallpaper keeps working if the originals move.
     @discardableResult
     public func importVideos(from urls: [URL]) -> [String] {

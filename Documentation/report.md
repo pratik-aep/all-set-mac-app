@@ -80,3 +80,10 @@ Result: no code changes needed; docs now agree with reality.
   content doesn't fit the loop exactly. Confirmed on 49/321 scene loops by
   direct measurement. Fix compiled; re-render needs the drive (unmounted at
   time of fix) reconnected — not yet re-verified against real output.
+- Added a manual delete button (top-right, on hover, with a confirm step) to
+  each Library tile: permanently deletes this Mac's own copies, records the
+  id in removed.json so re-imports never bring it back, and edits catalog.json
+  as raw JSON (not through the app's narrower model) so other wallpapers'
+  importer-only fields (sha256, sceneNotes...) survive untouched. New test
+  proves both the permanence and the no-data-loss property. 207 tests pass,
+  0 warnings, app rebuilt.
