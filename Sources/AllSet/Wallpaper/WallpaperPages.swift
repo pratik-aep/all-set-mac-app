@@ -435,7 +435,7 @@ private struct LibraryTile: View {
                     .strokeBorder(Color.accentColor, lineWidth: isCurrent ? 3 : 0)
             }
             .overlay(alignment: .topTrailing) {
-                if isHovering {
+                if isHovering || confirmingDelete {
                     Button {
                         confirmingDelete = true
                     } label: {
@@ -444,18 +444,22 @@ private struct LibraryTile: View {
                             .foregroundStyle(.white)
                             .padding(6)
                             .background(.black.opacity(0.55), in: Circle())
+                            .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
                     .padding(8)
                     .transition(.opacity)
-                    .help("Delete this wallpaper — permanent, not a re-importable skip")
-                    .confirmationDialog("Delete “\(video.title)” for good?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-                        Button("Delete Permanently", role: .destructive) { onDelete() }
-                        Button("Cancel", role: .cancel) {}
-                    } message: {
-                        Text("This removes it from All Set and this Mac. It won't come back even if you re-import the same folder.")
-                    }
+                    .help("Delete this wallpaper permanently")
                 }
+            }
+            // On the tile, not the hover-only button: moving the pointer to the
+            // dialog ends the hover, and a dialog on a view that disappears
+            // closes with it.
+            .confirmationDialog("Delete “\(video.title)” for good?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+                Button("Delete Permanently", role: .destructive) { onDelete() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes it from All Set and this Mac. It won't come back even if you re-import the same folder.")
             }
             .overlay(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 6) {
