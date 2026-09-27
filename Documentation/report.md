@@ -76,3 +76,4 @@ Result: no code changes needed; docs now agree with reality.
 - Scene stills rendered as moving loops (138 live/43 stills) — `f4c2072`
 - Self-contained library; survives the source folder being deleted — `30e2479`
 - Phase-1 dataset (239 items) merged; cross-root dedup fixed; 408 total, self-containment reverified with both source folders absent — 29f75a4
+- Scene renderer diagnosis: pipeline invents motion and drops masks, keyframes, sprites, tints; options A/B/C awaiting decision — see scene-renderer-diagnosis.md — diagnosis only, no code change
