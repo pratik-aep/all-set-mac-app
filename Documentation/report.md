@@ -6,64 +6,55 @@ log; it never needs reading in full.
 ---
 
 ## CURRENT STATE
-_(overwritten every checkpoint — 2026-09-27, scenes rendered with their own shaders)_
+_(overwritten every checkpoint — 2026-09-28, third dataset merged)_
 
 ### Working right now (verified only)
-- **409 wallpapers — 318 live, 91 stills**, across two source folders
-  ("Steam Wallpapers" 169, "wallpaper phase 1 data" 240). Both source
-  folders are now **deleted from this Mac** (pendrive already gone; the
-  dataset folder deleted this checkpoint after verification).
-- **Scenes render with their own shipped shaders**, not invented motion.
-  `scripts/wescene.swift`: offscreen OpenGL, runs each scene's own GLSL
-  (masks, flow maps, keyframe tracks, sprite frames, transform hierarchy with
-  rotation, alignment, colour/brightness), composites, writes a still and,
-  if anything moves, a seamless HEVC loop.
+- **776 wallpapers — 597 live, 179 stills**, across three source folders:
+  "Steam Wallpapers" (partly superseded), "wallpaper phase 1 data" (240),
+  "all_set_mac" (516 new). All self-contained; no source folder is required
+  to play, preview or set any wallpaper.
+- **23 items automatically upgraded**: their exact content (same SHA-256)
+  reappeared in the new dataset, so they were re-rendered with the current
+  shader-accurate renderer instead of staying on the old pendrive-era
+  whole-layer-slide version. Several also had their still/live classification
+  corrected by the better motion measurement (e.g. "Bloodborne" was
+  incorrectly live before, correctly a still now).
 - **Verified:**
-  - 409/409 unique ids, 0 duplicates; the 169 original items completely
-    unchanged (playback paths identical) after the second folder's import.
-  - 409/409 resolve to a file on this Mac; 0 orphaned library files.
-  - 209/209 locally-made videos play (`playcheck.swift`).
-  - **The dataset folder's absence was proven, not assumed**: renamed away,
-    app rebuilt and rendered — "318 live, 91 stills, kept on this Mac", no
-    warning — then the folder was permanently deleted.
+  - 776/776 unique ids, 0 duplicates; 0 items missing vs. the pre-import
+    snapshot; 0 orphaned library files.
+  - 776/776 resolve to a file on this Mac.
+  - 379/379 locally-made videos play (`playcheck.swift`).
+  - 24 newly-imported scenes sampled at random and checked against their
+    Workshop previews: 22 clear matches, 1 correctly-dark scene (literally
+    titled "Black Hole"), 1 ambiguous icon-style scene. No regressions found.
+  - **Drive absence proven for real**: the pendrive was unmounted (confirmed
+    gone from `diskutil list`), the app rendered in full — "597 live, 179
+    stills, kept on this Mac", no warning — then remounted untouched (nothing
+    on it was deleted; the user didn't ask for that this time).
   - 206 tests pass, 0 build warnings, Dock app rebuilt and relaunched.
-  - Motion threshold recalibrated per-scene (most-changed 10x10 block, not
-    whole-frame average): static-picture noise floor 0.33, threshold 1.0.
-- **1 item dropped vs the previous (whole-layer-slide) renderer**: the Senna
-  scene, now correctly excluded — its animation is SceneScript code, which
-  the old renderer's guesswork happened to produce *something* for; the new
-  renderer reports it honestly as unsupported instead.
+- Disk: this dataset needed ~41 GB of video copied against ~54 GB free —
+  tight but completed cleanly; 26 GB free afterward, library now 76 GB.
 
 ### Files touched this checkpoint
-- `scripts/wescene.swift` — new: the shader-accurate scene renderer.
-- `scripts/wallpaper_library.py` — `SceneNormaliser`, `plan_loop`,
-  `render_scene`, `inspect-scene`/`render-scene` CLI commands; old
-  whole-layer-slide compositor removed.
-- `Documentation/spec.md`, `architecture.md` — R3/R7 rewritten; renderer
-  decisions and rejected alternatives logged.
-- `Documentation/scene-renderer-diagnosis.md` — the Phase 1 diagnosis.
+- No code changes. Same pipeline as the previous checkpoint
+  (`scripts/wescene.swift`, `scripts/wallpaper_library.py`) applied unchanged
+  to a third source folder.
 
 ### Commit
-`b7e5f4c` and the commits before it this session, on branch `perf-audit`.
-This checkpoint's commit follows immediately after.
+`991f4fc` and the commit immediately following this one, on branch `perf-audit`.
 
 ### Known issues / blockers
-- ~30 cosmetic effect shaders (chromatic aberration, vignette, sharpening,
-  a few others) fail to compile against the GLSL 1.20 prelude; that one
-  effect is skipped on its layer, everything else in the scene still renders,
-  and it's reported per scene.
-- Particles, on-screen text, sound, 3D models and audio-reactive effects
-  (silent state) still don't carry over — unchanged, expected (spec non-goal).
-- The 169 scenes imported from the now-gone pendrive keep their **old**
-  (whole-layer-slide) loops; they can't be re-rendered without the source.
-  Not a regression — they still play — just not upgraded.
-- The library is now **36 GB** in Application Support, 54 GB free on disk.
+- 282 near-duplicate pairs flagged this round (up from ~15-25 before) — not
+  reviewed individually; expected given ~150 items overlapped by Workshop id
+  with earlier folders and the dhash is known to false-positive on dark,
+  centred-subject art (documented limitation, unchanged).
 - Everything from the previous checkpoint's Known Issues still applies
-  (fast-scroll hitches; F15 seconds-clock decision; merging `perf-audit`).
+  (cosmetic-shader compile gaps; particles/text/sound/3D/audio not carried;
+  fast-scroll hitches; F15 seconds-clock decision; merging `perf-audit`).
 
 ### Next step
-User is about to provide a third data source. Read this CURRENT STATE block
-only; no re-scan needed. Same pipeline applies unchanged.
+Awaiting the user; no pending source folders. If more data arrives, same
+pipeline, same verification sequence — no re-scan needed.
 
 ---
 
@@ -85,3 +76,4 @@ Result: no code changes needed; docs now agree with reality.
 - Phase-1 dataset (239 items) merged; cross-root dedup fixed; 408 total, self-containment reverified with both source folders absent — 29f75a4
 - Scene renderer diagnosis: pipeline invents motion and drops masks, keyframes, sprites, tints; options A/B/C awaiting decision — see scene-renderer-diagnosis.md — diagnosis only, no code change
 - Scenes rendered with their own shipped shaders (wescene.swift); 409 total (318 live/91 stills); dataset folder deleted after verified self-containment — pending commit
+- Third dataset (all_set_mac, 516 new items) merged; 776 total (597 live/179 stills); 23 items auto-upgraded to the shader renderer; drive unmounted+remounted to prove independence — pending commit
