@@ -1306,7 +1306,7 @@ SCENE_REVIEWED_SKIP = {
 
 # Bumped whenever scenes would come out differently: cached results from an
 # older renderer are redone.
-SCENE_RENDERER = 8
+SCENE_RENDERER = 9
 
 
 def import_scenes(root, library, summary, entries, existing, skipped, now, root_id, live=True):

@@ -74,3 +74,9 @@ Result: no code changes needed; docs now agree with reality.
 - Scenes rendered with their own shipped shaders (wescene.swift); 409 total (318 live/91 stills); dataset folder deleted after verified self-containment — pending commit
 - Third dataset (all_set_mac, 516 new items) merged; 776 total (597 live/179 stills); 23 items auto-upgraded to the shader renderer; drive unmounted+remounted to prove independence — pending commit
 - Particles, refraction, keyframe offsets, multi-pass geometry fixed; 24 duplicates removed; 753 total (608 live/145 stills) — pending commit
+- Core bug found and fixed: loop crossfade blended the head toward a
+  mismatched future frame instead of easing the tail into the true head,
+  causing a white/colour flash at the start of every replay on scenes whose
+  content doesn't fit the loop exactly. Confirmed on 49/321 scene loops by
+  direct measurement. Fix compiled; re-render needs the drive (unmounted at
+  time of fix) reconnected — not yet re-verified against real output.

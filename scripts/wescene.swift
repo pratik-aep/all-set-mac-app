@@ -1509,24 +1509,39 @@ func read(_ source: Target) {
 }
 
 let mixTarget = Target(width: outputWidth, height: outputHeight)
-let heldTarget = Target(width: outputWidth, height: outputHeight)
+let headTarget = Target(width: outputWidth, height: outputHeight)
+var headReady = false
 
-/// The frame at time t, with the loop's tail blended into its head.
-func frame(at t: Double, seconds: Double, crossfade: Double) -> Target {
-    renderScene(t)
-    guard crossfade > 0, t < crossfade else { return sceneTarget }
-    // Hold R(t), render R(t + T), and ease from the latter into the former.
-    heldTarget.bind(clear: nil)
+/// Copies `source` into `destination` (a plain, unblended copy).
+func copyInto(_ destination: Target, from source: Texture) {
+    destination.bind(clear: nil)
     glDisable(GLenum(GL_BLEND))
     glUseProgram(copyProgram.id)
-    bindTexture(copyProgram, slot: 0, sceneTarget.texture)
+    bindTexture(copyProgram, slot: 0, source)
     drawQuad([-1, -1, 0, 1, -1, 0, -1, 1, 0, 1, 1, 0], [0, 0, 1, 0, 0, 1, 1, 1])
-    renderScene(t + seconds)
-    let x = t / crossfade
+}
+
+/// The frame at time t. Content that doesn't loop exactly at `seconds` (some
+/// track's own period didn't fit) would otherwise pop when the file restarts
+/// at t=0; the file's own last `crossfade` seconds dissolve into the true
+/// head instead, so frame 0 itself always stays the clean, correct start and
+/// only the tail — which the file plays once per loop, same as the head —
+/// eases toward matching it.
+func frame(at t: Double, seconds: Double, crossfade: Double) -> Target {
+    if !headReady {
+        renderScene(0)
+        copyInto(headTarget, from: sceneTarget.texture)
+        headReady = true
+    }
+    renderScene(t)
+    let tailStart = seconds - crossfade
+    guard crossfade > 0, t >= tailStart else { return sceneTarget }
+    let x = min(max((t - tailStart) / crossfade, 0), 1)
     mixTarget.bind(clear: nil)
+    glDisable(GLenum(GL_BLEND))
     glUseProgram(mixProgram.id)
     bindTexture(mixProgram, slot: 0, sceneTarget.texture)
-    bindTexture(mixProgram, slot: 1, heldTarget.texture)
+    bindTexture(mixProgram, slot: 1, headTarget.texture)
     uniform(mixProgram, "u_Mix", [x * x * (3 - 2 * x)])
     drawQuad([-1, -1, 0, 1, -1, 0, -1, 1, 0, 1, 1, 0], [0, 0, 1, 0, 0, 1, 1, 1])
     return mixTarget
