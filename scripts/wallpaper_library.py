@@ -350,8 +350,9 @@ def decode_texture(package, name, work, wetex, frames=False):
 # The smallest movement that counts as the wallpaper moving: how much the most
 # changed 1/144th of the picture differs across the loop, 0-255. Measured on
 # rendered loops (docs/wallpaper-import.md): encoder noise on a static scene
-# of a static picture measured 0.33; rain shimmering on water measured 2.5.
-MOTION_VISIBLE = 1.0
+# of a static picture measured 0.33, so 2.0 is six times that: a loop has to
+# visibly move to beat the sharper still. Rain shimmering on water measured 2.5.
+MOTION_VISIBLE = 2.0
 
 
 def frame_movement(video, seconds):
@@ -456,6 +457,56 @@ def shader_interface(sources):
     return uniforms, samplers, combos
 
 
+# Particle parts the renderer simulates from the scene's own numbers. Anything
+# else in a particle system is listed as unsupported, never guessed at.
+PARTICLE_INITIALIZERS = {"lifetimerandom", "sizerandom", "colorrandom", "alpharandom", "velocityrandom",
+                         "rotationrandom", "angularvelocityrandom"}
+PARTICLE_OPERATORS = {"movement", "alphafade", "sizechange", "alphachange", "colorchange", "oscillatealpha",
+                      "oscillatesize", "oscillateposition", "angularmovement"}
+PARTICLE_RENDERERS = {"sprite", "spritetrail"}
+
+
+# Wallpaper Engine's own particle sprites ship with the engine, not the scene,
+# and are its art: the renderer draws a stand-in of the same kind instead.
+PARTICLE_SPRITE_FAMILIES = [
+    ("drop", ("drop", "rain", "streak", "line")),
+    ("fog", ("fog", "smoke", "cloud", "mist", "dust", "steam", "fire", "flame")),
+    ("beam", ("beam", "shaft", "ray")),
+    ("halo", ("halo", "glow", "dot", "circle", "spark", "star", "snow", "flake", "bokeh", "light", "orb", "ember", "petal", "leaf", "debris", "ash", "bubble", "chunk")),
+]
+
+
+def particle_sprite(name):
+    """The stand-in family for an engine particle sprite, or None."""
+    lowered = name.lower()
+    for family, words in PARTICLE_SPRITE_FAMILIES:
+        if any(word in lowered for word in words):
+            return family
+    return None
+
+
+def plain(node):
+    """Scene numbers as plain numbers: "1 2 3" becomes [1, 2, 3], and a value
+    bound to a user setting becomes that setting's value."""
+    if isinstance(node, dict):
+        if "value" in node and ("user" in node or "animation" in node or "script" in node):
+            return plain(node["value"])
+        return {k: plain(v) for k, v in node.items()}
+    if isinstance(node, list):
+        return [plain(v) for v in node]
+    if isinstance(node, str):
+        try:
+            parts = [float(p) for p in node.split()]
+            return parts if len(parts) > 1 else (parts[0] if parts else node)
+        except ValueError:
+            return node
+    if isinstance(node, bool):
+        return node
+    if isinstance(node, (int, float)):
+        return float(node)
+    return node
+
+
 class SceneNormaliser:
     """Turns one scene package into the renderer's input, with a report of
     everything it couldn't carry over."""
@@ -505,10 +556,11 @@ class SceneNormaliser:
             if info and info.get("kind") == "frames" and info.get("count"):
                 result = {"frames": [{"file": os.path.join(info["dir"], f"frame-{i:04d}.png"), "duration": max(float(d), 0.02)}
                                      for i, d in enumerate(info["times"], 1)]}
+                result["format"] = info.get("format")
         if result is None:
             info = decode_texture(self.package, name, self.work, self.wetex)
             if info and info.get("kind") == "image":
-                result = {"file": info["file"], "width": info["width"], "height": info["height"]}
+                result = {"file": info["file"], "width": info["width"], "height": info["height"], "format": info.get("format")}
         if result is None:
             self.missing.append(name)
         else:
@@ -591,6 +643,65 @@ class SceneNormaliser:
                            "blending": mpass.get("blending", "normal")})
         return {"kind": kind, "fbos": fbos, "passes": passes, "timed": timed}
 
+    def particle_system(self, path, override, depth=0):
+        """One particle system, as the renderer simulates it, plus its
+        children that sit alongside it. Returns a list (the system first)."""
+        system = self.package.json(path) if isinstance(path, str) else None
+        if not system:
+            self.note("particle system not in the package")
+            return []
+        material = self.package.json(system.get("material", "")) or {}
+        mpass = (material.get("passes") or [{}])[0]
+        name = (mpass.get("textures") or [None])[0]
+        texture = None
+        if isinstance(name, str) and self.package.has(f"materials/{name}.tex"):
+            texture = self.texture(name)
+        elif isinstance(name, str) and name.startswith("particle/") and particle_sprite(name):
+            texture = {"builtin": f"particle:{particle_sprite(name)}"}
+            self.note(f"engine particle sprites (stand-ins drawn): {particle_sprite(name)}")
+        if texture is None or texture.get("builtin") in ("white", "black", "clear"):
+            self.note(f"particle system without its texture ({name})")
+            return []
+        shader = mpass.get("shader") or ""
+        if shader and not shader.startswith("genericparticle") and not shader.startswith("genericropeparticle"):
+            self.note(f"particle shader {shader} (drawn as a plain textured particle)")
+        for section, known in (("initializer", PARTICLE_INITIALIZERS), ("operator", PARTICLE_OPERATORS),
+                               ("renderer", PARTICLE_RENDERERS)):
+            for part in system.get(section) or []:
+                name = part.get("name") if isinstance(part, dict) else None
+                if name == "turbulentvelocityrandom":
+                    continue    # handled: a random starting direction at its speed
+                if name in ("rope", "ropetrail"):
+                    self.note(f"particle {name} renderer (drawn as trails)")
+                elif name not in known:
+                    self.note(f"particle {section} {name}")
+        for emitter in system.get("emitter") or []:
+            if (emitter or {}).get("name") not in ("boxrandom", "sphererandom"):
+                self.note(f"particle emitter {(emitter or {}).get('name')}")
+        refract = None
+        if int(value((mpass.get("combos") or {}).get("REFRACT", 0), 0) or 0):
+            names = mpass.get("textures") or []
+            normal = names[1] if len(names) > 1 else None
+            if isinstance(normal, str) and self.package.has(f"materials/{normal}.tex"):
+                refract = self.texture(normal)
+            else:
+                self.note("refracting particles without their normal map")
+                return []
+        systems = [{"texture": texture, "blending": mpass.get("blending") or "translucent", "refract": refract,
+                    "maxcount": float(value(system.get("maxcount"), 64) or 64),
+                    "emitter": plain(system.get("emitter") or []), "initializer": plain(system.get("initializer") or []),
+                    "operator": plain(system.get("operator") or []), "renderer": plain(system.get("renderer") or []),
+                    "animationmode": system.get("animationmode") or "",
+                    "sequencemultiplier": float(value(system.get("sequencemultiplier"), 1) or 1),
+                    "override": plain(override or {})}]
+        for child in system.get("children") or []:
+            kind = (child or {}).get("type") or "static"
+            if kind != "static" or depth > 3:
+                self.note(f"particle children '{kind}' (spawned by events)")
+                continue
+            systems += self.particle_system(child.get("name"), override, depth + 1)
+        return systems
+
     def normalise(self):
         general = self.scene.get("general") or {}
         projection = general.get("orthogonalprojection") or {}
@@ -632,6 +743,16 @@ class SceneNormaliser:
         for obj in objects:
             kind = next((k for k in ("image", "particle", "text", "sound", "light", "model")
                          if obj.get(k) is not None), "other")
+            if kind == "particle" and isinstance(obj.get("particle"), str):
+                hidden = not value(obj.get("visible"), True)
+                for system in self.particle_system(obj["particle"], obj.get("instanceoverride")):
+                    layers.append({"id": None, "name": str(obj.get("name") or "particles"), "alignment": "center",
+                                   "chain": chain(obj), "alpha": scene_track(obj.get("alpha"), [1.0]),
+                                   "color": scene_track(obj.get("color"), [1.0, 1.0, 1.0]),
+                                   "brightness": scene_track(obj.get("brightness"), [1.0]), "colorBlendMode": 0,
+                                   "blending": system["blending"], "effects": [], "size": [1.0, 1.0],
+                                   "hidden": hidden, "particles": system})
+                continue
             if kind != "image" or not isinstance(obj.get("image"), str):
                 self.note(f"{kind} object")
                 continue
@@ -762,6 +883,8 @@ def plan_loop(normalised, low=10, high=30, tolerance=0.04):
                 if isinstance(track, dict) and "keys" in track:
                     moving = True
                     add(track, track_period(track))
+        if layer.get("particles"):
+            moving = True    # periodic by construction, for any loop length
         frames = (layer.get("texture") or {}).get("frames")
         if frames and len(frames) > 1:
             moving = True
@@ -814,13 +937,20 @@ def wescene_tool(library):
     return binary
 
 
+# A scene that takes longer than this is recorded as failed, not waited on.
+RENDER_TIME_LIMIT = 600
+
+
 def render_scene(normalised, output, library, work, still=False):
     """Runs the renderer on a normalised scene. Returns (result, problem)."""
     path = os.path.join(work, "normalised.json")
     with open(path, "w") as handle:
         json.dump(normalised, handle)
     command = [wescene_tool(library), path, output] + (["--still", "--width", "3840"] if still else ["--width", "2560"])
-    result = subprocess.run(command, capture_output=True, text=True)
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=RENDER_TIME_LIMIT)
+    except subprocess.TimeoutExpired:
+        return None, f"rendering took over {RENDER_TIME_LIMIT} s"
     try:
         info = json.loads(result.stdout.strip().splitlines()[-1])
     except (IndexError, json.JSONDecodeError):
@@ -909,8 +1039,25 @@ def import_scene(folder, project, library, wetex, item_id, live=True):
     with tempfile.TemporaryDirectory() as work:
         # A video texture inside: that's the wallpaper. The biggest one, since
         # smaller ones are masks and overlays for it.
+        # Only when that video is the picture: a visible layer covering most
+        # of the scene. A small one (a loading intro, a screen in the corner)
+        # is just part of a scene that's rendered like any other.
+        covering = {}
+        width, height = max(canvas[0], 1), max(canvas[1], 1)
+        for obj in scene.get("objects") or []:
+            if not isinstance(obj, dict) or not isinstance(obj.get("image"), str) or not value(obj.get("visible"), True):
+                continue
+            model = package.json(obj["image"]) or {}
+            material = package.json(model.get("material", "")) or {}
+            texture = ((material.get("passes") or [{}])[0].get("textures") or [None])[0]
+            if isinstance(texture, str):
+                size, scale = vector(obj.get("size"), [0.0, 0.0]), vector(obj.get("scale"), [1.0, 1.0, 1.0])
+                share = abs(size[0] * scale[0] * size[1] * scale[1]) / (width * height)
+                covering[f"materials/{texture}.tex"] = max(covering.get(f"materials/{texture}.tex", 0.0), share)
         videos = []
         for name in [n for n in package.entries if n.endswith(".tex")]:
+            if covering.get(name, 0.0) < 0.6:
+                continue
             info = decode_texture(package, name[len("materials/"):-4], work, wetex) if name.startswith("materials/") else None
             if info and info.get("kind") == "mp4":
                 videos.append((os.path.getsize(info["file"]), info["file"]))
@@ -1159,7 +1306,7 @@ SCENE_REVIEWED_SKIP = {
 
 # Bumped whenever scenes would come out differently: cached results from an
 # older renderer are redone.
-SCENE_RENDERER = 5
+SCENE_RENDERER = 8
 
 
 def import_scenes(root, library, summary, entries, existing, skipped, now, root_id, live=True):
@@ -1267,6 +1414,51 @@ def import_scenes(root, library, summary, entries, existing, skipped, now, root_
     with open(cache_path, "w") as handle:
         json.dump(cache, handle, indent=1, ensure_ascii=False)
     return imported
+
+
+def removed_items(library):
+    """Wallpapers taken out of the library by a person, by id: {id: {reason, keep}}."""
+    try:
+        with open(os.path.join(library, "removed.json")) as handle:
+            return json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def clean_orphans(library, catalog):
+    """Pictures and copies this importer made that no entry uses any more (a
+    scene left out, a removed duplicate, a video gone from its folder). Only
+    the importer's own folders are touched."""
+    used = {item.get(key) for item in catalog["items"] for key in ("playback", "thumbnail", "still") if item.get(key)}
+    for folder in ("stills", "extracted", "transcoded", "thumbnails", "live", "originals"):
+        directory = os.path.join(library, folder)
+        for name in os.listdir(directory) if os.path.isdir(directory) else []:
+            if f"{folder}/{name}" not in used and os.path.isfile(os.path.join(directory, name)):
+                os.remove(os.path.join(directory, name))
+
+
+def remove_duplicates(decisions_path, library):
+    """Takes wallpapers out of the library for good: decisions is a JSON list of
+    {"remove": id, "keep": id, "reason": text}. Recorded in removed.json, so
+    later imports skip them too."""
+    decisions = json.load(open(decisions_path))
+    removed = removed_items(library)
+    catalog_path = os.path.join(library, "catalog.json")
+    catalog = json.load(open(catalog_path))
+    ids = {item["id"] for item in catalog["items"]}
+    for decision in decisions:
+        if decision["remove"] in ids and decision.get("keep") in ids and decision["remove"] != decision.get("keep"):
+            removed[decision["remove"]] = {"keep": decision.get("keep"), "reason": decision.get("reason", "duplicate")}
+    before = len(catalog["items"])
+    catalog["items"] = [item for item in catalog["items"] if item["id"] not in removed]
+    with open(os.path.join(library, "removed.json.tmp"), "w") as handle:
+        json.dump(removed, handle, indent=1, ensure_ascii=False)
+    os.replace(os.path.join(library, "removed.json.tmp"), os.path.join(library, "removed.json"))
+    with open(catalog_path + ".tmp", "w") as handle:
+        json.dump(catalog, handle, indent=1, ensure_ascii=False)
+    os.replace(catalog_path + ".tmp", catalog_path)
+    clean_orphans(library, catalog)
+    print(f"removed {before - len(catalog['items'])}; library now {len(catalog['items'])}")
 
 
 def import_library(root, library, live=True, self_contained=False):
@@ -1389,7 +1581,12 @@ def import_library(root, library, live=True, self_contained=False):
     # catalog, from whichever root produced it this run.
     kept = [item for item in catalog.get("items", [])
             if item.get("root") != root_id and item.get("id") not in entries]
-    catalog["items"] = kept + sorted(entries.values(), key=lambda e: e["title"].lower())
+    # Wallpapers a person removed (duplicates) stay removed on every import.
+    removed = removed_items(library)
+    for item_id in [i for i in entries if i in removed]:
+        skipped.append((entries[item_id]["file"], f"removed: {removed[item_id].get('reason', '')}"))
+    catalog["items"] = [item for item in kept + sorted(entries.values(), key=lambda e: e["title"].lower())
+                        if item["id"] not in removed]
     roots = [r for r in catalog.get("roots", []) if r.get("id") != root_id]
     catalog["roots"] = roots + [{"id": root_id, "path": root, "label": os.path.basename(root)}]
     catalog["version"] = 1
@@ -1398,15 +1595,7 @@ def import_library(root, library, live=True, self_contained=False):
         json.dump(catalog, handle, indent=1, ensure_ascii=False)
     os.replace(catalog_path + ".tmp", catalog_path)
 
-    # Pictures and copies this importer made that no entry uses any more
-    # (a scene left out, a video gone from the folder): only its own folders.
-    used = {item.get(key) for item in catalog["items"] for key in ("playback", "thumbnail") if item.get(key)}
-    used |= {item.get("still") for item in catalog["items"] if item.get("still")}
-    for folder in ("stills", "extracted", "transcoded", "thumbnails", "live", "originals"):
-        directory = os.path.join(library, folder)
-        for name in os.listdir(directory) if os.path.isdir(directory) else []:
-            if f"{folder}/{name}" not in used and os.path.isfile(os.path.join(directory, name)):
-                os.remove(os.path.join(directory, name))
+    clean_orphans(library, catalog)
 
     # Near-duplicates for a person to review (never removed automatically).
     hashes = {e["id"]: dhash(os.path.join(library, e["thumbnail"])) for e in entries.values() if e.get("thumbnail")}
@@ -1443,7 +1632,7 @@ def import_library(root, library, live=True, self_contained=False):
 def main():
     global FFPROBE, FFMPEG
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("command", choices=["inventory", "import", "inspect-scene", "render-scene"])
+    parser.add_argument("command", choices=["inventory", "import", "inspect-scene", "render-scene", "remove-duplicates"])
     parser.add_argument("folder")
     parser.add_argument("--library", default=DEFAULT_LIBRARY, help="where the app's library lives")
     parser.add_argument("--self-contained", action="store_true",
@@ -1455,6 +1644,8 @@ def main():
     FFPROBE, FFMPEG = tool("ffprobe"), tool("ffmpeg")
     if args.command == "inventory":
         inventory(args.folder, args.library)
+    elif args.command == "remove-duplicates":
+        remove_duplicates(args.folder, args.library)
     elif args.command in ("inspect-scene", "render-scene"):
         inspect_scene(args.folder, args.library, args.output if args.command == "render-scene" else None)
     else:

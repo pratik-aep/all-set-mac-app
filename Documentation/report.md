@@ -6,55 +6,51 @@ log; it never needs reading in full.
 ---
 
 ## CURRENT STATE
-_(overwritten every checkpoint — 2026-09-28, third dataset merged)_
+_(overwritten every checkpoint — 2026-09-28, particles + duplicates)_
 
 ### Working right now (verified only)
-- **776 wallpapers — 597 live, 179 stills**, across three source folders:
-  "Steam Wallpapers" (partly superseded), "wallpaper phase 1 data" (240),
-  "all_set_mac" (516 new). All self-contained; no source folder is required
-  to play, preview or set any wallpaper.
-- **23 items automatically upgraded**: their exact content (same SHA-256)
-  reappeared in the new dataset, so they were re-rendered with the current
-  shader-accurate renderer instead of staying on the old pendrive-era
-  whole-layer-slide version. Several also had their still/live classification
-  corrected by the better motion measurement (e.g. "Bloodborne" was
-  incorrectly live before, correctly a still now).
-- **Verified:**
-  - 776/776 unique ids, 0 duplicates; 0 items missing vs. the pre-import
-    snapshot; 0 orphaned library files.
-  - 776/776 resolve to a file on this Mac.
-  - 379/379 locally-made videos play (`playcheck.swift`).
-  - 24 newly-imported scenes sampled at random and checked against their
-    Workshop previews: 22 clear matches, 1 correctly-dark scene (literally
-    titled "Black Hole"), 1 ambiguous icon-style scene. No regressions found.
-  - **Drive absence proven for real**: the pendrive was unmounted (confirmed
-    gone from `diskutil list`), the app rendered in full — "597 live, 179
-    stills, kept on this Mac", no warning — then remounted untouched (nothing
-    on it was deleted; the user didn't ask for that this time).
-  - 206 tests pass, 0 build warnings, Dock app rebuilt and relaunched.
-- Disk: this dataset needed ~41 GB of video copied against ~54 GB free —
-  tight but completed cleanly; 26 GB free afterward, library now 76 GB.
+- **753 wallpapers — 608 live, 145 stills**, after removing 24 duplicates.
+  All resolve to a file on this Mac; 361/361 scene videos play.
+- **Scene loops are now alive, not flat.** Root cause of the flat loops:
+  particle systems (rain, snow, embers, dust, fog — used by 60% of scenes)
+  weren't rendered at all. Now simulated from each scene's own settings,
+  looping exactly. Also fixed, each found by comparing against previews:
+  - multi-pass effects (god rays, shine, blur) fed wrong geometry → now each
+    pass gets the quad its own shader expects;
+  - keyframes read as absolute values → they are offsets on the base value
+    (layers with animated scale/position were vanishing);
+  - single-channel sprites drawn as squares → brightness is their alpha;
+  - refracting raindrops drawn as white squares → they bend the scene behind;
+  - scenes with a small video inside (loading intros) taken as "just that
+    video" → only full-scene videos are, the rest render normally.
+  Result on the drive's dataset: 427 → 420 live after the stricter motion
+  bar, up from 393; random samples match their Workshop previews.
+- **Duplicates removed: 24**, reviewed by eye (same picture, or same subject
+  in a different colour/background). Recorded in `removed.json`; re-imports
+  skip them. Same background with a different car is kept.
+- 206 tests pass, 0 warnings, Dock app rebuilt and relaunched.
 
 ### Files touched this checkpoint
-- No code changes. Same pipeline as the previous checkpoint
-  (`scripts/wescene.swift`, `scripts/wallpaper_library.py`) applied unchanged
-  to a third source folder.
-
-### Commit
-`991f4fc` and the commit immediately following this one, on branch `perf-audit`.
+- `scripts/wescene.swift` — particles, refraction, R8 sprites, additive
+  keyframes, per-shader pass geometry, pass-dump debugging.
+- `scripts/wetex.swift` — reports texture format.
+- `scripts/wallpaper_library.py` — particle normalisation, sprite stand-ins,
+  render time limit, full-scene-video rule, `removed.json` +
+  `remove-duplicates`, stricter motion bar (2.0).
+- `scripts/lookalike.swift` — Vision feature-print duplicate candidates.
+- `Documentation/spec.md` (R7 bar, new R8), `architecture.md`.
 
 ### Known issues / blockers
-- 282 near-duplicate pairs flagged this round (up from ~15-25 before) — not
-  reviewed individually; expected given ~150 items overlapped by Workshop id
-  with earlier folders and the dhash is known to false-positive on dark,
-  centred-subject art (documented limitation, unchanged).
-- Everything from the previous checkpoint's Known Issues still applies
-  (cosmetic-shader compile gaps; particles/text/sound/3D/audio not carried;
-  fast-scroll hitches; F15 seconds-clock decision; merging `perf-audit`).
+- 163 scenes came only from the deleted "phase 1" folder: they keep their
+  previous render (shaders, no particles) and can't be upgraded without that
+  data. 8 older pendrive-era loops likewise.
+- Not carried: SceneScript code, particle turbulence/vortex/mouse
+  attraction, event-spawned child particles, text, 3D models, audio input,
+  ~30 cosmetic effects in HLSL-only syntax; all reported per scene.
+- Engine particle sprites are generated stand-ins by family (documented).
 
 ### Next step
-Awaiting the user; no pending source folders. If more data arrives, same
-pipeline, same verification sequence — no re-scan needed.
+Awaiting the user.
 
 ---
 
@@ -77,3 +73,4 @@ Result: no code changes needed; docs now agree with reality.
 - Scene renderer diagnosis: pipeline invents motion and drops masks, keyframes, sprites, tints; options A/B/C awaiting decision — see scene-renderer-diagnosis.md — diagnosis only, no code change
 - Scenes rendered with their own shipped shaders (wescene.swift); 409 total (318 live/91 stills); dataset folder deleted after verified self-containment — pending commit
 - Third dataset (all_set_mac, 516 new items) merged; 776 total (597 live/179 stills); 23 items auto-upgraded to the shader renderer; drive unmounted+remounted to prove independence — pending commit
+- Particles, refraction, keyframe offsets, multi-pass geometry fixed; 24 duplicates removed; 753 total (608 live/145 stills) — pending commit

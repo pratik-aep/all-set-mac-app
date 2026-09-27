@@ -48,7 +48,9 @@ struct Track: Decodable {
                 t = t.truncatingRemainder(dividingBy: length)
             }
         }
-        return value.indices.map { c in c < keys.count && !keys[c].isEmpty ? Track.channel(keys[c], t) : value[c] }
+        // Keyframes are offsets on the property's own value: a scale track
+        // named "1.02 to 1.15" has keys running 0 to 0.13 on a base of 1.02.
+        return value.indices.map { c in c < keys.count && !keys[c].isEmpty ? value[c] + Track.channel(keys[c], t) : value[c] }
     }
 
     /// A cubic bezier through the keys and their handles, solved for time.
@@ -76,6 +78,56 @@ struct Track: Decodable {
 
 struct Node: Decodable { let origin: Track; let scale: Track; let angles: Track }
 
+/// A particle system's own settings, kept as the scene wrote them.
+indirect enum J: Decodable {
+    case number(Double), text(String), flag(Bool), list([J]), object([String: J]), empty
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() { self = .empty }
+        else if let b = try? c.decode(Bool.self) { self = .flag(b) }
+        else if let d = try? c.decode(Double.self) { self = .number(d) }
+        else if let t = try? c.decode(String.self) { self = .text(t) }
+        else if let a = try? c.decode([J].self) { self = .list(a) }
+        else { self = .object(try c.decode([String: J].self)) }
+    }
+    subscript(_ key: String) -> J? { if case .object(let d) = self { return d[key] }; return nil }
+    var name: String { if case .text(let t)? = self["name"] { return t }; return "" }
+    var items: [J] { if case .list(let a) = self { return a }; return [] }
+    func number(_ key: String, _ fallback: Double) -> Double {
+        switch self[key] {
+        case .number(let v)?: return v
+        case .list(let a)?: if case .number(let v)? = a.first { return v }; return fallback
+        default: return fallback
+        }
+    }
+    func vector(_ key: String, _ fallback: [Double]) -> [Double] {
+        switch self[key] {
+        case .number(let v)?: return [v, v, v]
+        case .list(let a)?:
+            let values = a.compactMap { item -> Double? in if case .number(let v) = item { return v }; return nil }
+            return values + fallback.dropFirst(min(values.count, fallback.count))
+        default: return fallback
+        }
+    }
+}
+
+struct ParticleSpec: Decodable {
+    let texture: TextureRef
+    let blending: String
+    let maxcount: Double
+    let emitter: [J]
+    let initializer: [J]
+    let `operator`: [J]
+    let renderer: [J]
+    let animationmode: String
+    let sequencemultiplier: Double
+    let override: J
+    /// A normal map: the particle bends the picture behind it instead of
+    /// drawing its own colour (the engine's REFRACT particles, e.g. raindrops).
+    let refract: TextureRef?
+}
+
 struct Frame: Decodable { let file: String; let duration: Double }
 
 struct TextureRef: Decodable {
@@ -89,6 +141,9 @@ struct TextureRef: Decodable {
     let clamp: Bool?
     let nearest: Bool?
     let timeScale: Double?
+    /// The engine's pixel format. 9 (R8) holds a shape in one channel: drawn
+    /// as a picture it is white with that channel as its alpha.
+    let format: Int?
 }
 
 struct Pass: Decodable {
@@ -126,6 +181,7 @@ struct Layer: Decodable {
     let background: Bool?
     let texture: TextureRef?
     let hidden: Bool?
+    let particles: ParticleSpec?
 }
 
 struct Scene: Decodable {
@@ -244,7 +300,8 @@ var loaded: [String: Texture] = [:]
 
 /// A picture file as a straight-alpha texture (Wallpaper Engine's shaders
 /// expect straight alpha).
-func picture(_ path: String, clamp: Bool, nearest: Bool) -> Texture? {
+func picture(_ path: String, clamp: Bool, nearest: Bool, shapeInAlpha: Bool = false) -> Texture? {
+    if shapeInAlpha { return particlePicture(path, nearest: nearest, clamp: clamp, alwaysShape: true) }
     let key = "\(path)|\(clamp)|\(nearest)"
     if let texture = loaded[key] { return texture }
     guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
@@ -259,6 +316,40 @@ func picture(_ path: String, clamp: Bool, nearest: Bool) -> Texture? {
         let alpha = Int(pixels[i + 3])
         if alpha > 0, alpha < 255 {
             for c in 0..<3 { pixels[i + c] = UInt8(min(255, Int(pixels[i + c]) * 255 / alpha)) }
+        }
+    }
+    let texture = Texture(width: width, height: height, pixels: pixels, clamp: clamp, nearest: nearest)
+    loaded[key] = texture
+    return texture
+}
+
+/// A particle sprite. Single-channel sprites (the engine's R8 format) carry
+/// their shape in brightness: that brightness is the particle's alpha, as in
+/// the engine's particle shader. Sprites with real transparency keep it.
+func particlePicture(_ path: String, nearest: Bool, clamp: Bool = true, alwaysShape: Bool = false) -> Texture? {
+    let key = "shape|\(path)|\(clamp)|\(alwaysShape)"
+    if let texture = loaded[key] { return texture }
+    guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
+          let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+    let width = image.width, height = image.height
+    var pixels = [UInt8](repeating: 0, count: width * height * 4)
+    guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+          let bitmap = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                                 space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+    bitmap.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+    var opaque = true
+    for i in stride(from: 3, to: pixels.count, by: 4) where pixels[i] < 250 { opaque = false; break }
+    opaque = opaque || alwaysShape
+    for i in stride(from: 0, to: pixels.count, by: 4) {
+        if opaque {
+            let luma = (Int(pixels[i]) * 299 + Int(pixels[i + 1]) * 587 + Int(pixels[i + 2]) * 114) / 1000
+            pixels[i + 3] = UInt8(luma)
+            pixels[i] = 255; pixels[i + 1] = 255; pixels[i + 2] = 255
+        } else {
+            let alpha = Int(pixels[i + 3])
+            if alpha > 0, alpha < 255 {
+                for c in 0..<3 { pixels[i + c] = UInt8(min(255, Int(pixels[i + c]) * 255 / alpha)) }
+            }
         }
     }
     let texture = Texture(width: width, height: height, pixels: pixels, clamp: clamp, nearest: nearest)
@@ -329,6 +420,39 @@ let builtins: [String: Texture] = {
     table["clouds_256"] = Texture(width: size, height: size, pixels: clouds, clamp: false)
     return table
 }()
+
+/// Stand-ins for the engine's own particle sprites, which aren't shipped with
+/// scenes: white, shaped by alpha, tinted by each particle's colour.
+var particleSprites: [String: Texture] = [:]
+func particleSprite(_ family: String) -> Texture? {
+    if let made = particleSprites[family] { return made }
+    let size = 128
+    var pixels = [UInt8](repeating: 255, count: size * size * 4)
+    for y in 0..<size {
+        for x in 0..<size {
+            let u = (Double(x) + 0.5) / Double(size) * 2 - 1, v = (Double(y) + 0.5) / Double(size) * 2 - 1
+            var alpha: Double
+            switch family {
+            case "drop":   // a soft streak, bright at its head
+                let across = exp(-pow(u / 0.18, 2) * 2), along = max(0, 1 - abs(v))
+                alpha = across * pow(along, 0.6)
+            case "beam":   // a soft vertical shaft
+                alpha = exp(-pow(u / 0.45, 2) * 2) * (1 - pow(abs(v), 4))
+            case "fog":    // a soft, uneven puff
+                let r = hypot(u, v)
+                let wobble = 0.75 + 0.25 * sin(u * 5.1 + 1.3) * sin(v * 4.7 + 0.4) + 0.12 * sin(u * 13 + v * 11)
+                alpha = max(0, 1 - r) * max(0, 1 - r) * wobble
+            default:       // a round glow
+                let r = hypot(u, v)
+                alpha = exp(-r * r * 4.5) * max(0, 1 - r * r)
+            }
+            pixels[(y * size + x) * 4 + 3] = UInt8(max(0, min(255, alpha * 255)))
+        }
+    }
+    let made = Texture(width: size, height: size, pixels: pixels, clamp: true)
+    particleSprites[family] = made
+    return made
+}
 
 // MARK: - Shaders
 
@@ -580,6 +704,7 @@ func program(vertex: String, fragment: String, combos: [String: Int], label: Str
         glAttachShader(id, f)
         glBindAttribLocation(id, 0, "a_Position")
         glBindAttribLocation(id, 1, "a_TexCoord")
+        glBindAttribLocation(id, 2, "a_Color")
         glLinkProgram(id)
         var ok: GLint = 0
         glGetProgramiv(id, GLenum(GL_LINK_STATUS), &ok)
@@ -743,6 +868,383 @@ func corners(_ layer: Layer, _ t: Double) -> [(Double, Double)] {
     return [m.apply(x0, y1), m.apply(x1, y1), m.apply(x0, y0), m.apply(x1, y0)]
 }
 
+// MARK: - Particles
+
+let particleVertex = """
+attribute vec3 a_Position;
+attribute vec2 a_TexCoord;
+attribute vec4 a_Color;
+varying vec2 v_TexCoord;
+varying vec4 v_Color;
+void main() { gl_Position = vec4(a_Position, 1.0); v_TexCoord = a_TexCoord; v_Color = a_Color; }
+"""
+let particleFragment = """
+varying vec2 v_TexCoord;
+varying vec4 v_Color;
+uniform sampler2D g_Texture0;
+void main() { gl_FragColor = texture2D(g_Texture0, v_TexCoord) * v_Color; }
+"""
+let refractVertex = """
+attribute vec3 a_Position;
+attribute vec2 a_TexCoord;
+attribute vec4 a_Color;
+varying vec2 v_TexCoord;
+varying vec2 v_Screen;
+varying vec4 v_Color;
+void main() {
+    gl_Position = vec4(a_Position, 1.0);
+    v_TexCoord = a_TexCoord;
+    v_Screen = vec2(a_Position.x * 0.5 + 0.5, 0.5 - a_Position.y * 0.5);
+    v_Color = a_Color;
+}
+"""
+let refractFragment = """
+varying vec2 v_TexCoord;
+varying vec2 v_Screen;
+varying vec4 v_Color;
+uniform sampler2D g_Texture0;
+uniform sampler2D g_Texture1;
+void main() {
+    vec4 normal = texture2D(g_Texture0, v_TexCoord);
+    vec2 bend = (normal.rg * 2.0 - 1.0) * 0.02;
+    vec3 behind = texture2D(g_Texture1, v_Screen + vec2(bend.x, -bend.y)).rgb;
+    gl_FragColor = vec4(behind, normal.a * v_Color.a);
+}
+"""
+let refractProgram: Program = {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("wescene-\(getpid())")
+    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let v = directory.appendingPathComponent("refract.vert"), f = directory.appendingPathComponent("refract.frag")
+    try? refractVertex.write(to: v, atomically: true, encoding: .utf8)
+    try? refractFragment.write(to: f, atomically: true, encoding: .utf8)
+    guard let made = program(vertex: v.path, fragment: f.path, combos: [:], label: "refract") else { fail("internal shader refract") }
+    return made
+}()
+
+let particleProgram: Program = {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("wescene-\(getpid())")
+    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let v = directory.appendingPathComponent("particle.vert"), f = directory.appendingPathComponent("particle.frag")
+    try? particleVertex.write(to: v, atomically: true, encoding: .utf8)
+    try? particleFragment.write(to: f, atomically: true, encoding: .utf8)
+    guard let made = program(vertex: v.path, fragment: f.path, combos: [:], label: "particles") else { fail("internal shader particles") }
+    return made
+}()
+
+/// Seeded randomness: the same particle gets the same numbers every loop.
+struct Seeded {
+    var state: UInt64
+    init(_ seed: UInt64) { state = seed &* 0x9E37_79B9_7F4A_7C15 &+ 0x632B_E59B_D9B4_E019 }
+    mutating func next() -> Double {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        z ^= z >> 31
+        return Double(z >> 11) / Double(1 << 53)
+    }
+    /// Between low and high, skewed by the scene's exponent.
+    mutating func between(_ low: Double, _ high: Double, _ exponent: Double = 1) -> Double {
+        low + (high - low) * pow(next(), max(exponent, 0.0001))
+    }
+}
+
+/// One particle system's settings, compiled once to plain numbers so the
+/// per-particle, per-frame work never touches the scene's JSON.
+final class Particles {
+    struct Emitter { var box: Bool; var origin: [Double]; var low: [Double]; var high: [Double]; var directions: [Double]
+        var speedLow: Double; var speedHigh: Double; var rate: Double }
+    enum Start {
+        case size(Double, Double, Double), alpha(Double, Double, Double), color([Double], [Double], Double)
+        case velocity([Double], [Double], Double), turbulent(Double, Double), rotation(Double, Double), spin(Double, Double)
+    }
+    enum Step {
+        case movement(gx: Double, gy: Double, drag: Double), angular(force: Double, drag: Double), fade(Double, Double)
+        case change(kind: Int, start: Double, end: Double, from: [Double], to: [Double])
+        case oscillate(kind: Int, frequency: (Double, Double), low: Double, high: Double, phase: (Double, Double))
+        case oscillatePosition(frequency: (Double, Double), scale: (Double, Double), phase: (Double, Double), mask: [Double])
+    }
+    let spec: ParticleSpec
+    let seed: UInt64
+    var emitters: [Emitter] = []
+    var emitterTotal = 0.0
+    var starts: [Start] = []
+    var steps: [Step] = []
+    let rate: Double
+    let burst: Int
+    let life: (Double, Double, Double)
+    let override: (size: Double, speed: Double, life: Double, alpha: Double, color: [Double], brightness: Double)
+
+    init(_ spec: ParticleSpec, seed: UInt64) {
+        self.spec = spec
+        self.seed = seed
+        let o = spec.override
+        override = (o.number("size", 1), o.number("speed", 1), o.number("lifetime", 1), o.number("alpha", 1),
+                    o.vector("colorn", [1, 1, 1]), o.number("brightness", 1))
+        let lifetime = spec.initializer.first { $0.name == "lifetimerandom" }
+        life = (lifetime?.number("min", 1) ?? 1, lifetime?.number("max", 1) ?? 1, lifetime?.number("exponent", 1) ?? 1)
+        var instant = 0.0
+        for e in spec.emitter {
+            let r = max(e.number("rate", 0) * o.number("rate", 1), 0)
+            emitters.append(Emitter(box: e.name == "boxrandom", origin: e.vector("origin", [0, 0, 0]),
+                                    low: e.vector("distancemin", [0, 0, 0]), high: e.vector("distancemax", [0, 0, 0]),
+                                    directions: e.vector("directions", [1, 1, 0]),
+                                    speedLow: e.number("speedmin", 0), speedHigh: e.number("speedmax", 0), rate: r))
+            emitterTotal += r
+            instant += e.number("instantaneous", 0)
+        }
+        for p in spec.initializer {
+            switch p.name {
+            case "sizerandom": starts.append(.size(p.number("min", 20), p.number("max", 20), p.number("exponent", 1)))
+            case "alpharandom": starts.append(.alpha(p.number("min", 1), p.number("max", 1), p.number("exponent", 1)))
+            case "colorrandom": starts.append(.color(p.vector("min", [255, 255, 255]), p.vector("max", [255, 255, 255]), p.number("exponent", 1)))
+            case "velocityrandom": starts.append(.velocity(p.vector("min", [0, 0, 0]), p.vector("max", [0, 0, 0]), p.number("exponent", 1)))
+            case "turbulentvelocityrandom": starts.append(.turbulent(p.number("speedmin", 0), p.number("speedmax", 0)))
+            case "rotationrandom": starts.append(.rotation(p.vector("min", [0, 0, 0])[2], p.vector("max", [0, 0, 0])[2]))
+            case "angularvelocityrandom": starts.append(.spin(p.vector("min", [0, 0, 0])[2], p.vector("max", [0, 0, 0])[2]))
+            default: break
+            }
+        }
+        for p in spec.operator {
+            switch p.name {
+            case "movement":
+                let g = p.vector("gravity", [0, 0, 0])
+                steps.append(.movement(gx: g[0], gy: g[1], drag: max(p.number("drag", 0), 0)))
+            case "angularmovement":
+                steps.append(.angular(force: p.vector("force", [0, 0, 0])[2], drag: max(p.number("drag", 0), 0)))
+            case "alphafade": steps.append(.fade(p.number("fadeintime", 0), p.number("fadeouttime", 0)))
+            case "sizechange", "alphachange", "colorchange":
+                let kind = p.name == "sizechange" ? 0 : p.name == "alphachange" ? 1 : 2
+                let from = kind == 2 ? p.vector("startvalue", [1, 1, 1]) : [p.number("startvalue", 1)]
+                let to = kind == 2 ? p.vector("endvalue", [1, 1, 1]) : [p.number("endvalue", 1)]
+                steps.append(.change(kind: kind, start: p.number("starttime", 0), end: p.number("endtime", 1), from: from, to: to))
+            case "oscillatealpha", "oscillatesize":
+                steps.append(.oscillate(kind: p.name == "oscillatealpha" ? 1 : 0,
+                                        frequency: (p.number("frequencymin", 0), p.number("frequencymax", 0)),
+                                        low: p.number("scalemin", 1), high: p.number("scalemax", 1),
+                                        phase: (p.number("phasemin", 0), p.number("phasemax", .pi * 2))))
+            case "oscillateposition":
+                steps.append(.oscillatePosition(frequency: (p.number("frequencymin", 0), p.number("frequencymax", 0)),
+                                                scale: (p.number("scalemin", 0), p.number("scalemax", 0)),
+                                                phase: (p.number("phasemin", 0), p.number("phasemax", .pi * 2)),
+                                                mask: p.vector("mask", [1, 1, 0])))
+            default: break
+            }
+        }
+        // The engine stops emitting at its particle limit, so a full system
+        // settles at that many alive: the rate that sustains it.
+        let limit = spec.maxcount * o.number("count", 1)
+        let meanLife = max((life.0 + life.1) / 2 * override.life, 0.01)
+        rate = min(emitterTotal, limit / meanLife)
+        burst = emitterTotal > 0 ? 0 : Int(min(instant * o.number("count", 1), limit))
+    }
+
+    struct State { var x, y, vx, vy, size, alpha, angle: Double; var r, g, b: Double; var fraction: Double; var pick: Double }
+
+    /// Particle `index` at `age` seconds, or nil once it's gone.
+    func particle(_ index: Int, age: Double) -> State? {
+        guard age >= 0 else { return nil }
+        var rng = Seeded(seed &+ UInt64(index) &* 0xD1B5_4A32_D192_ED03)
+        let lifetime = rng.between(life.0, life.1, life.2) * override.life
+        guard age < lifetime, lifetime > 0 else { return nil }
+        var x = 0.0, y = 0.0, vx = 0.0, vy = 0.0
+        if !emitters.isEmpty {
+            let choice = rng.next() * max(emitterTotal, 1e-9)
+            var running = 0.0, e = emitters[0]
+            for candidate in emitters { running += candidate.rate; if choice <= running { e = candidate; break } }
+            let speed = rng.between(e.speedLow, e.speedHigh)
+            if e.box {
+                for axis in 0..<2 {
+                    var d = rng.between(e.low[axis], e.high[axis])
+                    if e.low[axis] >= 0, rng.next() < 0.5 { d = -d }   // the box spans both sides
+                    if axis == 0 { x = e.origin[0] + d } else { y = e.origin[1] + d }
+                }
+                let a = rng.next() * 2 * .pi
+                vx = cos(a) * e.directions[0] * speed; vy = sin(a) * e.directions[1] * speed
+            } else {
+                var dx = (rng.next() * 2 - 1) * e.directions[0], dy = (rng.next() * 2 - 1) * e.directions[1]
+                let length = max(hypot(dx, dy), 1e-9)
+                dx /= length; dy /= length
+                let distance = rng.between(e.low[0], e.high[0])
+                x = e.origin[0] + dx * distance; y = e.origin[1] + dy * distance
+                vx = dx * speed; vy = dy * speed
+            }
+        }
+        var size = 20.0, alpha = 1.0, angle = 0.0, spin = 0.0, r = 1.0, g = 1.0, b = 1.0
+        for start in starts {
+            switch start {
+            case let .size(low, high, exponent): size = rng.between(low, high, exponent)
+            case let .alpha(low, high, exponent): alpha = rng.between(low, high, exponent)
+            case let .color(low, high, exponent):
+                let k = pow(rng.next(), max(exponent, 0.0001))
+                r = (low[0] + (high[0] - low[0]) * k) / 255
+                g = (low[1] + (high[1] - low[1]) * k) / 255
+                b = (low[2] + (high[2] - low[2]) * k) / 255
+            case let .velocity(low, high, exponent):
+                vx += rng.between(low[0], high[0], exponent); vy += rng.between(low[1], high[1], exponent)
+            case let .turbulent(low, high):
+                let a = rng.next() * 2 * .pi, speed = rng.between(low, high)
+                vx += cos(a) * speed; vy += sin(a) * speed
+            case let .rotation(low, high): angle = rng.between(low, high)
+            case let .spin(low, high): spin = rng.between(low, high)
+            }
+        }
+        vx *= override.speed; vy *= override.speed
+        let f = age / lifetime
+        var px = x, py = y, pvx = vx, pvy = vy
+        var sizeScale = 1.0, alphaScale = 1.0, cr = 1.0, cg = 1.0, cb = 1.0
+        for step in steps {
+            switch step {
+            case let .movement(gx, gy, d):
+                if d < 1e-6 {
+                    px += vx * age + 0.5 * gx * age * age; py += vy * age + 0.5 * gy * age * age
+                    pvx = vx + gx * age; pvy = vy + gy * age
+                } else {
+                    let e = exp(-d * age), k = (1 - e) / d
+                    px += vx * k + gx / d * (age - k); py += vy * k + gy / d * (age - k)
+                    pvx = vx * e + gx / d * (1 - e); pvy = vy * e + gy / d * (1 - e)
+                }
+            case let .angular(force, d):
+                if d < 1e-6 { angle += spin * age + 0.5 * force * age * age }
+                else { let k = (1 - exp(-d * age)) / d; angle += spin * k + force / d * (age - k) }
+            case let .fade(fadeIn, fadeOut):
+                if fadeIn > 0 { alphaScale *= min(1, f / fadeIn) }
+                if fadeOut > 0 { alphaScale *= min(1, (1 - f) / fadeOut) }
+            case let .change(kind, start, end, from, to):
+                let k = end > start ? min(max((f - start) / (end - start), 0), 1) : (f >= start ? 1 : 0)
+                if kind == 2 {
+                    cr *= from[0] + (to[0] - from[0]) * k; cg *= from[1] + (to[1] - from[1]) * k; cb *= from[2] + (to[2] - from[2]) * k
+                } else {
+                    let v = from[0] + (to[0] - from[0]) * k
+                    if kind == 0 { sizeScale *= v } else { alphaScale *= v }
+                }
+            case let .oscillate(kind, frequency, low, high, phase):
+                let hz = rng.between(frequency.0, frequency.1), shift = rng.between(phase.0, phase.1)
+                let wave = 0.5 + 0.5 * sin(2 * .pi * hz * age + shift)
+                if kind == 1 { alphaScale *= low + (high - low) * wave } else { sizeScale *= low + (high - low) * wave }
+            case let .oscillatePosition(frequency, scale, phase, mask):
+                let hz = rng.between(frequency.0, frequency.1), amount = rng.between(scale.0, scale.1)
+                let shift = rng.between(phase.0, phase.1)
+                px += mask[0] * amount * sin(2 * .pi * hz * age + shift)
+                py += mask[1] * amount * sin(2 * .pi * hz * age + shift + 1.7)
+            }
+        }
+        let tint = override.brightness
+        return State(x: px, y: py, vx: pvx, vy: pvy, size: size * sizeScale * override.size,
+                     alpha: max(0, min(1, alpha * alphaScale * override.alpha)), angle: angle,
+                     r: r * cr * override.color[0] * tint, g: g * cg * override.color[1] * tint, b: b * cb * override.color[2] * tint,
+                     fraction: f, pick: rng.next())
+    }
+}
+
+var particleSystems: [Int: Particles] = [:]
+
+/// Every particle alive at loop time `clock`: emitted on a schedule that
+/// repeats every `period`, so the field loops exactly.
+func drawParticles(_ index: Int, _ layer: Layer, _ spec: ParticleSpec, clock: Double, engineTime: Double, period: Double) {
+    let system = particleSystems[index] ?? {
+        let made = Particles(spec, seed: UInt64(index + 1) &* 0x2545_F491_4F6C_DD1D)
+        particleSystems[index] = made
+        return made
+    }()
+    let m = world(layer, engineTime)
+    let scale = sqrt(abs(m.a * m.d - m.b * m.c))
+    let layerAlpha = min(max(layer.alpha.at(engineTime)[0], 0), 1), layerColor = layer.color.at(engineTime)
+    let trail = spec.renderer.first { $0.name == "spritetrail" || $0.name == "ropetrail" || $0.name == "rope" }
+    let trailSeconds = trail?.number("length", 0.05) ?? 0, trailMin = trail?.number("minlength", 0) ?? 0
+    let trailMax = trail?.number("maxlength", 10) ?? 10
+    let frames = spec.texture.frames ?? []
+    let buckets = max(frames.count, 1)
+    var positions = [[Float]](repeating: [], count: buckets), coords = [[Float]](repeating: [], count: buckets)
+    var colors = [[Float]](repeating: [], count: buckets)
+
+    func add(_ state: Particles.State) {
+        let (cx, cy) = m.apply(state.x, state.y)
+        let half = state.size * scale / 2
+        var c: [(Double, Double)]
+        if trail != nil {
+            // Stretched back along its velocity, as long as that speed says.
+            let vx = m.a * state.vx + m.c * state.vy, vy = m.b * state.vx + m.d * state.vy
+            let speed = hypot(vx, vy)
+            let length = min(max(speed * trailSeconds, trailMin * half * 2), trailMax * half * 2)
+            let ux = speed > 1e-6 ? vx / speed : 0, uy = speed > 1e-6 ? vy / speed : 1
+            let nx = -uy * half, ny = ux * half
+            c = [(cx - ux * length + nx, cy - uy * length + ny), (cx - ux * length - nx, cy - uy * length - ny),
+                 (cx - nx, cy - ny), (cx + nx, cy + ny)]
+        } else {
+            let co = cos(state.angle) * half, si = sin(state.angle) * half
+            c = [(cx - co - si, cy - si + co), (cx + co - si, cy + si + co), (cx + co + si, cy + si - co), (cx - co + si, cy - si - co)]
+        }
+        var bucket = 0
+        if frames.count > 1 {
+            bucket = spec.animationmode == "randomframe" ? Int(state.pick * Double(frames.count)) % frames.count
+                : Int(state.fraction * Double(frames.count) * spec.sequencemultiplier) % frames.count
+        }
+        let red = Float(state.r * layerColor[0]), green = Float(state.g * layerColor[1])
+        let blue = Float(state.b * layerColor[2]), opacity = Float(state.alpha * layerAlpha)
+        for (i, corner) in c.enumerated() {
+            let nx = Float(corner.0 / canvasWidth * 2 - 1), ny = Float(corner.1 / canvasHeight * 2 - 1)
+            positions[bucket].append(contentsOf: [nx, ny, 0])
+            coords[bucket].append(contentsOf: i == 0 ? [0, 0] : i == 1 ? [1, 0] : i == 2 ? [1, 1] : [0, 1])
+            colors[bucket].append(contentsOf: [red, green, blue, opacity])
+        }
+    }
+
+    let count = Int((system.rate * period).rounded())
+    let longest = system.life.1 * system.override.life
+    if count > 0 {
+        // Particle k is born somewhere in slot k of the loop. Only the slots
+        // born within one lifetime of now can be alive, so only those are
+        // looked at: the work follows how many are alive, not how many the
+        // whole loop emits.
+        let slot = period / Double(count)
+        let now = clock.truncatingRemainder(dividingBy: period)
+        for cycle in 0...Int(ceil(longest / period)) {
+            let newest = now + Double(cycle) * period, oldest = newest - longest
+            let first = max(0, Int(floor(oldest / slot)) - 1), last = min(count - 1, Int(floor(newest / slot)) + 1)
+            guard first <= last else { continue }
+            for k in first...last {
+                let jitter = Seeded(system.seed ^ UInt64(k) &* 0x1656_67B1_9E37_79F9).state % 1000
+                if let p = system.particle(k, age: newest - (Double(k) + Double(jitter) / 1000) * slot) { add(p) }
+            }
+        }
+    }
+    for k in 0..<system.burst {
+        if let p = system.particle(1_000_000 + k, age: engineTime) { add(p) }
+    }
+    let behind = spec.refract != nil ? snapshot() : nil
+    sceneTarget.bind(clear: nil)
+    setBlending(spec.refract != nil ? "translucent" : spec.blending == "additive" ? "additive" : "translucent")
+    let drawing = spec.refract != nil ? refractProgram : particleProgram
+    glUseProgram(drawing.id)
+    for bucket in 0..<buckets where !positions[bucket].isEmpty {
+        let sprite: Texture
+        if let refract = spec.refract, let behind {
+            let normalFrames = refract.frames ?? []
+            let file = normalFrames.isEmpty ? refract.file : normalFrames[min(bucket, normalFrames.count - 1)].file
+            sprite = file.flatMap { picture($0, clamp: true, nearest: false) } ?? builtins["clear"]!
+            bindTexture(drawing, slot: 1, behind)
+        } else if let file = frames.isEmpty ? spec.texture.file : frames[bucket].file {
+            sprite = particlePicture(file, nearest: spec.texture.nearest ?? false) ?? builtins["clear"]!
+        } else {
+            sprite = resolve(spec.texture, previous: builtins["clear"]!, buffers: [:], t: engineTime, label: "particles")
+        }
+        bindTexture(drawing, slot: 0, sprite)
+        positions[bucket].withUnsafeBufferPointer { p in
+            coords[bucket].withUnsafeBufferPointer { uv in
+                colors[bucket].withUnsafeBufferPointer { col in
+                    glEnableVertexAttribArray(0); glEnableVertexAttribArray(1); glEnableVertexAttribArray(2)
+                    glVertexAttribPointer(0, 3, GLenum(GL_FLOAT), GLboolean(GL_FALSE), 0, p.baseAddress)
+                    glVertexAttribPointer(1, 2, GLenum(GL_FLOAT), GLboolean(GL_FALSE), 0, uv.baseAddress)
+                    glVertexAttribPointer(2, 4, GLenum(GL_FLOAT), GLboolean(GL_FALSE), 0, col.baseAddress)
+                    glDrawArrays(GLenum(GL_QUADS), 0, GLsizei(positions[bucket].count / 3))
+                    glDisableVertexAttribArray(2)
+                }
+            }
+        }
+    }
+}
+
 // MARK: - The scene, frame by frame
 
 let sceneTarget = Target(width: outputWidth, height: outputHeight)
@@ -790,6 +1292,7 @@ func resolve(_ ref: TextureRef?, previous: Texture, buffers: [String: Target], t
     }
     if let builtin = ref.builtin {
         if let texture = builtins[builtin] { return texture }
+        if builtin.hasPrefix("particle:"), let texture = particleSprite(String(builtin.dropFirst(9))) { return texture }
         notes.insert("built-in texture util/\(builtin) isn't available; left clear")
         return builtins["clear"]!
     }
@@ -827,6 +1330,28 @@ func passPositions(_ width: Int, _ height: Int) -> [Float] {
     return [-w, h, 0, w, h, 0, -w, -h, 0, w, -h, 0]
 }
 
+/// Debugging: WESCENE_DUMP_LAYER=<layer name> writes each of that layer's
+/// effect passes to /tmp/wescene-dump as PNGs, with its alpha range.
+func dumpTarget(_ target: Target, name: String) {
+    target.bind(clear: nil)
+    var pixels = [UInt8](repeating: 0, count: target.width * target.height * 4)
+    glReadPixels(0, 0, GLsizei(target.width), GLsizei(target.height), GLenum(GL_RGBA), GLenum(GL_UNSIGNED_BYTE), &pixels)
+    var low = 255, high = 0, nan = 0
+    for i in stride(from: 3, to: pixels.count, by: 4) { low = min(low, Int(pixels[i])); high = max(high, Int(pixels[i])) }
+    for i in stride(from: 0, to: pixels.count, by: 4) where pixels[i] == 255 && pixels[i + 1] == 255 && pixels[i + 3] == 255 { nan += 1 }
+    FileHandle.standardError.write("dump \(name): \(target.width)x\(target.height) alpha \(low)-\(high), saturated \(nan)\n".data(using: .utf8)!)
+    let directory = URL(fileURLWithPath: "/tmp/wescene-dump")
+    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+          let context = CGContext(data: &pixels, width: target.width, height: target.height, bitsPerComponent: 8,
+                                  bytesPerRow: target.width * 4, space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+          let image = context.makeImage(),
+          let out = CGImageDestinationCreateWithURL(directory.appendingPathComponent("\(name).png") as CFURL, UTType.png.identifier as CFString, 1, nil)
+    else { return }
+    CGImageDestinationAddImage(out, image, nil)
+    CGImageDestinationFinalize(out)
+}
+
 /// A layer's picture after its effects, stored top-first.
 func renderLayer(_ index: Int, _ layer: Layer, _ t: Double) -> Texture? {
     let label = "layer \(layer.name.isEmpty ? String(index) : layer.name)"
@@ -852,7 +1377,12 @@ func renderLayer(_ index: Int, _ layer: Layer, _ t: Double) -> Texture? {
                                                             coordinates[4], coordinates[5], coordinates[6], coordinates[7]])
         base = capture.texture
     } else if let texture = layer.texture {
-        base = resolve(texture, previous: builtins["clear"]!, buffers: [:], t: t, label: label)
+        if texture.format == 9, let file = texture.file ?? texture.frames.map({ frameOf($0, t, texture.timeScale).file }) {
+            base = picture(file, clamp: texture.clamp ?? false, nearest: texture.nearest ?? false, shapeInAlpha: true)
+                ?? builtins["clear"]!
+        } else {
+            base = resolve(texture, previous: builtins["clear"]!, buffers: [:], t: t, label: label)
+        }
     } else {
         return nil
     }
@@ -862,6 +1392,15 @@ func renderLayer(_ index: Int, _ layer: Layer, _ t: Double) -> Texture? {
     width = max(1, Int(Double(width) * fit)); height = max(1, Int(Double(height) * fit))
     var current = base
     var flip = 0
+    if let dump = ProcessInfo.processInfo.environment["WESCENE_DUMP_LAYER"], dump == layer.name {
+        let probe = Target(width: base.width, height: base.height)
+        probe.bind()
+        glDisable(GLenum(GL_BLEND))
+        glUseProgram(copyProgram.id)
+        bindTexture(copyProgram, slot: 0, base)
+        drawQuad([-1, -1, 0, 1, -1, 0, -1, 1, 0, 1, 1, 0], [0, 0, 1, 0, 0, 1, 1, 1])
+        dumpTarget(probe, name: "\(layer.name)-input")
+    }
     for (e, effect) in layer.effects.enumerated() {
         let effectTime = t * (effect.timeScale ?? 1)
         var buffers: [String: Target] = [:]
@@ -907,8 +1446,17 @@ func renderLayer(_ index: Int, _ layer: Layer, _ t: Double) -> Texture? {
             uniform(program, "g_Daytime", [0.5])
             uniform(program, "g_Alpha", [1]); uniform(program, "g_Brightness", [1])
             uniform(program, "g_Color", [1, 1, 1]); uniform(program, "g_Color4", [1, 1, 1, 1])
-            drawQuad(passPositions(destination.width, destination.height), quadCoordinates)
-            _ = p
+            // Some passes project the quad themselves (pixel units, through
+            // the matrix); others write their position straight to the screen.
+            // Give each the geometry its own shader expects.
+            if program.uniforms["g_ModelViewProjectionMatrix"] != nil {
+                drawQuad(passPositions(destination.width, destination.height), quadCoordinates)
+            } else {
+                drawQuad([-1, -1, 0, 1, -1, 0, -1, 1, 0, 1, 1, 0], [0, 0, 1, 0, 0, 1, 1, 1])
+            }
+            if let dump = ProcessInfo.processInfo.environment["WESCENE_DUMP_LAYER"], dump == layer.name {
+                dumpTarget(destination, name: "\(layer.name)-\(e)-\(effect.kind)-\(p)")
+            }
             if pass.target == nil { output = destination.texture }
         }
         if ok { current = output }
@@ -922,6 +1470,10 @@ func renderScene(_ clock: Double) {
     sceneTarget.bind(clear: [clear[0], clear[1], clear[2], 1])
     renderedLayers.removeAll(keepingCapacity: true)
     for (index, layer) in scene.layers.enumerated() where layer.hidden != true {
+        if let spec = layer.particles {
+            drawParticles(index, layer, spec, clock: clock, engineTime: t, period: max(scene.seconds ?? 20, 1))
+            continue
+        }
         let picture: Texture
         if let id = layer.id, let early = renderedLayers[id] {
             picture = early
@@ -939,7 +1491,7 @@ func renderScene(_ clock: Double) {
         glUseProgram(compositeProgram.id)
         bindTexture(compositeProgram, slot: 0, picture)
         uniform(compositeProgram, "u_Color", layer.color.at(t))
-        uniform(compositeProgram, "u_Alpha", layer.alpha.at(t))
+        uniform(compositeProgram, "u_Alpha", [min(max(layer.alpha.at(t)[0], 0), 1)])
         uniform(compositeProgram, "u_Brightness", layer.brightness.at(t))
         uniform(compositeProgram, "u_TintMode", [Double(layer.colorBlendMode)])
         let positions = points.flatMap { [Float($0.0 / canvasWidth * 2 - 1), Float($0.1 / canvasHeight * 2 - 1), 0] }

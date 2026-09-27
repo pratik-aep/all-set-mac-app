@@ -3,7 +3,7 @@
 _Living document. If anything discovered later contradicts it, it is updated in
 the same checkpoint and the change is logged in `report.md`._
 
-_Last updated: 2026-09-27 (scenes rendered with their own shaders)._
+_Last updated: 2026-09-28 (particles, duplicates removed)._
 
 ## What this covers
 The Library in **Live Wallpaper → My Videos**: the user's own wallpaper
@@ -48,9 +48,13 @@ An interrupted run resumes; a copy already made is never undone.
 
 ### R7 — Honest about cost
 A loop is compressed video that runs the decoder; a still is a sharp picture
-that does not. A scene becomes a loop only when its rendered frames show real
-movement somewhere (most-changed region ≥ 1.0/255, three times the measured
-noise floor of a static picture); otherwise its sharp still is kept.
+that does not. A scene becomes a loop only when its rendered frames show
+plainly visible movement (most-changed region ≥ 2.0/255, six times the
+measured noise floor of a static picture); otherwise its sharp still is kept.
+
+### R8 — No duplicates
+The same picture appears once, even when another copy differs only in colour
+or background. Removals are recorded (`removed.json`) and survive re-imports.
 
 ## Non-goals
 - Re-implementing Wallpaper Engine (shaders, particles, 3D, audio response).

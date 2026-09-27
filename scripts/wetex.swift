@@ -260,7 +260,7 @@ if wantsFrames, flags & 4 != 0 {
         _ = writePNG(frame, width: Int(abs(w)), height: Int(abs(h)), to: out.appendingPathComponent(String(format: "frame-%04d.png", index + 1)))
         times.append(time)
     }
-    print(#"{"kind": "frames", "dir": "\#(out.path)", "count": \#(frameCount), "times": \#(times)}"#)
+    print(#"{"kind": "frames", "dir": "\#(out.path)", "count": \#(frameCount), "times": \#(times), "format": \#(format)}"#)
     exit(0)
 }
 
@@ -270,4 +270,4 @@ let height = min(imageHeight > 0 ? imageHeight : first.height, first.height)
 let picture = width == first.width && height == first.height ? rgba : crop(rgba, width: first.width, x: 0, y: 0, w: width, h: height)
 let file = out.appendingPathExtension("png")
 guard writePNG(picture, width: width, height: height, to: file) else { fail("couldn't write PNG") }
-print(#"{"kind": "image", "file": "\#(file.path)", "width": \#(width), "height": \#(height), "animated": \#(flags & 4 != 0), "texture": [\#(textureWidth), \#(textureHeight)]}"#)
+print(#"{"kind": "image", "file": "\#(file.path)", "width": \#(width), "height": \#(height), "animated": \#(flags & 4 != 0), "texture": [\#(textureWidth), \#(textureHeight)], "format": \#(format)}"#)
