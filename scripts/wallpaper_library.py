@@ -1145,7 +1145,11 @@ def import_library(root, library, live=True, self_contained=False):
     print(f"scenes: {len(scene_ids)} imported", flush=True)
 
     # Other folders' entries stay; this folder's are replaced by this scan.
-    kept = [item for item in catalog.get("items", []) if item.get("root") != root_id]
+    # Identity is content, not root: two folders can share a file (the same
+    # Workshop item copied twice), and its id must appear only once in the
+    # catalog, from whichever root produced it this run.
+    kept = [item for item in catalog.get("items", [])
+            if item.get("root") != root_id and item.get("id") not in entries]
     catalog["items"] = kept + sorted(entries.values(), key=lambda e: e["title"].lower())
     roots = [r for r in catalog.get("roots", []) if r.get("id") != root_id]
     catalog["roots"] = roots + [{"id": root_id, "path": root, "label": os.path.basename(root)}]
