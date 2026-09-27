@@ -4,7 +4,7 @@ _Living document. The moment implementation forces a deviation, this file is
 updated in the same checkpoint and the deviation is logged in `report.md`.
 Code and docs are never allowed to disagree._
 
-_Last updated: 2026-09-27 (self-contained library)._
+_Last updated: 2026-09-27 (phase-1 dataset merged in)._
 
 ## Stack, and why
 | Piece | Choice | Why |
@@ -15,8 +15,8 @@ _Last updated: 2026-09-27 (self-contained library)._
 | Texture decoding | Swift (`scripts/wetex.swift`), compiled once | Needs DXT/LZ4 and ImageIO; ships as source, built on demand. |
 
 **Division of labour:** everything expensive and one-off happens at import;
-the app only plays a file. This is why 181 wallpapers cost the app nothing
-beyond one video.
+the app only plays a file. This is why 408 wallpapers, from two separate
+source folders, cost the app nothing beyond one video.
 
 ## Where things live
 ```
@@ -82,6 +82,7 @@ cropped so moving layers never uncover an edge.
 | Copy originals byte-for-byte | Transcode them to save space | Copying is lossless and cannot change playback; these already decode in hardware. |
 | Skip broken scenes by Workshop id, with reasons | Guess from a preview-image hash | Previews are square crops, zoomed, or start on a black frame; a hash cannot tell. Judged by eye instead. |
 | Identity from content hash | Path or Workshop id | Files get renamed and moved; content does not. |
+| Cross-root dedup by id, not just by root | Filter `kept` by root only | A second source folder can share content with the first (12 items did); filtering by root alone left both copies in `catalog.json` with the same id — a duplicate `Identifiable` for SwiftUI's `ForEach`. Fixed in the merge step itself, not worked around per-root. |
 
 ## Open assumptions to confirm
 1. **~10 GB in Application Support is acceptable.** It is the price of R2.

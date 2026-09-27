@@ -3,7 +3,7 @@
 _Living document. If anything discovered later contradicts it, it is updated in
 the same checkpoint and the change is logged in `report.md`._
 
-_Last updated: 2026-09-27 (self-contained library)._
+_Last updated: 2026-09-27 (phase-1 dataset merged in)._
 
 ## What this covers
 The Library in **Live Wallpaper → My Videos**: the user's own wallpaper
@@ -54,12 +54,11 @@ that does not. The trade is only taken when measured motion justifies it.
 - Interactive or mouse-driven wallpapers.
 - Sharing, publishing or syncing this library anywhere.
 
-## Current numbers (measured 2026-09-27)
+## Current numbers (measured 2026-09-27, after two source folders)
 | | |
 |---|---|
-| Wallpapers | 181 — 138 live, 43 stills |
-| Sources | 48 video items, 7 web loops, 126 of 138 scenes |
-| Scene stills rebuilt as loops | 63 |
-| Left out | 19, each with a recorded reason |
-| Needing the source folder | **0** |
-| On this Mac | ~10 GB in Application Support |
+| Wallpapers | **408** — 303 live, 105 stills |
+| Roots merged | "Steam Wallpapers" (181 items) + "wallpaper phase 1 data" (239 new; 12 were already-known duplicate content, correctly merged not doubled) |
+| Left out (both rounds) | 26, each with a recorded reason |
+| Needing a source folder | **0** — both original folders were absent (drive unplugged, dataset folder renamed away) when this was last verified, and the app rendered in full |
+| On this Mac | ~35 GB in Application Support |

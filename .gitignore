@@ -7,3 +7,8 @@ DerivedData/
 .swiftpm/
 *.xcodeproj
 .build-probe/
+
+# Raw wallpaper source datasets (personal, copyright-unclear, never committed —
+# the importer's own copies live in ~/Library/Application Support, not here)
+/wallpaper phase 1 data/
+/data set(widgets)/
