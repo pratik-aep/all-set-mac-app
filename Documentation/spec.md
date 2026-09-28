@@ -61,11 +61,12 @@ or background. Removals are recorded (`removed.json`) and survive re-imports.
 - Interactive or mouse-driven wallpapers.
 - Sharing, publishing or syncing this library anywhere.
 
-## Current numbers (measured 2026-09-29, after four source folders)
+## Current numbers (measured 2026-09-29, after four source folders + a quality pass)
 | | |
 |---|---|
-| Wallpapers | **1178** — 1008 live, 170 stills |
+| Wallpapers | **1164** — 1006 live, 158 stills |
 | Roots merged | "Steam Wallpapers", "wallpaper phase 1 data", two folders both named "all_set_mac" from separate drives |
-| Left out (all rounds) | recorded per item with a reason; latest round: 6 skipped, 45 near-duplicates flagged for review (not yet resolved) |
-| Needing a source folder | **0** — self-contained; latest import copied everything onto this Mac before the source drive could go away |
+| Left out (all rounds) | recorded per item with a reason; latest round: 16 skipped (6 broken/removed sources, 10 interactive/web wallpapers with no video fallback) |
+| Removed after review | 11 — scenes rendering solid black or near-blank (usually a dependency this renderer doesn't carry, like a 3D model), found by checking the near-duplicate flags by eye rather than trusting the hash. 45 flagged, mostly false positives from dark thumbnails colliding by hash. |
+| Needing a source folder | **0** — self-contained |
 | On this Mac | ~12 GB of actual playback assets (`live/` + `stills/` + `thumbnails/`); `originals/` (~49 GB) and pipeline scratch are kept for R2/R6 but not needed to play a wallpaper |

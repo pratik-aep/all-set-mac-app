@@ -988,6 +988,24 @@ def inspect_scene(folder, library, output=None):
             print("render:", problem or info)
 
 
+def is_blank(path):
+    """True for a picture with essentially nothing in it: uniformly near-black
+    (or near-white). Some scenes lean on a feature this renderer doesn't carry
+    (a 3D model is the common case) and come out with only their background
+    layer, or nothing at all - a real wallpaper isn't this, however dark or
+    minimal its actual art may be. Threshold picked from real examples: the
+    darkest legitimate art measured (a faint ink-style illustration, almost
+    silhouette) sat at mean 0.38; every confirmed-blank render sat at 0.19 or
+    under, mean of a 32x18 greyscale downscale, 0-255 scale."""
+    result = subprocess.run([FFMPEG, "-v", "error", "-i", path, "-frames:v", "1", "-vf", "scale=32:18,format=gray",
+                             "-f", "rawvideo", "-"], capture_output=True)
+    pixels = result.stdout
+    if len(pixels) < 32 * 18:
+        return False  # unreadable: let the normal "couldn't render" path handle it
+    mean = sum(pixels) / len(pixels)
+    return mean < 0.3 or mean > 254.7
+
+
 def preview_hash(folder, project):
     """The Workshop preview's difference hash, to check a composed still against."""
     preview = os.path.join(folder, project.get("preview") or "preview.jpg")
@@ -1094,6 +1112,10 @@ def import_scene(folder, project, library, wetex, item_id, live=True):
         info, problem = render_scene(normalised, still_output, library, work, still=True)
         if problem:
             return None, f"couldn't render: {problem}"
+        if is_blank(still_output):
+            os.remove(still_output)
+            summary = ", ".join(f"{k} {v}" for k, v in sorted(report["unsupported"].items())) or "reason unclear"
+            return None, f"renders blank ({summary}) — likely depends on something not carried, e.g. a 3D model"
         notes = {"unsupported": report["unsupported"], "missing": report["missing"], "renderer": info.get("notes", [])}
         if live and moving:
             loop_output = os.path.join(library, "live", f"{item_id}.mp4")
@@ -1306,7 +1328,7 @@ SCENE_REVIEWED_SKIP = {
 
 # Bumped whenever scenes would come out differently: cached results from an
 # older renderer are redone.
-SCENE_RENDERER = 9
+SCENE_RENDERER = 10
 
 
 def import_scenes(root, library, summary, entries, existing, skipped, now, root_id, live=True):
