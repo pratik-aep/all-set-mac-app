@@ -1575,6 +1575,19 @@ def import_library(root, library, live=True, self_contained=False):
     scene_ids = import_scenes(root, library, summary, entries, existing, skipped, now, root_id, live=live)
     print(f"scenes: {len(scene_ids)} imported", flush=True)
 
+    # R1: every item gets recorded, even ones no earlier pass ever looked at.
+    # A "web" (interactive HTML/JS) wallpaper with no video inside it never
+    # appears in the video-file walk and isn't a "scene" package either, so
+    # without this it would vanish with no reason logged anywhere. Scene-type
+    # items are excluded below by kind, not by id: import_scenes returns
+    # content-hash ids, not workshop ids, so they can't be compared here.
+    seen_ids = {record["workshop"]["id"] for record in summary["files"] if record.get("workshop")}
+    for workshop_id, project in workshop_items(root).items():
+        kind = (project.get("type") or "unknown").lower()
+        if kind != "scene" and workshop_id not in seen_ids:
+            skipped.append((workshop_id, f"{project.get('title') or workshop_id}: "
+                            f"{kind} wallpaper with no video inside it — interactive wallpapers aren't supported"))
+
     # Other folders' entries stay; this folder's are replaced by this scan.
     # Identity is content, not root: two folders can share a file (the same
     # Workshop item copied twice), and its id must appear only once in the

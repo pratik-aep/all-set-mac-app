@@ -93,3 +93,10 @@ Result: no code changes needed; docs now agree with reality.
   wallpapers); 1178 total (1008 live/170 stills); delete-button removal
   verified against real duplicate content; crossfade fix confirmed applying
   to new renders, pre-existing library still needs it — pending commit
+- R1 gap fixed: a workshop item with no video and no scene package (pure
+  interactive HTML/JS wallpapers) vanished with no reason logged anywhere.
+  Found by checking "is everything from the pendrive actually there" against
+  the raw folder, not assumed. Now every non-scene item either imports or
+  gets a skip reason; 10 previously-silent items on the current dataset now
+  correctly recorded as unsupported (interactive wallpapers, a documented
+  non-goal) — pending commit
