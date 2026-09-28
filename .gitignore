@@ -12,3 +12,7 @@ DerivedData/
 # the importer's own copies live in ~/Library/Application Support, not here)
 /wallpaper phase 1 data/
 /data set(widgets)/
+
+# Cloud sync credentials — never commit
+scripts/cloud/.env
+*.env
