@@ -3,7 +3,7 @@
 _Living document. If anything discovered later contradicts it, it is updated in
 the same checkpoint and the change is logged in `report.md`._
 
-_Last updated: 2026-09-28 (particles, duplicates removed)._
+_Last updated: 2026-09-29 (fourth source folder merged, crossfade fix)._
 
 ## What this covers
 The Library in **Live Wallpaper → My Videos**: the user's own wallpaper
@@ -61,11 +61,11 @@ or background. Removals are recorded (`removed.json`) and survive re-imports.
 - Interactive or mouse-driven wallpapers.
 - Sharing, publishing or syncing this library anywhere.
 
-## Current numbers (measured 2026-09-27, after two source folders)
+## Current numbers (measured 2026-09-29, after four source folders)
 | | |
 |---|---|
-| Wallpapers | **408** — 303 live, 105 stills |
-| Roots merged | "Steam Wallpapers" (181 items) + "wallpaper phase 1 data" (239 new; 12 were already-known duplicate content, correctly merged not doubled) |
-| Left out (both rounds) | 26, each with a recorded reason |
-| Needing a source folder | **0** — both original folders were absent (drive unplugged, dataset folder renamed away) when this was last verified, and the app rendered in full |
-| On this Mac | ~35 GB in Application Support |
+| Wallpapers | **1178** — 1008 live, 170 stills |
+| Roots merged | "Steam Wallpapers", "wallpaper phase 1 data", two folders both named "all_set_mac" from separate drives |
+| Left out (all rounds) | recorded per item with a reason; latest round: 6 skipped, 45 near-duplicates flagged for review (not yet resolved) |
+| Needing a source folder | **0** — self-contained; latest import copied everything onto this Mac before the source drive could go away |
+| On this Mac | ~12 GB of actual playback assets (`live/` + `stills/` + `thumbnails/`); `originals/` (~49 GB) and pipeline scratch are kept for R2/R6 but not needed to play a wallpaper |

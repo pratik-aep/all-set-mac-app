@@ -6,51 +6,53 @@ log; it never needs reading in full.
 ---
 
 ## CURRENT STATE
-_(overwritten every checkpoint — 2026-09-28, particles + duplicates)_
+_(overwritten every checkpoint — 2026-09-29, fourth dataset + crossfade fix)_
 
 ### Working right now (verified only)
-- **753 wallpapers — 608 live, 145 stills**, after removing 24 duplicates.
-  All resolve to a file on this Mac; 361/361 scene videos play.
-- **Scene loops are now alive, not flat.** Root cause of the flat loops:
-  particle systems (rain, snow, embers, dust, fog — used by 60% of scenes)
-  weren't rendered at all. Now simulated from each scene's own settings,
-  looping exactly. Also fixed, each found by comparing against previews:
-  - multi-pass effects (god rays, shine, blur) fed wrong geometry → now each
-    pass gets the quad its own shader expects;
-  - keyframes read as absolute values → they are offsets on the base value
-    (layers with animated scale/position were vanishing);
-  - single-channel sprites drawn as squares → brightness is their alpha;
-  - refracting raindrops drawn as white squares → they bend the scene behind;
-  - scenes with a small video inside (loading intros) taken as "just that
-    video" → only full-scene videos are, the rest render normally.
-  Result on the drive's dataset: 427 → 420 live after the stricter motion
-  bar, up from 393; random samples match their Workshop previews.
-- **Duplicates removed: 24**, reviewed by eye (same picture, or same subject
-  in a different colour/background). Recorded in `removed.json`; re-imports
-  skip them. Same background with a different car is kept.
-- 206 tests pass, 0 warnings, Dock app rebuilt and relaunched.
+- **1178 wallpapers — 1008 live, 170 stills**, self-contained on this Mac
+  (~12 GB of actual playback assets in `live/`+`stills/`+`thumbnails/`;
+  `originals/` and pipeline scratch aren't needed to play one).
+- **Fourth source folder merged** ("all_set_mac" on a new drive, "Nithin J"):
+  371/374 scenes imported, 94/96 plain videos, 465 wallpapers added this
+  round. 6 skipped with reasons (2 corrupt source files, 2 unsupported
+  effects, 1 unreadable GIF, 1 already removed by the user). 45
+  near-duplicates flagged for review, not yet resolved.
+- **User-delete feature verified for real**, not just by test: an item
+  deleted from the app last checkpoint (`3633951606`) came up in this
+  content-matching drive as a duplicate and was correctly skipped on
+  re-import — `removed.json` is doing its job end to end.
+- **Loop crossfade bug fixed** (see previous checkpoint) applies to every
+  scene rendered in *this* import, since `SCENE_RENDERER` bumped to 9. It
+  does **not** yet apply to the pre-existing ~753 items from the other two
+  source folders — `import <folder>` only re-renders scenes physically
+  present in the folder it's given, not the whole catalog. Confirmed by
+  reading the code, not assumed.
+- 207 tests pass, 0 warnings, Dock app rebuilt and relaunched.
 
 ### Files touched this checkpoint
-- `scripts/wescene.swift` — particles, refraction, R8 sprites, additive
-  keyframes, per-shader pass geometry, pass-dump debugging.
-- `scripts/wetex.swift` — reports texture format.
-- `scripts/wallpaper_library.py` — particle normalisation, sprite stand-ins,
-  render time limit, full-scene-video rule, `removed.json` +
-  `remove-duplicates`, stricter motion bar (2.0).
-- `scripts/lookalike.swift` — Vision feature-print duplicate candidates.
-- `Documentation/spec.md` (R7 bar, new R8), `architecture.md`.
+- `Documentation/spec.md` — current numbers, last-updated line.
+- No code changes this checkpoint (import + doc sync only); crossfade fix
+  and delete button were previous checkpoints, both now exercised on real
+  data for the first time.
 
 ### Known issues / blockers
-- 163 scenes came only from the deleted "phase 1" folder: they keep their
-  previous render (shaders, no particles) and can't be upgraded without that
-  data. 8 older pendrive-era loops likewise.
+- **Pre-existing library still has the crossfade flash bug.** Fixing it
+  needs either the old "KALI LINUX" drive reconnected (currently unmounted)
+  to re-run `import` against it, or a new code path that re-renders straight
+  from this Mac's own `originals/` copies instead of an external drive.
+  Neither started yet.
+- 45 near-duplicates from this round awaiting human review (not applied).
 - Not carried: SceneScript code, particle turbulence/vortex/mouse
   attraction, event-spawned child particles, text, 3D models, audio input,
   ~30 cosmetic effects in HLSL-only syntax; all reported per scene.
 - Engine particle sprites are generated stand-ins by family (documented).
 
 ### Next step
-Awaiting the user.
+Cloud sync groundwork is in progress in parallel (Postgres + object-storage
+accounts being created by the user; schema and sync script already written
+in `scripts/cloud/`, untested — no credentials yet). Awaiting the user for
+which to do first: review the 45 near-duplicates, re-render the pre-existing
+library under the fixed renderer, or continue the cloud-sync setup.
 
 ---
 
@@ -87,3 +89,7 @@ Result: no code changes needed; docs now agree with reality.
   importer-only fields (sha256, sceneNotes...) survive untouched. New test
   proves both the permanence and the no-data-loss property. 207 tests pass,
   0 warnings, app rebuilt.
+- Fourth source folder merged (all_set_mac, new drive "Nithin J", 465 new
+  wallpapers); 1178 total (1008 live/170 stills); delete-button removal
+  verified against real duplicate content; crossfade fix confirmed applying
+  to new renders, pre-existing library still needs it — pending commit
