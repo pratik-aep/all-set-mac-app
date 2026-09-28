@@ -161,6 +161,24 @@ import Testing
         #expect((removed as? [String: Any])?.keys.contains("a") == true)
     }
 
+    /// `library` fills in asynchronously; a real regression this session
+    /// (`WallpaperView` rendering before the catalog loaded, giving up on a
+    /// fetch permanently instead of retrying once real data arrived) was
+    /// only found by testing against the actual running app, not a mock.
+    /// This is the property that fix depends on: it must start false and
+    /// flip true once, not before.
+    @MainActor @Test func hasLoadedLibraryStartsFalseAndFlipsOnceLoaded() async throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("wallpaper-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let store = WallpaperStore(directory: home)
+        // The async load's Task can't have run yet: init() hasn't awaited
+        // anything, so nothing has yielded back to the run loop for it to
+        // start on. This is exactly the window WallpaperView can render in.
+        #expect(!store.hasLoadedLibrary)
+        for _ in 0..<200 where !store.hasLoadedLibrary { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(store.hasLoadedLibrary)
+    }
+
     /// The promise behind `--self-contained`: once every wallpaper has a copy
     /// here, deleting the folder they came from changes nothing.
     @MainActor @Test func copiedLibraryOutlivesTheFolderItCameFrom() async throws {

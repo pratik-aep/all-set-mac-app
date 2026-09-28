@@ -1,10 +1,12 @@
 #!/bin/bash
 # Pushes this Mac's rendered wallpaper assets to the home server.
 #
-# Only the three folders that actually play are sent: live/, stills/ and
-# thumbnails/ (~12 GB). originals/ (~49 GB), extracted/ and transcoded/ are
-# pipeline working copies and are deliberately NOT sent — nothing plays from
-# them, and they'd quadruple the transfer.
+# live/, stills/, thumbnails/, extracted/ and transcoded/ are sent — every
+# one of them holds some catalog entries' actual `playback` file (extracted/
+# for video-texture and GIF scenes, transcoded/ for the few files this Mac
+# can't decode efficiently as shipped). Only originals/ (~49 GB, raw source
+# copies kept solely so a source drive can be deleted safely) is genuinely
+# never played from and is deliberately not sent.
 #
 #   scripts/cloud/push_wallpapers.sh --dry-run   # list what would go, send nothing
 #   scripts/cloud/push_wallpapers.sh             # send it
@@ -25,7 +27,7 @@ if [[ "${1:-}" == "--dry-run" ]]; then
     echo "DRY RUN — nothing will be transferred"
 fi
 
-for folder in live stills thumbnails; do
+for folder in live stills thumbnails extracted transcoded; do
     source_dir="$LIBRARY/$folder"
     if [[ ! -d "$source_dir" ]]; then
         echo "skipping $folder (not on this Mac)"

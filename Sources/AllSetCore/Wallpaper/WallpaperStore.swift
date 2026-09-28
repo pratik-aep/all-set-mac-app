@@ -90,6 +90,11 @@ public final class WallpaperStore {
     /// Videos in libraries outside All Set (`Library/catalog.json`, written by
     /// `scripts/wallpaper_library.py`), in catalog order.
     public private(set) var library: [LibraryVideo] = []
+    /// Whether `reloadLibrary()` has completed at least once. `library`
+    /// starts empty and fills in asynchronously (a big catalog is a big
+    /// file); a caller that needs to tell "genuinely not here" apart from
+    /// "hasn't loaded yet" reads this, not just whether `library` is empty.
+    public private(set) var hasLoadedLibrary = false
     /// Library folders by id, and whether each can be reached right now (a
     /// drive may be unplugged).
     public private(set) var libraryRoots: [String: WallpaperLibraryCatalog.Root] = [:]
@@ -172,6 +177,7 @@ public final class WallpaperStore {
             libraryIndex = Dictionary(items.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
             libraryRoots = Dictionary((catalog?.roots ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             refreshLibraryReachability()
+            hasLoadedLibrary = true
         }
     }
 
@@ -189,6 +195,7 @@ public final class WallpaperStore {
         hasDebugLibrary = true
         library = videos
         libraryIndex = Dictionary(videos.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+        hasLoadedLibrary = true
     }
     #endif
 

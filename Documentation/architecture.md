@@ -80,6 +80,30 @@ question never costs a network call per card. Download mechanics
 `WallpaperStore.fetchSession` is an **instance** property, not shared/static,
 specifically so tests can stub it without any risk from parallel test runs.
 
+Two real bugs only surfaced by testing the actual running `.app`, not `swift
+test` (2026-09-29) — worth recording so the next feature that talks to a
+server doesn't repeat either:
+1. **`library` loads asynchronously**; `WallpaperView` can render before it
+   has. The first fetch attempt then fails ("no server" — really "no catalog
+   yet") and, without help, never retries: `.task(id:)` only reruns when its
+   id changes, and the wallpaper's id doesn't. Fixed by adding
+   `hasLoadedLibrary` and folding it into the task's id
+   (`"\(id)#\(hasLoadedLibrary)"`), so the flag flipping true counts as a
+   new id and forces a retry with real data.
+2. **A successful fetch alone doesn't make the view redraw.** It only
+   touches `libraryCopies`, deliberately `@ObservationIgnored` for grid-scroll
+   performance; `libraryURL(id)`'s file-exists check is a raw `FileManager`
+   read Observation can't see either. Fixed by reading `fetches[id]` inside
+   the view (even where its value isn't otherwise used) purely to establish
+   the Observation dependency, since `fetches` is set then cleared around
+   every real fetch attempt.
+3. **App Transport Security blocks plain HTTP by default in a real app
+   bundle** — `swift test`'s executable isn't subject to the same
+   enforcement, so this looked fine right up until it ran as `.app`.
+   `Resources/Info.plist` now carries one `NSExceptionDomains` entry, scoped
+   to the server's exact address, not a blanket `NSAllowsArbitraryLoads`
+   (that would weaken every other request the app makes).
+
 ## How a scene becomes a wallpaper
 ```
 scene.pkg ─▶ an MP4 inside?  ─yes─▶ extract (a real video)

@@ -41,5 +41,23 @@
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <!-- Plain HTTP, for exactly one address: the personal Tailscale-only
+         home server WallpaperStore.fetchLibraryVideo talks to. Tailscale
+         already encrypts that connection at its own layer; this is not a
+         general "allow insecure loads" exception (that would weaken every
+         other network request the app makes), it's scoped to this one host. -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <key>100.71.191.101</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+                <key>NSIncludesSubdomains</key>
+                <false/>
+            </dict>
+        </dict>
+    </dict>
 </dict>
 </plist>

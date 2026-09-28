@@ -369,6 +369,14 @@ struct WallpaperView: View {
             case .video(let name):
                 LoopingVideo(url: services.wallpaper.videoURL(name), isPlaying: isPlaying)
             case .library(let id):
+                // Read even though it's only used in the "missing" branch:
+                // this is what makes SwiftUI re-render once a fetch finishes
+                // (fetches[id] is set, then cleared) and check libraryURL(id)
+                // again. Without it, a background fetch landing the file
+                // wouldn't be noticed — Observation tracks Swift property
+                // reads, not disk state, and libraryURL(id) below is a raw
+                // FileManager check, invisible to it on its own.
+                let fetchProgress = services.wallpaper.fetches[id]
                 // Same player (or, for a still, the same slow motion as a
                 // photo) and the same pausing rules as any other wallpaper.
                 if let url = services.wallpaper.libraryURL(id) {
@@ -380,12 +388,24 @@ struct WallpaperView: View {
                 } else {
                     // Its drive isn't connected, and it isn't on this Mac:
                     // the default art while a fetch from the personal server
-                    // (if one's configured) tries to bring it back. Once that
-                    // lands, libraryURL(id) resolves locally like any other
-                    // wallpaper and this view updates on its own.
-                    ArtView(piece: ArtPiece(style: .aurora, palette: .aurora), animated: true, speed: config.speed,
-                            frameRate: config.frameRate)
-                        .task(id: id) { _ = try? await services.wallpaper.fetchLibraryVideo(id) }
+                    // (if one's configured) tries to bring it back.
+                    //
+                    // Keyed on hasLoadedLibrary, not just id: the very first
+                    // render can happen before the catalog finishes loading
+                    // (it loads asynchronously), and without this the fetch
+                    // would spuriously fail then - "no server", really "no
+                    // catalog yet" - and never retry once real data arrives,
+                    // since .task(id:) only reruns when its id changes.
+                    ZStack(alignment: .bottomTrailing) {
+                        ArtView(piece: ArtPiece(style: .aurora, palette: .aurora), animated: true, speed: config.speed,
+                                frameRate: config.frameRate)
+                        if fetchProgress != nil {
+                            ProgressView().controlSize(.small).padding(20)
+                        }
+                    }
+                    .task(id: "\(id)#\(services.wallpaper.hasLoadedLibrary)") {
+                        _ = try? await services.wallpaper.fetchLibraryVideo(id)
+                    }
                 }
             }
             Color.black.opacity(config.dim)

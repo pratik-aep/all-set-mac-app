@@ -27,9 +27,24 @@ _(overwritten every checkpoint — 2026-09-29, personal-server fetch feature)_
     to the local copies.
   - Server won't sleep (`pmset sleep 0`, found and fixed a config that had
     only been set to 1 minute despite being asked for 0).
-- **The app can now fetch a missing wallpaper back from that server**,
-  proven with a real deleted-and-refetched file (SHA-256 identical), not
-  just a mock:
+- **The app fetches a missing wallpaper back from that server — proven in
+  the real running `.app`, deleting the actual live desktop wallpaper's
+  file and watching it come back on its own (~12s) with no user action.**
+  A first "proof" via `swift test` had missed two real bugs neither the
+  unit tests nor that test caught, because a test executable isn't subject
+  to the same rules as an app bundle:
+  1. `library` loads asynchronously; the very first render can happen
+     before it has, so the first fetch attempt failed ("no server" — really
+     "no catalog yet") and never retried. Fixed: `hasLoadedLibrary` folded
+     into the fetch task's id, so the flag flipping true forces a retry.
+  2. A successful fetch alone didn't make the view redraw — it only touched
+     an `@ObservationIgnored` property. Fixed: the view now reads
+     `fetches[id]` (set/cleared around every attempt) purely to establish
+     the redraw dependency.
+  3. **App Transport Security silently blocked the plain-HTTP request** —
+     enforced for a real app bundle, not for a `swift test` executable.
+     Fixed: one scoped `NSExceptionDomains` entry in `Resources/Info.plist`
+     for exactly the server's address, not a blanket exception.
   - `WallpaperConfig.libraryServerURL` (nil by default — R2 holds exactly as
     verified when it's unset).
   - `WallpaperStore.fetchLibraryVideo(id)`: local/reachable-root check first
@@ -39,18 +54,19 @@ _(overwritten every checkpoint — 2026-09-29, personal-server fetch feature)_
     afterward. Mirrors `AerialCatalog.download`'s shape exactly.
   - `checkServerReachable()`: cached, age-gated probe (mirrors
     `StatusService`), so the Library grid never does a network call per card.
-  - `WallpaperView`'s `.library(id)` case triggers a fetch automatically
-    when a wallpaper is set as active but missing locally; `LibraryTile`
-    shows "Fetch from Server" instead of "Drive Not Connected" when the
-    server can help.
+  - `LibraryTile` shows "Fetch from Server" instead of "Drive Not
+    Connected" when the server can help.
   - **Deliberately not built yet:** any way to actually delete a local copy
     to free space. That's the natural next step now this is proven, not
     bundled in — agreed with the user before starting.
-- 210 tests pass (3 new: already-local skips the network, a successful
-  fetch lands at the right path with the right bytes, a failing server
-  throws and leaves no partial file — all against a stubbed `URLProtocol`,
-  serialized so parallel test runs can't stomp the shared stub). 0
-  warnings, Dock app rebuilt and relaunched.
+  - Also found and fixed while proving this: 70 wallpapers' real playback
+    files live in `extracted/`/`transcoded/`, which `push_wallpapers.sh`
+    had wrongly excluded as "pipeline scratch" — they're not, for these.
+    Pushed (7.9 GB); server backup is now genuinely complete (5/5 folders).
+- 211 tests pass (4 new — 3 against a stubbed `URLProtocol`, serialized so
+  parallel runs can't stomp the shared stub, plus one confirming
+  `hasLoadedLibrary` starts false and flips exactly once). 0 warnings, Dock
+  app rebuilt and relaunched.
 
 ### Files touched this checkpoint
 - `Sources/AllSetCore/Wallpaper/WallpaperStore.swift` — `libraryServerURL`,
@@ -61,14 +77,20 @@ _(overwritten every checkpoint — 2026-09-29, personal-server fetch feature)_
 - `Sources/AllSet/Wallpaper/WallpaperPages.swift` — `LibraryTile`/
   `LibrarySection` messaging for "recoverable from server" vs. truly gone.
 - `Tests/AllSetCoreTests/WallpaperLibraryTests.swift` — `StubURLProtocol`,
-  `LibraryServerFetchTests`.
-- `scripts/cloud/tunnel.sh`, `push_wallpapers.sh`, `sync_catalog.py`,
-  `schema.sql` — the server-side half of this (all from earlier this
-  session, now proven, not just written).
-- `Documentation/architecture.md`, `report.md` — this feature, decisions.
-- Two live, outside-the-repo changes with no commit: `wallpaper.json` now
-  has the real `libraryServerURL` set; one wallpaper's local copy was
-  deleted-then-refetched as the real proof (back where it started).
+  `LibraryServerFetchTests`, `hasLoadedLibraryStartsFalseAndFlipsOnceLoaded`.
+- `Resources/Info.plist` — the scoped ATS exception.
+- `scripts/cloud/push_wallpapers.sh` — now also sends `extracted/`/
+  `transcoded/`; corrected the comment that called them pure scratch.
+- `scripts/cloud/tunnel.sh`, `sync_catalog.py`, `schema.sql` — the rest of
+  the server-side half (from earlier this session, now proven, not just
+  written).
+- `Documentation/architecture.md`, `report.md` — this feature, decisions,
+  the three bugs found testing the real app.
+- Live, outside-the-repo changes with no commit: `wallpaper.json` has the
+  real `libraryServerURL`; the server now also holds `extracted/`+
+  `transcoded/` (7.9 GB); the live desktop wallpaper's file was
+  deleted-then-auto-refetched as the real proof (back where it started,
+  confirmed byte-identical).
 
 ### Known issues / blockers
 - **Pre-existing ~700 items from the other two source folders** still lack
@@ -152,3 +174,12 @@ Result: no code changes needed; docs now agree with reality.
   Proven with a real delete-then-refetch (SHA-256 identical), not a mock.
   210 tests pass (3 new, stubbed URLProtocol, serialized). Delete-to-free-
   space deliberately not built yet, by agreement.
+- Server-fetch feature proven in the real .app, not just swift test - found
+  and fixed 3 real bugs invisible to the test suite: async library-load race
+  (task never retried), a successful fetch not triggering a redraw
+  (observed an ignored property), and App Transport Security silently
+  blocking plain HTTP in a real bundle. Also found extracted/+transcoded/
+  (70 wallpapers' real playback files, 7.9GB) were missing from the server
+  backup entirely - pushed, now complete. Deleted the live desktop
+  wallpaper's actual file and watched the running app recover it in ~12s,
+  byte-identical. 211 tests pass, 0 warnings.
