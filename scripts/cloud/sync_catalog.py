@@ -23,8 +23,18 @@ import csv
 import io
 import json
 import os
+import socket
 import subprocess
 import sys
+import urllib.parse
+
+
+def tunnel_is_open(port=5432):
+    """Whether anything is listening locally: without the tunnel, the sync
+    would either fail or, worse, write to a local Postgres instead."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.settimeout(0.5)
+        return probe.connect_ex(("127.0.0.1", port)) == 0
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PSQL = "/opt/homebrew/bin/psql" if os.path.exists("/opt/homebrew/bin/psql") else "psql"
@@ -44,6 +54,24 @@ def load_env(path):
             key, _, value = line.partition("=")
             env[key.strip()] = value.strip().strip('"').strip("'")
     return env
+
+
+def database_url(env):
+    """The server's database, through the tunnel. The password comes from the
+    login keychain, so it isn't sitting in a readable file; DATABASE_URL in
+    the environment or .env still wins if it's set, for a one-off elsewhere.
+
+    Put it in the keychain once with:
+        security add-generic-password -s allset-postgres -a allset -w '<password>'
+    """
+    if env.get("DATABASE_URL"):
+        return env["DATABASE_URL"]
+    found = subprocess.run(["security", "find-generic-password", "-s", "allset-postgres", "-a", "allset", "-w"],
+                           capture_output=True, text=True)
+    if found.returncode != 0:
+        return None
+    password = found.stdout.strip()
+    return f"postgres://allset:{urllib.parse.quote(password, safe='')}@localhost:5432/allset"
 
 
 def pg_array(values):
@@ -73,9 +101,13 @@ def row_for(item):
 
 def main():
     env = load_env(os.path.join(HERE, ".env"))
-    url = env.get("DATABASE_URL")
+    url = database_url(env)
     if not url:
-        sys.exit("No DATABASE_URL. Put it in scripts/cloud/.env (gitignored) — see this file's docstring.")
+        sys.exit("No database password in the keychain, and no DATABASE_URL set.\n"
+                 "    security add-generic-password -s allset-postgres -a allset -w '<password>'")
+    if not tunnel_is_open():
+        sys.exit("Nothing is listening on localhost:5432 — open the tunnel first:\n"
+                 "    scripts/cloud/tunnel.sh")
 
     library = env.get("ALLSET_LIBRARY") or os.path.expanduser(
         "~/Library/Application Support/AllSet/Wallpaper/Library")
