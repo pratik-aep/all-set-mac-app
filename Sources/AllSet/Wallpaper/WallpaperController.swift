@@ -378,9 +378,14 @@ struct WallpaperView: View {
                         LoopingVideo(url: url, isPlaying: isPlaying)
                     }
                 } else {
-                    // Its drive isn't connected: the default art until it is.
+                    // Its drive isn't connected, and it isn't on this Mac:
+                    // the default art while a fetch from the personal server
+                    // (if one's configured) tries to bring it back. Once that
+                    // lands, libraryURL(id) resolves locally like any other
+                    // wallpaper and this view updates on its own.
                     ArtView(piece: ArtPiece(style: .aurora, palette: .aurora), animated: true, speed: config.speed,
                             frameRate: config.frameRate)
+                        .task(id: id) { _ = try? await services.wallpaper.fetchLibraryVideo(id) }
                 }
             }
             Color.black.opacity(config.dim)

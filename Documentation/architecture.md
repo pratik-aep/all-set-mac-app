@@ -4,7 +4,7 @@ _Living document. The moment implementation forces a deviation, this file is
 updated in the same checkpoint and the deviation is logged in `report.md`.
 Code and docs are never allowed to disagree._
 
-_Last updated: 2026-09-28 (particles, refraction, keyframe offsets, duplicate removal)._
+_Last updated: 2026-09-29 (fetch from a personal server when missing locally)._
 
 ## Stack, and why
 | Piece | Choice | Why |
@@ -59,6 +59,26 @@ Decoding is deliberately tolerant: one unreadable entry is skipped, not fatal.
 `canPlay` mirrors this without touching the disk, so grid cards never stat files.
 After `--self-contained` every item has step 1, so step 2 is dead weight kept
 only for a library imported without copying.
+
+### Fetching from a personal server (optional, off by default)
+`config.libraryServerURL` is nil unless a person sets it — with no server
+configured, R2 holds exactly as verified (nothing but this Mac, ever). Set
+(2026-09-29, one person's own Tailscale-only home server, no dedicated
+settings UI yet), it adds one more fallback *after* step 3 above:
+`WallpaperView`'s `.library(id)` case runs `.task(id: id) {
+fetchLibraryVideo(id) }` alongside its existing fallback to default art, so a
+wallpaper missing from this Mac (deleted, or a future deliberate "free up
+space" action, not yet built) is fetched once and cached at the *same*
+relative path (`live/<id>.mp4`…) it lives at locally — every other
+resolution method sees it exactly like a normal local copy afterward, no
+second code path to keep in sync. `WallpaperStore.checkServerReachable()`
+follows `StatusService`'s cached, age-gated probe shape (`Sources/AllSetCore/
+Developer/StatusService.swift`) so the Library grid's "can this play"
+question never costs a network call per card. Download mechanics
+(`URLSessionDownloadTask`, presence-check first, progress polled into an
+`@Observable` dict) follow `AerialCatalog.download` exactly.
+`WallpaperStore.fetchSession` is an **instance** property, not shared/static,
+specifically so tests can stub it without any risk from parallel test runs.
 
 ## How a scene becomes a wallpaper
 ```
@@ -128,6 +148,8 @@ is made by looking. Applied with `wallpaper_library.py remove-duplicates`.
 ## Design decisions, and what was rejected
 | Decision | Rejected alternative | Why |
 |---|---|---|
+| Fetch-and-cache only this checkpoint; no "delete local copy to free space" action yet | Build both together | Deleting locally is only safe once fetching back is proven; building it before that proof would let disk-freeing ship ahead of its own safety net. |
+| `fetchSession` as an instance property | A shared `static` session (like the rest of this file's `static let` conveniences) | A test stubbing a shared static risks a concurrently-running sibling test's session changing underneath it; per-instance costs nothing since one `WallpaperStore` already exists per test and per running app. |
 | Bake motion to a video at import | Animate layers live with Core Animation | 22 layers × 4K RGBA ≈ 730 MB of memory and per-frame GPU compositing; hardware HEVC decode is cheaper and needs no new app code. |
 | Run the scene's own shaders | Whole-layer sine slides (the previous version); hand-port one version per effect to Metal; translate with glslang + SPIRV-Cross | Slides invented motion and ignored masks. A hand-port renders every other shader version wrong. Translation adds two dependencies. Running the shipped GLSL is faithful to every version. |
 | Keep a still unless motion is measured, locally | Whole-frame average (the previous gate) | Faithful motion is often local (rain on a puddle, a swinging lamp); a whole-frame average called those still. Noise floor of a static picture: 0.33; threshold 1.0. |

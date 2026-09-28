@@ -199,3 +199,98 @@ import Testing
         }
     }
 }
+
+/// A request handler installed per test, so `StubURLProtocol` never has to
+/// guess which test it's answering for.
+private final class StubURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var handler: ((URLRequest) -> (status: Int, body: Data?))?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let handler = Self.handler, let url = request.url else {
+            client?.urlProtocol(self, didFailWithError: URLError(.unknown))
+            return
+        }
+        let (status, body) = handler(request)
+        let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        if let body { client?.urlProtocol(self, didLoad: body) }
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+/// `.serialized`: every test here points the shared `StubURLProtocol.handler`
+/// at its own behaviour, which a concurrently-running sibling would stomp on.
+@Suite(.serialized) struct LibraryServerFetchTests {
+    /// A store with one catalog entry that has no local copy and no
+    /// reachable source root, plus a server configured to answer over a
+    /// stubbed session — everything the fetch path actually needs, nothing
+    /// it doesn't.
+    @MainActor private func missingLibraryVideo(relative: String = "live/f1.mp4") async throws -> (store: WallpaperStore, id: String) {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("wallpaper-\(UUID())")
+        let store = WallpaperStore(directory: home)
+        let id = "f1"
+        let catalog: [String: Any] = [
+            "version": 1, "roots": [],
+            "items": [["id": id, "title": "Fetchable", "category": "games", "root": "gone", "file": "1/f1.mp4",
+                      "playback": relative]],
+        ]
+        try FileManager.default.createDirectory(at: store.libraryDirectory, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: catalog).write(to: store.libraryDirectory.appendingPathComponent("catalog.json"))
+        store.reloadLibrary()
+        for _ in 0..<100 where store.library.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+        store.config.libraryServerURL = "http://stub.invalid"
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        store.fetchSession = URLSession(configuration: configuration)
+        return (store, id)
+    }
+
+    @MainActor @Test func alreadyLocalNeverTouchesTheNetwork() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        // No handler installed: any network attempt fails loudly, not silently.
+        StubURLProtocol.handler = nil
+        let relative = "live/f1.mp4"
+        try FileManager.default.createDirectory(at: store.libraryDirectory.appendingPathComponent("live"), withIntermediateDirectories: true)
+        try Data("already here".utf8).write(to: store.libraryDirectory.appendingPathComponent(relative))
+        let url = try await store.fetchLibraryVideo(id)
+        #expect(url.path == store.libraryDirectory.appendingPathComponent(relative).path)
+    }
+
+    @MainActor @Test func fetchesAndCachesInTheSameRelativePath() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        let bytes = Data("stub-video-bytes".utf8)
+        StubURLProtocol.handler = { request in
+            #expect(request.url?.absoluteString == "http://stub.invalid/live/f1.mp4")
+            return (200, bytes)
+        }
+        let video = try #require(store.libraryVideo(id))
+        #expect(!store.canPlay(video))
+
+        let url = try await store.fetchLibraryVideo(id)
+
+        #expect(url.path == store.libraryDirectory.appendingPathComponent("live/f1.mp4").path)
+        #expect(try Data(contentsOf: url) == bytes)
+        #expect(store.canPlay(video))
+        // Ordinary resolution finds it now too, with no server involved.
+        #expect(store.libraryURL(id) == url)
+    }
+
+    @MainActor @Test func unreachableServerThrowsAndLeavesNoPartialFile() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        StubURLProtocol.handler = { _ in (500, nil) }
+
+        await #expect(throws: (any Error).self) {
+            try await store.fetchLibraryVideo(id)
+        }
+
+        let destination = store.libraryDirectory.appendingPathComponent("live/f1.mp4")
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let video = try #require(store.libraryVideo(id))
+        #expect(!store.canPlay(video))
+    }
+}

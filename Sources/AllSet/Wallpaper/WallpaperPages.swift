@@ -352,6 +352,14 @@ private struct LibrarySection: View {
                           systemImage: "externaldrive.badge.exclamationmark")
                         .foregroundStyle(.orange)
                 }
+                if store.config.libraryServerURL != nil, store.serverReachable == false {
+                    let recoverable = waiting.filter { $0.playback != nil || $0.still != nil }
+                    if !recoverable.isEmpty {
+                        Label("Personal server isn't reachable right now. \(recoverable.count) wallpaper\(recoverable.count == 1 ? "" : "s") that rely on it won't play until it is.",
+                              systemImage: "wifi.slash")
+                            .foregroundStyle(.orange)
+                    }
+                }
                 HStack(spacing: 8) {
                     TextField("Search your library", text: $query)
                         .textFieldStyle(.roundedBorder)
@@ -374,6 +382,7 @@ private struct LibrarySection: View {
                     }
                 }
             }
+            .task { store.checkServerReachable() }
         }
     }
 
@@ -412,6 +421,10 @@ private struct LibraryTile: View {
 
     var body: some View {
         let playable = store.canPlay(video)
+        // Not local and no drive for it, but the personal server might still
+        // have it: worth trying rather than calling it unplayable outright.
+        let onServer = !playable && store.config.libraryServerURL != nil
+            && (video.playback != nil || video.still != nil) && store.serverReachable != false
         Color.clear
             .aspectRatio(16 / 9, contentMode: .fit)
             .overlay {
@@ -477,13 +490,14 @@ private struct LibraryTile: View {
                     .font(.caption.weight(.semibold))
                     if isHovering {
                         Button(action: onUse) {
-                            Label(isCurrent ? "Current" : playable ? "Set as Wallpaper" : "Drive Not Connected",
+                            Label(isCurrent ? "Current" : playable ? "Set as Wallpaper"
+                                  : onServer ? "Fetch from Server" : "Drive Not Connected",
                                   systemImage: "photo.artframe")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
-                        .disabled(isCurrent || !playable)
+                        .disabled(isCurrent || !(playable || onServer))
                     }
                 }
                 .foregroundStyle(.white)

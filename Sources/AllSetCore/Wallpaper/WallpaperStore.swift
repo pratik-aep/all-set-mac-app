@@ -55,6 +55,11 @@ public struct WallpaperConfig: Codable, Equatable, Sendable {
     /// System wallpapers from before All Set changed them, by screen name, so
     /// turning the live wallpaper off can put them back.
     public var originalWallpapers: [String: URL] = [:]
+    /// A personal server holding a backup of the library's `live/`, `stills/`
+    /// and `thumbnails/` folders (e.g. a Tailscale address), so a wallpaper
+    /// missing locally can be fetched back instead of falling back to art.
+    /// Nil: no server configured, missing means missing.
+    public var libraryServerURL: String?
 
     public init() {}
 
@@ -72,6 +77,7 @@ public struct WallpaperConfig: Codable, Equatable, Sendable {
         pauseWhenCovered = (try? container.decodeIfPresent(Bool.self, forKey: .pauseWhenCovered)) ?? defaults.pauseWhenCovered
         matchSystemWallpaper = (try? container.decodeIfPresent(Bool.self, forKey: .matchSystemWallpaper)) ?? defaults.matchSystemWallpaper
         originalWallpapers = (try? container.decodeIfPresent([String: URL].self, forKey: .originalWallpapers)) ?? [:]
+        libraryServerURL = try? container.decodeIfPresent(String.self, forKey: .libraryServerURL)
     }
 }
 
@@ -91,6 +97,26 @@ public final class WallpaperStore {
     @ObservationIgnored private var libraryIndex: [String: Int] = [:]
     /// Ids whose converted copy is on disk, checked once when the catalog loads.
     @ObservationIgnored private var libraryCopies: Set<String> = []
+
+    /// Fetches from `config.libraryServerURL` under way, fraction done by id.
+    public private(set) var fetches: [String: Double] = [:]
+    /// Whether `config.libraryServerURL` answered recently. Nil: not checked
+    /// yet. Checked at most once per `Self.reachabilityMaxAge`, however many
+    /// callers ask, same shape as `StatusService`.
+    public private(set) var serverReachable: Bool?
+    @ObservationIgnored private var serverCheckedAt: Date?
+    @ObservationIgnored private var serverCheckInFlight = false
+    @ObservationIgnored private var fetchTasks: [String: URLSessionDownloadTask] = [:]
+    @ObservationIgnored private static let reachabilityMaxAge: TimeInterval = 30
+    /// Instance, not static: each `WallpaperStore` (one per test, one in the
+    /// running app) gets its own session, so a test can point it at a stub
+    /// without any risk of a concurrently-running test's session changing
+    /// underneath it.
+    @ObservationIgnored var fetchSession: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 8
+        return URLSession(configuration: configuration)
+    }()
 
     @ObservationIgnored private let fileURL: URL
     @ObservationIgnored public let directory: URL
@@ -195,6 +221,84 @@ public final class WallpaperStore {
 
     public func libraryThumbnailURL(_ video: LibraryVideo) -> URL? {
         video.thumbnail.map { libraryDirectory.appendingPathComponent($0) }
+    }
+
+    /// Whether `config.libraryServerURL` answered recently enough to trust,
+    /// checked at most once per `reachabilityMaxAge` no matter how many
+    /// callers ask (same shape as `StatusService.checkIfNeeded`).
+    public func checkServerReachable() {
+        guard let base = config.libraryServerURL, let url = URL(string: base) else {
+            serverReachable = nil
+            return
+        }
+        if let checked = serverCheckedAt, Date.now.timeIntervalSince(checked) < Self.reachabilityMaxAge { return }
+        guard !serverCheckInFlight else { return }
+        serverCheckInFlight = true
+        Task {
+            defer { serverCheckInFlight = false }
+            var request = URLRequest(url: url)
+            request.httpMethod = "HEAD"
+            let reachable: Bool
+            if let (_, response) = try? await fetchSession.data(for: request),
+               let code = (response as? HTTPURLResponse)?.statusCode {
+                reachable = (200..<400).contains(code)
+            } else {
+                reachable = false
+            }
+            serverReachable = reachable
+            serverCheckedAt = .now
+        }
+    }
+
+    public enum LibraryFetchError: Error { case noServer, alreadyFetching }
+
+    /// Fetches a library video's file from `config.libraryServerURL` into the
+    /// same relative path it lives at locally, so every other resolution
+    /// method (`libraryURL`, `canPlay`) sees it exactly like a normal local
+    /// copy afterward. Returns immediately, without touching the network, if
+    /// it's already local or its source root is reachable.
+    @discardableResult
+    public func fetchLibraryVideo(_ id: String) async throws -> URL {
+        if let url = libraryURL(id) { return url }
+        guard let video = libraryVideo(id), let relative = video.playback ?? video.still,
+              let base = config.libraryServerURL, let root = URL(string: base) else {
+            throw LibraryFetchError.noServer
+        }
+        guard fetchTasks[id] == nil else { throw LibraryFetchError.alreadyFetching }
+        let remote = root.appendingPathComponent(relative)
+        let destination = libraryDirectory.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        fetches[id] = 0
+        defer { fetches[id] = nil; fetchTasks[id] = nil }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let task = fetchSession.downloadTask(with: remote) { temporary, response, error in
+                // The temporary file is gone once this returns, so move it now.
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let temporary, (response as? HTTPURLResponse)?.statusCode == 200 {
+                    do {
+                        try? FileManager.default.removeItem(at: destination)
+                        try FileManager.default.moveItem(at: temporary, to: destination)
+                        continuation.resume()
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                } else {
+                    continuation.resume(throwing: URLError(.badServerResponse))
+                }
+            }
+            fetchTasks[id] = task
+            task.resume()
+            Task { [weak self] in
+                while task.state == .running {
+                    self?.fetches[id] = task.progress.fractionCompleted
+                    try? await Task.sleep(for: .milliseconds(250))
+                }
+            }
+        }
+        libraryCopies.insert(id)
+        guard let result = libraryURL(id) else { throw LibraryFetchError.noServer }
+        return result
     }
 
     /// Takes a library wallpaper out for good: deletes this Mac's own copies

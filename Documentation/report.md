@@ -6,79 +6,91 @@ log; it never needs reading in full.
 ---
 
 ## CURRENT STATE
-_(overwritten every checkpoint — 2026-09-29, fourth dataset + quality pass)_
+_(overwritten every checkpoint — 2026-09-29, personal-server fetch feature)_
 
 ### Working right now (verified only)
 - **1164 wallpapers — 1006 live, 158 stills**, self-contained on this Mac
-  (~12 GB of actual playback assets in `live/`+`stills/`+`thumbnails/`;
-  `originals/` and pipeline scratch aren't needed to play one).
-- **Fourth source folder merged** ("all_set_mac" on a new drive, "Nithin J"):
-  371/374 scenes, 94/96 plain videos, 465 wallpapers added. Every one of the
-  480 workshop items on the drive is now either imported or has a logged
-  reason (see next point) — checked directly against the raw folder, not
-  assumed from the import log.
-- **R1 gap fixed:** a workshop item with no video and no scene package (an
-  interactive HTML/JS wallpaper — a puzzle game, generative art, a 3D
-  interactive model) fell through every pass silently, with nothing logged.
-  Found by checking "is everything from the drive actually here" against the
-  raw folder. Now every non-scene item either imports or gets a skip reason;
-  10 such items on this dataset now correctly recorded as unsupported
-  (interactive wallpapers, a documented non-goal).
-- **New quality check: blank/broken renders.** The 45 near-duplicates this
-  import flagged turned out to be mostly false positives (dark thumbnails
-  colliding on a simple hash) — but checking them by eye surfaced 11 scenes
-  that render solid black or near-blank (something they depend on, usually a
-  3D model, isn't carried). Removed from the library and recorded in
-  `removed.json`. Added `is_blank()` to `import_scene`: a still is measured
-  after rendering and rejected with a reason if it's uniformly near-black or
-  near-white, instead of being delivered as an empty wallpaper. Threshold
-  (mean 0.3 of a 32x18 greyscale downscale) picked from real examples: the
-  darkest confirmed-legitimate art measured 0.38, the lightest
-  confirmed-blank measured 0.19. `SCENE_RENDERER` bumped to 10 so a future
-  re-import of any folder re-checks under this rule rather than trusting an
-  old cached result.
-- **User-delete feature verified for real**, not just by test: an item
-  deleted from the app last checkpoint (`3633951606`) came up in this
-  content-matching drive as a duplicate and was correctly skipped on
-  re-import — `removed.json` is doing its job end to end.
-- **Loop crossfade bug fixed** (previous checkpoint) applies to every scene
-  rendered in *this* import. It does **not** yet apply to the pre-existing
-  ~753 items from the other two source folders — `import <folder>` only
-  re-renders scenes physically present in the folder it's given, not the
-  whole catalog. Confirmed by reading the code, not assumed.
-- 207 tests pass, 0 warnings, Dock app rebuilt and relaunched.
+  (~12 GB of actual playback assets in `live/`+`stills/`+`thumbnails/`).
+  Fourth source folder merged this session (465 new); an R1 gap (silently
+  dropped interactive wallpapers) and 11 blank/broken scene renders were
+  found and fixed — see HISTORY for detail, not repeated here.
+- **A personal home server is fully stood up and proven, end to end:**
+  a second Mac, reachable only over Tailscale (never the public internet).
+  - Postgres (`allset` db) holds a full copy of the catalog metadata —
+    1164/1164 rows verified, reachable only through an SSH tunnel
+    (`scripts/cloud/tunnel.sh`), password in this Mac's Keychain, synced
+    with `scripts/cloud/sync_catalog.py` (one-way, run by hand after real
+    changes — not automatic).
+  - Caddy serves the actual files (`live/`, `stills/`, `thumbnails/`, 12.2
+    GB, 2611 files) at `http://100.71.191.101:8080/`, plain HTTP (Tailscale
+    already encrypts the transport), verified reachable and byte-identical
+    to the local copies.
+  - Server won't sleep (`pmset sleep 0`, found and fixed a config that had
+    only been set to 1 minute despite being asked for 0).
+- **The app can now fetch a missing wallpaper back from that server**,
+  proven with a real deleted-and-refetched file (SHA-256 identical), not
+  just a mock:
+  - `WallpaperConfig.libraryServerURL` (nil by default — R2 holds exactly as
+    verified when it's unset).
+  - `WallpaperStore.fetchLibraryVideo(id)`: local/reachable-root check first
+    (never touches the network when it doesn't need to), else downloads
+    from the server into the *same relative path* it lives at locally, so
+    every other resolution method sees it as an ordinary local file
+    afterward. Mirrors `AerialCatalog.download`'s shape exactly.
+  - `checkServerReachable()`: cached, age-gated probe (mirrors
+    `StatusService`), so the Library grid never does a network call per card.
+  - `WallpaperView`'s `.library(id)` case triggers a fetch automatically
+    when a wallpaper is set as active but missing locally; `LibraryTile`
+    shows "Fetch from Server" instead of "Drive Not Connected" when the
+    server can help.
+  - **Deliberately not built yet:** any way to actually delete a local copy
+    to free space. That's the natural next step now this is proven, not
+    bundled in — agreed with the user before starting.
+- 210 tests pass (3 new: already-local skips the network, a successful
+  fetch lands at the right path with the right bytes, a failing server
+  throws and leaves no partial file — all against a stubbed `URLProtocol`,
+  serialized so parallel test runs can't stomp the shared stub). 0
+  warnings, Dock app rebuilt and relaunched.
 
 ### Files touched this checkpoint
-- `scripts/wallpaper_library.py` — `is_blank()` + rejection in
-  `import_scene`; the R1 skip-logging pass for orphaned workshop items;
-  `SCENE_RENDERER` 9 → 10.
-- `Documentation/spec.md`, `report.md` — current numbers, findings.
-- The 11 blank items' removal is a live-library data change (`catalog.json`,
-  `removed.json`, outside the repo), not a code change — no commit carries it.
+- `Sources/AllSetCore/Wallpaper/WallpaperStore.swift` — `libraryServerURL`,
+  `fetchLibraryVideo`, `checkServerReachable`, `fetchSession` (instance
+  property, deliberately not `static` — see architecture.md).
+- `Sources/AllSet/Wallpaper/WallpaperController.swift` — fetch trigger in
+  `WallpaperView`'s `.library` case.
+- `Sources/AllSet/Wallpaper/WallpaperPages.swift` — `LibraryTile`/
+  `LibrarySection` messaging for "recoverable from server" vs. truly gone.
+- `Tests/AllSetCoreTests/WallpaperLibraryTests.swift` — `StubURLProtocol`,
+  `LibraryServerFetchTests`.
+- `scripts/cloud/tunnel.sh`, `push_wallpapers.sh`, `sync_catalog.py`,
+  `schema.sql` — the server-side half of this (all from earlier this
+  session, now proven, not just written).
+- `Documentation/architecture.md`, `report.md` — this feature, decisions.
+- Two live, outside-the-repo changes with no commit: `wallpaper.json` now
+  has the real `libraryServerURL` set; one wallpaper's local copy was
+  deleted-then-refetched as the real proof (back where it started).
 
 ### Known issues / blockers
-- **Pre-existing library still has the crossfade flash bug** (and never had
-  the blank-render check). Fixing both needs either the old "KALI LINUX"
-  drive reconnected (currently unmounted) to re-run `import` against it, or
-  a new code path that re-renders straight from this Mac's own `originals/`
-  copies instead of an external drive. Neither started yet.
-- The remaining ~34 near-duplicate flags (of 45) are titles that look
-  genuinely unrelated and likely share nothing but a similarly-dark
-  thumbnail — not reviewed one by one past the sample checked this
-  checkpoint. Low suspicion, not zero.
+- **Pre-existing ~700 items from the other two source folders** still lack
+  both the crossfade fix and the blank-render check (see prior HISTORY).
+  Needs the old "KALI LINUX" drive reconnected, or a new code path that
+  re-renders from this Mac's own `originals/` copies.
+- The remaining ~34 (of 45) near-duplicate flags from the fourth-dataset
+  import weren't reviewed past the sample checked last checkpoint.
+- `WallpaperConfig.libraryServerURL` has no settings UI — set once, by hand,
+  directly in `wallpaper.json`. Fine for one person, one server; would need
+  real UI before this could ever be anything else.
+- The SSH key used for the tunnel/push has no passphrase (needed for
+  unattended sync) — anyone with disk access to this Mac could use it.
 - Not carried: SceneScript code, particle turbulence/vortex/mouse
   attraction, event-spawned child particles, text, 3D models, audio input,
   ~30 cosmetic effects in HLSL-only syntax; all reported per scene.
-- Engine particle sprites are generated stand-ins by family (documented).
 
 ### Next step
-Cloud sync groundwork is in progress in parallel (Postgres + object-storage
-accounts being created by the user; schema and sync script already written
-in `scripts/cloud/`, untested — no credentials yet; a secondary Mac as a
-self-hosted alternative was also raised, connection details not yet in
-hand). Awaiting the user for which to do first: hand over the secondary
-Mac's connection details, re-render the pre-existing library under the
-fixed renderer, or continue the cloud-sync setup.
+Awaiting the user: build the actual "delete a local copy to free space"
+action (now safe to, with fetch proven), re-render the pre-existing library
+under the fixed renderer, review the remaining near-duplicate flags, or
+something else entirely.
 
 ---
 
@@ -131,3 +143,12 @@ Result: no code changes needed; docs now agree with reality.
   solid black or near-blank (3D-model dependency, usually); 11 already-blank
   items removed by hand after eye-checking the near-duplicate flags; 1164
   total (1006 live/158 stills); SCENE_RENDERER 9->10
+- Personal home server stood up and fully proven: Tailscale + SSH key auth,
+  Postgres metadata sync (1164 rows) via tunnel + Keychain password, Caddy
+  serving 12.2GB/2611 files verified byte-identical, server sleep bug found
+  and fixed. App-side fetch built: WallpaperStore.fetchLibraryVideo mirrors
+  AerialCatalog's download shape, checkServerReachable mirrors StatusService,
+  wired into WallpaperView's .library case and LibraryTile's messaging.
+  Proven with a real delete-then-refetch (SHA-256 identical), not a mock.
+  210 tests pass (3 new, stubbed URLProtocol, serialized). Delete-to-free-
+  space deliberately not built yet, by agreement.
