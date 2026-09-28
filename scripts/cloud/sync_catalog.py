@@ -7,10 +7,17 @@ rows instead of duplicating them.
 
 Needs `psql` (already on this Mac via Homebrew) and a `.env` file next to
 this script with:
-    DATABASE_URL=postgres://user:pass@host/dbname
+    DATABASE_URL=postgres://allset:PASSWORD@localhost:5432/allset
 
-Usage:
+The home server's Postgres is bound to localhost there, so "localhost" in
+that URL means the server's database only while the SSH tunnel is open:
+
+    scripts/cloud/tunnel.sh      # in one terminal, leave it running
     /usr/bin/python3 scripts/cloud/sync_catalog.py
+
+Run scripts/cloud/tunnel.sh --check if you're unsure the tunnel is up. A
+local Postgres listening on 5432 would silently take its place, so the
+tunnel script refuses to start when the port is already busy.
 """
 import csv
 import io
