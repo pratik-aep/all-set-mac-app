@@ -90,19 +90,46 @@ server doesn't repeat either:
    `hasLoadedLibrary` and folding it into the task's id
    (`"\(id)#\(hasLoadedLibrary)"`), so the flag flipping true counts as a
    new id and forces a retry with real data.
-2. **A successful fetch alone doesn't make the view redraw.** It only
-   touches `libraryCopies`, deliberately `@ObservationIgnored` for grid-scroll
-   performance; `libraryURL(id)`'s file-exists check is a raw `FileManager`
-   read Observation can't see either. Fixed by reading `fetches[id]` inside
-   the view (even where its value isn't otherwise used) purely to establish
-   the Observation dependency, since `fetches` is set then cleared around
-   every real fetch attempt.
+2. **A successful fetch alone didn't make the view redraw.** It only
+   touched `libraryCopies`, then `@ObservationIgnored`; `libraryURL(id)`'s
+   file-exists check is a raw `FileManager` read Observation can't see
+   either. Fixed by having the view read `fetchProgress(for:)` (backed by
+   `fetches`, set then cleared around every attempt). Since the next
+   checkpoint, `libraryCopies` is observed too — it changes only on load,
+   fetch and offload, so it costs nothing while scrolling, and grid tiles
+   need it to redraw when a copy is freed.
 3. **App Transport Security blocks plain HTTP by default in a real app
    bundle** — `swift test`'s executable isn't subject to the same
    enforcement, so this looked fine right up until it ran as `.app`.
    `Resources/Info.plist` now carries one `NSExceptionDomains` entry, scoped
    to the server's exact address, not a blanket `NSAllowsArbitraryLoads`
    (that would weaken every other request the app makes).
+
+### Freeing space: local copies become optional
+- **Everything is fetched by relative path.** One private
+  `fetch(relative:)` does the download; `fetchLibraryVideo(id)` and
+  `fetchThumbnail(id)` resolve their own path and call it. In-flight work
+  (`fetches`, `fetchTasks`) is keyed by that path, so a wallpaper's video
+  and thumbnail never share a slot. The server mirrors the library's own
+  layout, so the path needs no translation either way.
+- **Thumbnails**: `LibraryTile` fetches one before loading it when it isn't
+  on disk. The grid is lazy, so only tiles on screen ever ask.
+- **`offloadAll(only:)`** deletes this Mac's copy of each playable file
+  (`playback`, plus a live loop's `still`) only after a `HEAD` for that exact
+  path answers 200 **with the same `Content-Length`** — a missing or
+  truncated server copy keeps the local file. 8 checks in flight at once.
+  The catalog and `removed.json` are never touched: an offloaded wallpaper
+  is simply "missing locally", the state already proven to self-heal.
+  Thumbnails (~34 MB total) are deliberately kept, so browsing stays
+  instant and works offline.
+- **Surfaced as "Free Up Space…"** in the Library header (only when a server
+  is configured): an estimate before confirming, per-file progress while
+  checking, freed vs. kept afterward. The header now counts "on this Mac /
+  on your server", and the drive-not-connected banner no longer blames a
+  source drive for wallpapers the server can supply.
+- **Known gap**: hovering a tile doesn't fetch (only setting a wallpaper
+  does), so an offloaded wallpaper shows no motion preview until it's been
+  played once.
 
 ## How a scene becomes a wallpaper
 ```

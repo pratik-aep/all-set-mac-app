@@ -369,14 +369,10 @@ struct WallpaperView: View {
             case .video(let name):
                 LoopingVideo(url: services.wallpaper.videoURL(name), isPlaying: isPlaying)
             case .library(let id):
-                // Read even though it's only used in the "missing" branch:
-                // this is what makes SwiftUI re-render once a fetch finishes
-                // (fetches[id] is set, then cleared) and check libraryURL(id)
-                // again. Without it, a background fetch landing the file
-                // wouldn't be noticed — Observation tracks Swift property
-                // reads, not disk state, and libraryURL(id) below is a raw
-                // FileManager check, invisible to it on its own.
-                let fetchProgress = services.wallpaper.fetches[id]
+                // Read here, not only in the "missing" branch, so a fetch
+                // starting and finishing redraws this view and libraryURL(id)
+                // (a raw file check Observation can't see) is asked again.
+                let fetchProgress = services.wallpaper.fetchProgress(for: id)
                 // Same player (or, for a still, the same slow motion as a
                 // photo) and the same pausing rules as any other wallpaper.
                 if let url = services.wallpaper.libraryURL(id) {

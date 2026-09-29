@@ -314,10 +314,13 @@ private struct LibrarySection: View {
                     && (show == .all || (show == .live) == (video.kind == .video))
             })
             let stills = all.filter { $0.kind == .image }.count
-            // Only the wallpapers that still have nothing on this Mac need the
-            // folder they came from. Once everything has a copy here, an
-            // unplugged drive changes nothing and isn't worth mentioning.
-            let waiting = store.library.filter { !store.canPlay($0) }
+            // Not on this Mac, but the personal server has a copy to fetch.
+            let hasServer = store.config.libraryServerURL != nil
+            let onServer = all.filter { !store.canPlay($0) && hasServer && ($0.playback != nil || $0.still != nil) }
+            // Only the wallpapers with no copy anywhere else need the folder
+            // they came from. Once everything has a copy here or on the
+            // server, an unplugged drive changes nothing.
+            let waiting = all.filter { !store.canPlay($0) && !(hasServer && ($0.playback != nil || $0.still != nil)) }
             let offline = store.libraryRoots.values
                 .filter { root in waiting.contains { $0.root == root.id } }
             VStack(alignment: .leading, spacing: 14) {
@@ -326,9 +329,11 @@ private struct LibrarySection: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Library").font(.title.bold())
                         Text("\(all.count - stills) live, \(stills) stills, "
-                             + (offline.isEmpty && waiting.isEmpty
+                             + (!waiting.isEmpty
+                                ? "from \(store.libraryRoots.values.compactMap(\.label).sorted().joined(separator: ", "))"
+                                : onServer.isEmpty
                                 ? "kept on this Mac"
-                                : "from \(store.libraryRoots.values.compactMap(\.label).sorted().joined(separator: ", "))"))
+                                : "\(all.count - onServer.count) on this Mac, \(onServer.count) on your server"))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -352,13 +357,13 @@ private struct LibrarySection: View {
                           systemImage: "externaldrive.badge.exclamationmark")
                         .foregroundStyle(.orange)
                 }
-                if store.config.libraryServerURL != nil, store.serverReachable == false {
-                    let recoverable = waiting.filter { $0.playback != nil || $0.still != nil }
-                    if !recoverable.isEmpty {
-                        Label("Personal server isn't reachable right now. \(recoverable.count) wallpaper\(recoverable.count == 1 ? "" : "s") that rely on it won't play until it is.",
-                              systemImage: "wifi.slash")
-                            .foregroundStyle(.orange)
-                    }
+                if hasServer, store.serverReachable == false, !onServer.isEmpty {
+                    Label("Personal server isn't reachable right now. \(onServer.count) wallpaper\(onServer.count == 1 ? "" : "s") that rely on it won't play until it is.",
+                          systemImage: "wifi.slash")
+                        .foregroundStyle(.orange)
+                }
+                if hasServer {
+                    FreeUpSpaceRow(store: store)
                 }
                 HStack(spacing: 8) {
                     TextField("Search your library", text: $query)
@@ -400,6 +405,61 @@ private struct LibrarySection: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())
+    }
+}
+
+/// Deletes this Mac's copy of every wallpaper the personal server is
+/// confirmed to hold; each comes back the next time it's played.
+private struct FreeUpSpaceRow: View {
+    let store: WallpaperStore
+
+    @State private var estimate: (files: Int, bytes: Int64) = (0, 0)
+    @State private var confirming = false
+    @State private var result: WallpaperStore.OffloadResult?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if let progress = store.offloadProgress {
+                ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
+                    .frame(width: 160)
+                Text("Checking your server: \(progress.done) of \(progress.total)")
+                    .foregroundStyle(.secondary)
+            } else {
+                Button {
+                    estimate = store.offloadableSpace()
+                    confirming = true
+                } label: {
+                    Label("Free Up Space…", systemImage: "internaldrive")
+                }
+                .disabled(store.serverReachable == false)
+                Text(result.map(Self.summary)
+                     ?? "Wallpapers stay in your library and download again from your server when you use them.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.callout)
+        .confirmationDialog(estimate.files == 0 ? "Nothing to free up" : "Free up \(Self.size(estimate.bytes))?",
+                            isPresented: $confirming, titleVisibility: .visible) {
+            if estimate.files > 0 {
+                Button("Free Up \(Self.size(estimate.bytes))", role: .destructive) {
+                    Task { result = await store.offloadAll() }
+                }
+            }
+            Button(estimate.files == 0 ? "OK" : "Cancel", role: .cancel) {}
+        } message: {
+            Text(estimate.files == 0
+                 ? "Every wallpaper already plays from your server."
+                 : "Each of the \(estimate.files) files is checked on your server first; anything it can't confirm stays on this Mac. Thumbnails stay, so browsing is still instant.")
+        }
+    }
+
+    private static func size(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private static func summary(_ result: WallpaperStore.OffloadResult) -> String {
+        let kept = result.kept.isEmpty ? "" : " \(result.kept.count) kept here: your server couldn't confirm them."
+        return "Freed \(size(result.freedBytes)) (\(result.freedFiles) files).\(kept)"
     }
 }
 
@@ -519,9 +579,15 @@ private struct LibraryTile: View {
                 guard let file = store.libraryThumbnailURL(video) else { return }
                 if let cached = images.cachedThumbnail(at: file, maxPixels: Self.thumbnailPixels) {
                     thumbnail = cached
-                } else {
-                    thumbnail = await images.thumbnail(at: file, maxPixels: Self.thumbnailPixels)
+                    return
                 }
+                // Not on this Mac: bring it back from the personal server
+                // first. Only tiles actually on screen get here (the grid
+                // is lazy), so this never asks for all of them at once.
+                if store.config.libraryServerURL != nil, !FileManager.default.fileExists(atPath: file.path) {
+                    _ = try? await store.fetchThumbnail(video.id)
+                }
+                thumbnail = await images.thumbnail(at: file, maxPixels: Self.thumbnailPixels)
             }
             .help(video.statusReason.map { "\(video.title): personal use (\($0))" } ?? video.title)
     }

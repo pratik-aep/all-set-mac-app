@@ -232,9 +232,12 @@ private final class StubURLProtocol: URLProtocol {
             return
         }
         let (status, body) = handler(request)
-        let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil)!
+        // Like a real file server: a HEAD answers with the file's length and
+        // no body, so a handler just describes the file either way.
+        let headers = body.map { ["Content-Length": "\($0.count)"] }
+        let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        if let body { client?.urlProtocol(self, didLoad: body) }
+        if let body, request.httpMethod != "HEAD" { client?.urlProtocol(self, didLoad: body) }
         client?.urlProtocolDidFinishLoading(self)
     }
 
@@ -255,7 +258,7 @@ private final class StubURLProtocol: URLProtocol {
         let catalog: [String: Any] = [
             "version": 1, "roots": [],
             "items": [["id": id, "title": "Fetchable", "category": "games", "root": "gone", "file": "1/f1.mp4",
-                      "playback": relative]],
+                      "playback": relative, "thumbnail": "thumbnails/f1.jpg"]],
         ]
         try FileManager.default.createDirectory(at: store.libraryDirectory, withIntermediateDirectories: true)
         try JSONSerialization.data(withJSONObject: catalog).write(to: store.libraryDirectory.appendingPathComponent("catalog.json"))
@@ -310,5 +313,116 @@ private final class StubURLProtocol: URLProtocol {
         #expect(!FileManager.default.fileExists(atPath: destination.path))
         let video = try #require(store.libraryVideo(id))
         #expect(!store.canPlay(video))
+    }
+
+    @MainActor @Test func missingThumbnailComesBackFromTheServer() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        let bytes = Data("stub-thumbnail".utf8)
+        StubURLProtocol.handler = { request in
+            #expect(request.url?.absoluteString == "http://stub.invalid/thumbnails/f1.jpg")
+            return (200, bytes)
+        }
+        let url = try await store.fetchThumbnail(id)
+        #expect(url.path == store.libraryDirectory.appendingPathComponent("thumbnails/f1.jpg").path)
+        #expect(try Data(contentsOf: url) == bytes)
+    }
+
+    /// Keyed by relative path, not id: a wallpaper's video and its thumbnail
+    /// can both be on their way at once.
+    @MainActor @Test func videoAndThumbnailFetchesDontCollide() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        StubURLProtocol.handler = { request in (200, Data((request.url?.lastPathComponent ?? "").utf8)) }
+        async let video = store.fetchLibraryVideo(id)
+        async let thumbnail = store.fetchThumbnail(id)
+        let (videoURL, thumbnailURL) = try await (video, thumbnail)
+        #expect(try Data(contentsOf: videoURL) == Data("f1.mp4".utf8))
+        #expect(try Data(contentsOf: thumbnailURL) == Data("f1.jpg".utf8))
+    }
+
+    /// Three local wallpapers: the server holds an identical copy of one, has
+    /// never heard of another, and holds a copy of the third that's the
+    /// wrong size (a truncated upload, say). Only the first may go.
+    @MainActor private func offloadableLibrary() async throws -> WallpaperStore {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("wallpaper-\(UUID())")
+        let store = WallpaperStore(directory: home)
+        let items: [[String: Any]] = ["a", "b", "c"].map { id in
+            ["id": id, "title": id.uppercased(), "category": "games", "root": "gone", "file": "\(id).mp4",
+             "playback": "live/\(id).mp4", "thumbnail": "thumbnails/\(id).jpg"]
+        }
+        let live = store.libraryDirectory.appendingPathComponent("live")
+        let thumbnails = store.libraryDirectory.appendingPathComponent("thumbnails")
+        try FileManager.default.createDirectory(at: live, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: thumbnails, withIntermediateDirectories: true)
+        for id in ["a", "b", "c"] {
+            try Data("\(id)\(id)\(id)\(id)".utf8).write(to: live.appendingPathComponent("\(id).mp4"))
+            try Data("thumb".utf8).write(to: thumbnails.appendingPathComponent("\(id).jpg"))
+        }
+        try JSONSerialization.data(withJSONObject: ["version": 1, "roots": [], "items": items] as [String: Any])
+            .write(to: store.libraryDirectory.appendingPathComponent("catalog.json"))
+        store.reloadLibrary()
+        for _ in 0..<100 where !store.hasLoadedLibrary { try await Task.sleep(for: .milliseconds(20)) }
+        store.config.libraryServerURL = "http://stub.invalid"
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        store.fetchSession = URLSession(configuration: configuration)
+        StubURLProtocol.handler = { request in
+            switch request.url?.lastPathComponent {
+            case "a.mp4": (200, Data("aaaa".utf8))
+            case "c.mp4": (200, Data("cc".utf8))
+            default: (404, nil)
+            }
+        }
+        return store
+    }
+
+    @MainActor @Test func freeingSpaceDeletesOnlyWhatTheServerConfirms() async throws {
+        let store = try await offloadableLibrary()
+        let catalogURL = store.libraryDirectory.appendingPathComponent("catalog.json")
+        let catalogBefore = try Data(contentsOf: catalogURL)
+        #expect(store.offloadableSpace() == (3, 12))
+
+        let result = await store.offloadAll()
+
+        #expect(result.freedFiles == 1)
+        #expect(result.freedBytes == 4)
+        #expect(result.kept.sorted() == ["live/b.mp4", "live/c.mp4"])
+        let live = store.libraryDirectory.appendingPathComponent("live")
+        #expect(!FileManager.default.fileExists(atPath: live.appendingPathComponent("a.mp4").path))
+        #expect(FileManager.default.fileExists(atPath: live.appendingPathComponent("b.mp4").path))
+        #expect(FileManager.default.fileExists(atPath: live.appendingPathComponent("c.mp4").path))
+        // Thumbnails stay, so the grid is still instant.
+        #expect(FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("thumbnails/a.jpg").path))
+        // Still in the library, never removed: only its local copy went.
+        #expect(try Data(contentsOf: catalogURL) == catalogBefore)
+        #expect(!FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("removed.json").path))
+        let a = try #require(store.libraryVideo("a"))
+        #expect(!store.canPlay(a))
+        #expect(store.canPlay(try #require(store.libraryVideo("b"))))
+        #expect(store.offloadProgress == nil)
+
+        // And the round trip: played again, it comes straight back.
+        let url = try await store.fetchLibraryVideo("a")
+        #expect(try Data(contentsOf: url) == Data("aaaa".utf8))
+        #expect(store.canPlay(a))
+    }
+
+    @MainActor @Test func freeingSpaceWithoutAServerKeepsEverything() async throws {
+        let store = try await offloadableLibrary()
+        store.config.libraryServerURL = nil
+        let result = await store.offloadAll()
+        #expect(result.freedFiles == 0)
+        #expect(result.kept.count == 3)
+        for id in ["a", "b", "c"] {
+            #expect(FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("live/\(id).mp4").path))
+        }
+    }
+
+    @MainActor @Test func freeingSpaceCanBeLimitedToSomeWallpapers() async throws {
+        let store = try await offloadableLibrary()
+        #expect(store.offloadableSpace(only: ["a"]) == (1, 4))
+        let result = await store.offloadAll(only: ["a", "b"])
+        #expect(result.freedFiles == 1)
+        #expect(result.kept == ["live/b.mp4"])
+        #expect(FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("live/c.mp4").path))
     }
 }

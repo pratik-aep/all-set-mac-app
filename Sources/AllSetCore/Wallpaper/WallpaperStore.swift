@@ -100,11 +100,18 @@ public final class WallpaperStore {
     public private(set) var libraryRoots: [String: WallpaperLibraryCatalog.Root] = [:]
     public private(set) var reachableRoots: Set<String> = []
     @ObservationIgnored private var libraryIndex: [String: Int] = [:]
-    /// Ids whose converted copy is on disk, checked once when the catalog loads.
-    @ObservationIgnored private var libraryCopies: Set<String> = []
+    /// Ids whose converted copy is on disk: checked when the catalog loads,
+    /// then kept up to date as copies are fetched back or freed. Observed, so
+    /// a tile's "can this play" (and the wallpaper itself) redraws the moment
+    /// that changes; it changes rarely, so this costs nothing while scrolling.
+    private var libraryCopies: Set<String> = []
 
-    /// Fetches from `config.libraryServerURL` under way, fraction done by id.
+    /// Fetches from `config.libraryServerURL` under way, fraction done, by
+    /// relative path (`live/<id>.mp4`, `thumbnails/<id>.jpg`…) — not by id, so
+    /// a wallpaper's video and its thumbnail never share one slot.
     public private(set) var fetches: [String: Double] = [:]
+    /// A "free up space" run in progress: files checked so far, of how many.
+    public private(set) var offloadProgress: (done: Int, total: Int)?
     /// Whether `config.libraryServerURL` answered recently. Nil: not checked
     /// yet. Checked at most once per `Self.reachabilityMaxAge`, however many
     /// callers ask, same shape as `StatusService`.
@@ -267,16 +274,43 @@ public final class WallpaperStore {
     @discardableResult
     public func fetchLibraryVideo(_ id: String) async throws -> URL {
         if let url = libraryURL(id) { return url }
-        guard let video = libraryVideo(id), let relative = video.playback ?? video.still,
-              let base = config.libraryServerURL, let root = URL(string: base) else {
+        guard let video = libraryVideo(id), let relative = video.playback ?? video.still else {
             throw LibraryFetchError.noServer
         }
-        guard fetchTasks[id] == nil else { throw LibraryFetchError.alreadyFetching }
+        let fetched = try await fetch(relative: relative)
+        libraryCopies.insert(id)
+        return libraryURL(id) ?? fetched
+    }
+
+    /// The grid's picture of a wallpaper, fetched back the same way when it
+    /// isn't on this Mac. Returns immediately if it already is.
+    @discardableResult
+    public func fetchThumbnail(_ id: String) async throws -> URL {
+        guard let relative = libraryVideo(id)?.thumbnail else { throw LibraryFetchError.noServer }
+        let local = libraryDirectory.appendingPathComponent(relative)
+        if FileManager.default.fileExists(atPath: local.path) { return local }
+        return try await fetch(relative: relative)
+    }
+
+    /// How far along fetching this wallpaper's playable file is, if it is.
+    /// Reading it is what lets a view redraw when a fetch starts and ends.
+    public func fetchProgress(for id: String) -> Double? {
+        let underway = fetches
+        guard let video = libraryVideo(id), let relative = video.playback ?? video.still else { return nil }
+        return underway[relative]
+    }
+
+    /// Downloads `<server>/<relative>` to `<library>/<relative>`. In-flight
+    /// work is keyed by the relative path, so a wallpaper's video and its
+    /// thumbnail can be fetched at the same time without colliding.
+    private func fetch(relative: String) async throws -> URL {
+        guard let base = config.libraryServerURL, let root = URL(string: base) else { throw LibraryFetchError.noServer }
+        guard fetchTasks[relative] == nil else { throw LibraryFetchError.alreadyFetching }
         let remote = root.appendingPathComponent(relative)
         let destination = libraryDirectory.appendingPathComponent(relative)
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        fetches[id] = 0
-        defer { fetches[id] = nil; fetchTasks[id] = nil }
+        fetches[relative] = 0
+        defer { fetches[relative] = nil; fetchTasks[relative] = nil }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let task = fetchSession.downloadTask(with: remote) { temporary, response, error in
                 // The temporary file is gone once this returns, so move it now.
@@ -294,18 +328,109 @@ public final class WallpaperStore {
                     continuation.resume(throwing: URLError(.badServerResponse))
                 }
             }
-            fetchTasks[id] = task
+            fetchTasks[relative] = task
             task.resume()
             Task { [weak self] in
                 while task.state == .running {
-                    self?.fetches[id] = task.progress.fractionCompleted
+                    self?.fetches[relative] = task.progress.fractionCompleted
                     try? await Task.sleep(for: .milliseconds(250))
                 }
             }
         }
-        libraryCopies.insert(id)
-        guard let result = libraryURL(id) else { throw LibraryFetchError.noServer }
+        return destination
+    }
+
+    // MARK: Freeing space
+
+    /// What one "free up space" run did.
+    public struct OffloadResult: Sendable {
+        public var freedFiles = 0
+        public var freedBytes: Int64 = 0
+        /// Relative paths kept on this Mac because the server couldn't be
+        /// shown to hold an identical copy.
+        public var kept: [String] = []
+    }
+
+    private struct OffloadCandidate: Sendable {
+        let id: String
+        let relative: String
+        let size: Int64
+    }
+
+    /// A wallpaper's playable files that exist on this Mac right now: the
+    /// video or still it plays, plus a live loop's still. Thumbnails stay —
+    /// they're tiny, and keep the grid instant and browsable offline.
+    private func offloadCandidates(only ids: Set<String>?) -> [OffloadCandidate] {
+        library.filter { ids?.contains($0.id) ?? true }.flatMap { video in
+            Set([video.playback, video.still].compactMap { $0 }).sorted().compactMap { relative -> OffloadCandidate? in
+                let path = libraryDirectory.appendingPathComponent(relative).path
+                guard let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? Int64 else { return nil }
+                return OffloadCandidate(id: video.id, relative: relative, size: size)
+            }
+        }
+    }
+
+    /// How much `offloadAll()` could free right now, before checking the server.
+    public func offloadableSpace(only ids: Set<String>? = nil) -> (files: Int, bytes: Int64) {
+        let candidates = offloadCandidates(only: ids)
+        return (candidates.count, candidates.reduce(0) { $0 + $1.size })
+    }
+
+    /// Frees space by deleting this Mac's copy of each playable file the
+    /// personal server is confirmed to hold: a HEAD request for that exact
+    /// path must answer 200 with the same size, or the file stays. The
+    /// catalog and `removed.json` are untouched — the wallpaper stays in the
+    /// library and is fetched back the next time it's played. `ids` limits
+    /// the run to some wallpapers (nil: all of them).
+    @discardableResult
+    public func offloadAll(only ids: Set<String>? = nil) async -> OffloadResult {
+        var result = OffloadResult()
+        let candidates = offloadCandidates(only: ids)
+        guard let base = config.libraryServerURL, let root = URL(string: base) else {
+            result.kept = candidates.map(\.relative)
+            return result
+        }
+        let session = fetchSession
+        offloadProgress = (0, candidates.count)
+        defer { offloadProgress = nil }
+        var confirmed: [OffloadCandidate] = []
+        // A few at a time: thousands one by one is needlessly slow, all at
+        // once is needlessly hard on a home server.
+        await withTaskGroup(of: (OffloadCandidate, Bool).self) { group in
+            var pending = candidates.makeIterator()
+            for _ in 0..<8 {
+                guard let next = pending.next() else { break }
+                group.addTask { (next, await Self.serverHolds(next, root: root, session: session)) }
+            }
+            while let (candidate, held) = await group.next() {
+                if held { confirmed.append(candidate) } else { result.kept.append(candidate.relative) }
+                offloadProgress = ((offloadProgress?.done ?? 0) + 1, candidates.count)
+                if let next = pending.next() {
+                    group.addTask { (next, await Self.serverHolds(next, root: root, session: session)) }
+                }
+            }
+        }
+        for candidate in confirmed {
+            do {
+                try FileManager.default.removeItem(at: libraryDirectory.appendingPathComponent(candidate.relative))
+            } catch {
+                result.kept.append(candidate.relative)
+                continue
+            }
+            result.freedFiles += 1
+            result.freedBytes += candidate.size
+            if libraryVideo(candidate.id)?.playback == candidate.relative { libraryCopies.remove(candidate.id) }
+        }
         return result
+    }
+
+    private nonisolated static func serverHolds(_ candidate: OffloadCandidate, root: URL, session: URLSession) async -> Bool {
+        var request = URLRequest(url: root.appendingPathComponent(candidate.relative))
+        request.httpMethod = "HEAD"
+        guard let (_, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let length = http.value(forHTTPHeaderField: "Content-Length").flatMap(Int64.init) else { return false }
+        return length == candidate.size
     }
 
     /// Takes a library wallpaper out for good: deletes this Mac's own copies

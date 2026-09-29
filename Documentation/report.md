@@ -6,113 +6,70 @@ log; it never needs reading in full.
 ---
 
 ## CURRENT STATE
-_(overwritten every checkpoint — 2026-09-29, personal-server fetch feature)_
+_(overwritten every checkpoint — 2026-09-29, local copies made optional)_
 
 ### Working right now (verified only)
-- **1164 wallpapers — 1006 live, 158 stills**, self-contained on this Mac
-  (~12 GB of actual playback assets in `live/`+`stills/`+`thumbnails/`).
-  Fourth source folder merged this session (465 new); an R1 gap (silently
-  dropped interactive wallpapers) and 11 blank/broken scene renders were
-  found and fixed — see HISTORY for detail, not repeated here.
-- **A personal home server is fully stood up and proven, end to end:**
-  a second Mac, reachable only over Tailscale (never the public internet).
-  - Postgres (`allset` db) holds a full copy of the catalog metadata —
-    1164/1164 rows verified, reachable only through an SSH tunnel
-    (`scripts/cloud/tunnel.sh`), password in this Mac's Keychain, synced
-    with `scripts/cloud/sync_catalog.py` (one-way, run by hand after real
-    changes — not automatic).
-  - Caddy serves the actual files (`live/`, `stills/`, `thumbnails/`, 12.2
-    GB, 2611 files) at `http://100.71.191.101:8080/`, plain HTTP (Tailscale
-    already encrypts the transport), verified reachable and byte-identical
-    to the local copies.
-  - Server won't sleep (`pmset sleep 0`, found and fixed a config that had
-    only been set to 1 minute despite being asked for 0).
-- **The app fetches a missing wallpaper back from that server — proven in
-  the real running `.app`, deleting the actual live desktop wallpaper's
-  file and watching it come back on its own (~12s) with no user action.**
-  A first "proof" via `swift test` had missed two real bugs neither the
-  unit tests nor that test caught, because a test executable isn't subject
-  to the same rules as an app bundle:
-  1. `library` loads asynchronously; the very first render can happen
-     before it has, so the first fetch attempt failed ("no server" — really
-     "no catalog yet") and never retried. Fixed: `hasLoadedLibrary` folded
-     into the fetch task's id, so the flag flipping true forces a retry.
-  2. A successful fetch alone didn't make the view redraw — it only touched
-     an `@ObservationIgnored` property. Fixed: the view now reads
-     `fetches[id]` (set/cleared around every attempt) purely to establish
-     the redraw dependency.
-  3. **App Transport Security silently blocked the plain-HTTP request** —
-     enforced for a real app bundle, not for a `swift test` executable.
-     Fixed: one scoped `NSExceptionDomains` entry in `Resources/Info.plist`
-     for exactly the server's address, not a blanket exception.
-  - `WallpaperConfig.libraryServerURL` (nil by default — R2 holds exactly as
-    verified when it's unset).
-  - `WallpaperStore.fetchLibraryVideo(id)`: local/reachable-root check first
-    (never touches the network when it doesn't need to), else downloads
-    from the server into the *same relative path* it lives at locally, so
-    every other resolution method sees it as an ordinary local file
-    afterward. Mirrors `AerialCatalog.download`'s shape exactly.
-  - `checkServerReachable()`: cached, age-gated probe (mirrors
-    `StatusService`), so the Library grid never does a network call per card.
-  - `LibraryTile` shows "Fetch from Server" instead of "Drive Not
-    Connected" when the server can help.
-  - **Deliberately not built yet:** any way to actually delete a local copy
-    to free space. That's the natural next step now this is proven, not
-    bundled in — agreed with the user before starting.
-  - Also found and fixed while proving this: 70 wallpapers' real playback
-    files live in `extracted/`/`transcoded/`, which `push_wallpapers.sh`
-    had wrongly excluded as "pipeline scratch" — they're not, for these.
-    Pushed (7.9 GB); server backup is now genuinely complete (5/5 folders).
-- 211 tests pass (4 new — 3 against a stubbed `URLProtocol`, serialized so
-  parallel runs can't stomp the shared stub, plus one confirming
-  `hasLoadedLibrary` starts false and flips exactly once). 0 warnings, Dock
-  app rebuilt and relaunched.
+- **1161 wallpapers** in the catalog (1164 last checkpoint; the 3 fewer are
+  the user's own deletions through the app's trash button — `catalog.json`
+  and `removed.json` both last written at 05:01, before any of this
+  checkpoint's work, and 24 `removed.json` entries read "removed by the user
+  in the app").
+- **Personal home server** (second Mac, Tailscale-only): Postgres holds the
+  catalog metadata; Caddy serves all five playable folders (`live/`,
+  `stills/`, `thumbnails/`, `extracted/`, `transcoded/`), verified complete.
+- **Local copies are now optional, proven in the real app:**
+  - `fetchThumbnail(id)` joins `fetchLibraryVideo(id)`; both go through one
+    `fetch(relative:)`, in-flight work keyed by relative path.
+  - `offloadAll(only:)` deletes a local playable file only after a `HEAD`
+    on the server answers 200 with the identical size; anything unconfirmed
+    stays. Catalog and `removed.json` untouched. Thumbnails kept.
+  - "Free Up Space…" in the Library header: estimate → confirm → per-file
+    progress → freed vs. kept.
+  - **Real test, small scale:** 3 real wallpapers (a live loop + its still,
+    a still-only image, an `extracted/` video), 4 files, 119 MB — all 4
+    verified on the real server and freed; thumbnails kept; catalog
+    entries intact; server still serving them. Then set the freed still as
+    the active wallpaper in the running app: fetched back in ~4s,
+    byte-identical. The original active wallpaper was restored after.
+  - Two of those three (Abandoned City, Formula 1) are **still offloaded**,
+    deliberately — that's the intended state now, and they come back the
+    moment they're played.
+- 216 tests pass (5 new: thumbnail fetch, video+thumbnail fetched at once
+  without colliding, offload deletes only server-confirmed files and
+  round-trips, offload without a server keeps everything, offload limited
+  to some wallpapers). 0 warnings, Dock app rebuilt and relaunched.
 
 ### Files touched this checkpoint
-- `Sources/AllSetCore/Wallpaper/WallpaperStore.swift` — `libraryServerURL`,
-  `fetchLibraryVideo`, `checkServerReachable`, `fetchSession` (instance
-  property, deliberately not `static` — see architecture.md).
-- `Sources/AllSet/Wallpaper/WallpaperController.swift` — fetch trigger in
-  `WallpaperView`'s `.library` case.
-- `Sources/AllSet/Wallpaper/WallpaperPages.swift` — `LibraryTile`/
-  `LibrarySection` messaging for "recoverable from server" vs. truly gone.
-- `Tests/AllSetCoreTests/WallpaperLibraryTests.swift` — `StubURLProtocol`,
-  `LibraryServerFetchTests`, `hasLoadedLibraryStartsFalseAndFlipsOnceLoaded`.
-- `Resources/Info.plist` — the scoped ATS exception.
-- `scripts/cloud/push_wallpapers.sh` — now also sends `extracted/`/
-  `transcoded/`; corrected the comment that called them pure scratch.
-- `scripts/cloud/tunnel.sh`, `sync_catalog.py`, `schema.sql` — the rest of
-  the server-side half (from earlier this session, now proven, not just
-  written).
-- `Documentation/architecture.md`, `report.md` — this feature, decisions,
-  the three bugs found testing the real app.
-- Live, outside-the-repo changes with no commit: `wallpaper.json` has the
-  real `libraryServerURL`; the server now also holds `extracted/`+
-  `transcoded/` (7.9 GB); the live desktop wallpaper's file was
-  deleted-then-auto-refetched as the real proof (back where it started,
-  confirmed byte-identical).
+- `Sources/AllSetCore/Wallpaper/WallpaperStore.swift` — `fetch(relative:)`,
+  `fetchThumbnail`, `fetchProgress(for:)`, `offloadAll`, `offloadableSpace`,
+  `offloadProgress`; `libraryCopies` now observed.
+- `Sources/AllSet/Wallpaper/WallpaperPages.swift` — thumbnail fetch in
+  `LibraryTile`; `FreeUpSpaceRow`; header/banner counts that know about the
+  server.
+- `Sources/AllSet/Wallpaper/WallpaperController.swift` — reads
+  `fetchProgress(for:)`.
+- `Tests/AllSetCoreTests/WallpaperLibraryTests.swift` — stub answers HEAD
+  like a file server; 5 new tests.
+- `Documentation/architecture.md`, `report.md`.
 
 ### Known issues / blockers
-- **Pre-existing ~700 items from the other two source folders** still lack
-  both the crossfade fix and the blank-render check (see prior HISTORY).
-  Needs the old "KALI LINUX" drive reconnected, or a new code path that
-  re-renders from this Mac's own `originals/` copies.
-- The remaining ~34 (of 45) near-duplicate flags from the fourth-dataset
-  import weren't reviewed past the sample checked last checkpoint.
-- `WallpaperConfig.libraryServerURL` has no settings UI — set once, by hand,
-  directly in `wallpaper.json`. Fine for one person, one server; would need
-  real UI before this could ever be anything else.
-- The SSH key used for the tunnel/push has no passphrase (needed for
-  unattended sync) — anyone with disk access to this Mac could use it.
-- Not carried: SceneScript code, particle turbulence/vortex/mouse
-  attraction, event-spawned child particles, text, 3D models, audio input,
-  ~30 cosmetic effects in HLSL-only syntax; all reported per scene.
+- **The full-library "Free Up Space" has not been run** — by design; it
+  needs the user's go-ahead. Expected: ~20 GB of playable files freed,
+  thumbnails (~34 MB) kept.
+- Once offloaded, every wallpaper depends on Tailscale + the server being
+  up. Off that network, a not-yet-played wallpaper shows the default art.
+- Hovering a tile doesn't fetch, so an offloaded wallpaper has no motion
+  preview until played once.
+- The system-wallpaper still (Mission Control/lock screen) isn't refreshed
+  when an active wallpaper finishes fetching — it keeps the last one.
+- ~700 older wallpapers still lack the crossfade fix and blank-render check.
+- `libraryServerURL` has no settings UI; the SSH key has no passphrase.
+- The 24 wallpapers the user deleted in the app are still on the server
+  (`push_wallpapers.sh` never deletes there, by design).
 
 ### Next step
-Awaiting the user: build the actual "delete a local copy to free space"
-action (now safe to, with fetch proven), re-render the pre-existing library
-under the fixed renderer, review the remaining near-duplicate flags, or
-something else entirely.
+Awaiting the user: run "Free Up Space…" on the full library (their call,
+~20 GB), or any of the known issues above.
 
 ---
 
@@ -183,3 +140,8 @@ Result: no code changes needed; docs now agree with reality.
   backup entirely - pushed, now complete. Deleted the live desktop
   wallpaper's actual file and watched the running app recover it in ~12s,
   byte-identical. 211 tests pass, 0 warnings.
+- Local copies made optional: thumbnails fetchable, offloadAll frees a
+  playable file only after the server confirms an identical copy (HEAD +
+  Content-Length), "Free Up Space…" in the Library. Real test: 4 files /
+  119 MB freed from 3 real wallpapers, one fetched back by the running app
+  in ~4s byte-identical. Full-library run left for the user. 216 tests.
