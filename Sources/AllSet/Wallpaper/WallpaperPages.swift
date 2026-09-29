@@ -426,8 +426,10 @@ private struct FreeUpSpaceRow: View {
                     .foregroundStyle(.secondary)
             } else {
                 Button {
-                    estimate = store.offloadableSpace()
-                    confirming = true
+                    Task {
+                        estimate = await store.offloadableSpace()
+                        confirming = true
+                    }
                 } label: {
                     Label("Free Up Space…", systemImage: "internaldrive")
                 }

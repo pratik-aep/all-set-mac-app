@@ -478,8 +478,11 @@ enum PageCPUProbe {
         let store = services.wallpaper
         let original = store.config
         var quiet = original
-        // No system-wallpaper stills while probing.
+        // No system-wallpaper stills while probing, and no personal server:
+        // the synthetic entries share real playback paths, and with the
+        // library offloaded they'd download real files into it.
         quiet.matchSystemWallpaper = false
+        quiet.libraryServerURL = nil
         store.config = quiet
         try? await Task.sleep(for: .seconds(3))
         let real = store.library

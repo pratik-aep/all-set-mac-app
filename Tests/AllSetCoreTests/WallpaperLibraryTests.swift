@@ -220,13 +220,41 @@ import Testing
 
 /// A request handler installed per test, so `StubURLProtocol` never has to
 /// guess which test it's answering for.
-private final class StubURLProtocol: URLProtocol {
+private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var handler: ((URLRequest) -> (status: Int, body: Data?))?
+    /// Seconds before answering, so a test can cancel mid-download.
+    nonisolated(unsafe) static var delay: TimeInterval = 0
+    /// GET requests seen (downloads, not HEAD checks).
+    nonisolated(unsafe) static var downloads = 0
+    /// A Content-Length that disagrees with the body: a truncated response.
+    nonisolated(unsafe) static var claimedLength: Int?
+    private let stopped = NSLock()
+    nonisolated(unsafe) private var isStopped = false
+
+    static func reset() {
+        handler = nil
+        delay = 0
+        downloads = 0
+        claimedLength = nil
+    }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        if request.httpMethod != "HEAD" { Self.downloads += 1 }
+        if Self.delay > 0 {
+            DispatchQueue.global().asyncAfter(deadline: .now() + Self.delay) { self.answer() }
+        } else {
+            answer()
+        }
+    }
+
+    private func answer() {
+        stopped.lock()
+        let stop = isStopped
+        stopped.unlock()
+        if stop { return }
         guard let handler = Self.handler, let url = request.url else {
             client?.urlProtocol(self, didFailWithError: URLError(.unknown))
             return
@@ -234,14 +262,18 @@ private final class StubURLProtocol: URLProtocol {
         let (status, body) = handler(request)
         // Like a real file server: a HEAD answers with the file's length and
         // no body, so a handler just describes the file either way.
-        let headers = body.map { ["Content-Length": "\($0.count)"] }
+        let headers = body.map { ["Content-Length": "\(Self.claimedLength ?? $0.count)"] }
         let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         if let body, request.httpMethod != "HEAD" { client?.urlProtocol(self, didLoad: body) }
         client?.urlProtocolDidFinishLoading(self)
     }
 
-    override func stopLoading() {}
+    override func stopLoading() {
+        stopped.lock()
+        isStopped = true
+        stopped.unlock()
+    }
 }
 
 /// `.serialized`: every test here points the shared `StubURLProtocol.handler`
@@ -265,6 +297,7 @@ private final class StubURLProtocol: URLProtocol {
         store.reloadLibrary()
         for _ in 0..<100 where store.library.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
         store.config.libraryServerURL = "http://stub.invalid"
+        StubURLProtocol.reset()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
         store.fetchSession = URLSession(configuration: configuration)
@@ -362,6 +395,7 @@ private final class StubURLProtocol: URLProtocol {
         store.reloadLibrary()
         for _ in 0..<100 where !store.hasLoadedLibrary { try await Task.sleep(for: .milliseconds(20)) }
         store.config.libraryServerURL = "http://stub.invalid"
+        StubURLProtocol.reset()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
         store.fetchSession = URLSession(configuration: configuration)
@@ -379,7 +413,7 @@ private final class StubURLProtocol: URLProtocol {
         let store = try await offloadableLibrary()
         let catalogURL = store.libraryDirectory.appendingPathComponent("catalog.json")
         let catalogBefore = try Data(contentsOf: catalogURL)
-        #expect(store.offloadableSpace() == (3, 12))
+        #expect(await store.offloadableSpace() == (3, 12))
 
         let result = await store.offloadAll()
 
@@ -419,10 +453,94 @@ private final class StubURLProtocol: URLProtocol {
 
     @MainActor @Test func freeingSpaceCanBeLimitedToSomeWallpapers() async throws {
         let store = try await offloadableLibrary()
-        #expect(store.offloadableSpace(only: ["a"]) == (1, 4))
+        #expect(await store.offloadableSpace(only: ["a"]) == (1, 4))
         let result = await store.offloadAll(only: ["a", "b"])
         #expect(result.freedFiles == 1)
         #expect(result.kept == ["live/b.mp4"])
         #expect(FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("live/c.mp4").path))
+    }
+
+    // MARK: Audit fixes (2026-09-29)
+
+    /// The server was down (or Tailscale still connecting) on the first try:
+    /// the wallpaper must still arrive once it's back, not stay on art.
+    @MainActor @Test func failedFetchIsRetriedUntilTheServerAnswers() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        nonisolated(unsafe) var attempts = 0
+        StubURLProtocol.handler = { _ in
+            attempts += 1
+            return attempts < 3 ? (500, nil) : (200, Data("late".utf8))
+        }
+        let url = await store.fetchLibraryVideoRetrying(id, delays: [.milliseconds(10)])
+        #expect(try Data(contentsOf: try #require(url)) == Data("late".utf8))
+        #expect(attempts == 3)
+    }
+
+    @MainActor @Test func retryingStopsWhenThereIsNoServer() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        store.config.libraryServerURL = nil
+        #expect(await store.fetchLibraryVideoRetrying(id, delays: [.milliseconds(10)]) == nil)
+    }
+
+    /// Two views asking at once share one download instead of one failing.
+    @MainActor @Test func simultaneousFetchesShareOneDownload() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        StubURLProtocol.delay = 0.1
+        StubURLProtocol.handler = { _ in (200, Data("once".utf8)) }
+        async let first = store.fetchLibraryVideo(id)
+        async let second = store.fetchLibraryVideo(id)
+        let (a, b) = try await (first, second)
+        #expect(a == b)
+        #expect(StubURLProtocol.downloads == 1)
+    }
+
+    /// Nobody waiting any more: the download stops, and leaves nothing behind.
+    @MainActor @Test func cancelledFetchStopsAndLeavesNothing() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        StubURLProtocol.delay = 0.5
+        StubURLProtocol.handler = { _ in (200, Data("too late".utf8)) }
+        let task = Task { try await store.fetchLibraryVideo(id) }
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(store.isFetching(id))
+        task.cancel()
+        await #expect(throws: (any Error).self) { try await task.value }
+        try await Task.sleep(for: .milliseconds(600))
+        #expect(!FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("live/f1.mp4").path))
+        #expect(!store.isFetching(id))
+    }
+
+    /// A response shorter than its Content-Length never becomes the file.
+    @MainActor @Test func truncatedDownloadIsRejected() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        StubURLProtocol.claimedLength = 1_000
+        StubURLProtocol.handler = { _ in (200, Data("short".utf8)) }
+        await #expect(throws: (any Error).self) { try await store.fetchLibraryVideo(id) }
+        #expect(!FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("live/f1.mp4").path))
+    }
+
+    /// The wallpaper on the desktop isn't freed: it would only download straight back.
+    @MainActor @Test func freeingSpaceKeepsTheActiveWallpaper() async throws {
+        let store = try await offloadableLibrary()
+        store.set(.library("a"))
+        #expect(await store.offloadableSpace() == (2, 8))
+        let result = await store.offloadAll()
+        #expect(result.freedFiles == 0)
+        #expect(FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("live/a.mp4").path))
+    }
+
+    /// What was freed is recorded for the importer, so a re-import keeps it.
+    @MainActor @Test func freeingSpaceRecordsWhatWasFreed() async throws {
+        let store = try await offloadableLibrary()
+        await store.offloadAll()
+        let data = try Data(contentsOf: store.libraryDirectory.appendingPathComponent("offloaded.json"))
+        #expect(try JSONDecoder().decode([String].self, from: data) == ["live/a.mp4"])
+    }
+
+    @MainActor @Test func overlappingFreeUpSpaceRunsOnlyOnce() async throws {
+        let store = try await offloadableLibrary()
+        async let first = store.offloadAll()
+        async let second = store.offloadAll()
+        let (a, b) = await (first, second)
+        #expect(a.freedFiles + b.freedFiles == 1)
     }
 }

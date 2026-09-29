@@ -53,6 +53,12 @@ final class WallpaperController {
         sync()
         observe({ [services] in services.wallpaper.config }) { [weak self] _ in self?.sync() }
         observe({ [services] in services.ui.performance }) { [weak self] _ in self?.updatePlayback() }
+        // A library wallpaper downloaded after the fact: its still for the
+        // lock screen and Mission Control couldn't be made while it was missing.
+        observe({ [services] in services.wallpaper.fetchGeneration }) { [weak self] _ in
+            guard let self, services.wallpaper.config.isEnabled, services.wallpaper.config.matchSystemWallpaper else { return }
+            self.matchSystemWallpaper(to: services.wallpaper.config.source)
+        }
 
         let workspace = NSWorkspace.shared.notificationCenter
         observers.append(NotificationCenter.default.addObserver(
@@ -369,10 +375,11 @@ struct WallpaperView: View {
             case .video(let name):
                 LoopingVideo(url: services.wallpaper.videoURL(name), isPlaying: isPlaying)
             case .library(let id):
-                // Read here, not only in the "missing" branch, so a fetch
+                // Read here, not only in the "missing" branch, so a download
                 // starting and finishing redraws this view and libraryURL(id)
-                // (a raw file check Observation can't see) is asked again.
-                let fetchProgress = services.wallpaper.fetchProgress(for: id)
+                // (a raw file check Observation can't see) is asked again. It
+                // changes only then, never per progress tick.
+                let isFetching = services.wallpaper.isFetching(id)
                 // Same player (or, for a still, the same slow motion as a
                 // photo) and the same pausing rules as any other wallpaper.
                 if let url = services.wallpaper.libraryURL(id) {
@@ -391,16 +398,18 @@ struct WallpaperView: View {
                     // (it loads asynchronously), and without this the fetch
                     // would spuriously fail then - "no server", really "no
                     // catalog yet" - and never retry once real data arrives,
-                    // since .task(id:) only reruns when its id changes.
+                    // since .task(id:) only reruns when its id changes. The
+                    // fetch itself retries with growing pauses, so a server or
+                    // Tailscale that comes up late (at login) still wins.
                     ZStack(alignment: .bottomTrailing) {
                         ArtView(piece: ArtPiece(style: .aurora, palette: .aurora), animated: true, speed: config.speed,
                                 frameRate: config.frameRate)
-                        if fetchProgress != nil {
+                        if isFetching {
                             ProgressView().controlSize(.small).padding(20)
                         }
                     }
                     .task(id: "\(id)#\(services.wallpaper.hasLoadedLibrary)") {
-                        _ = try? await services.wallpaper.fetchLibraryVideo(id)
+                        await services.wallpaper.fetchLibraryVideoRetrying(id)
                     }
                 }
             }

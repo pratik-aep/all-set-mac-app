@@ -127,6 +127,18 @@ server doesn't repeat either:
   checking, freed vs. kept afterward. The header now counts "on this Mac /
   on your server", and the drive-not-connected banner no longer blames a
   source drive for wallpapers the server can supply.
+- **Downloads are shared, retried and cancellable** (audit, 2026-09-29): one
+  `Task` per relative path, joined by every caller; the last caller to give
+  up cancels the URLSession task. `WallpaperView` uses
+  `fetchLibraryVideoRetrying` (backoff 2→60 s), so a server that's down or
+  Tailscale connecting late at login no longer strands the wallpaper on
+  default art. A response shorter than its Content-Length is rejected.
+  Views read `fetching` (start/end only), never `fetches` (per-tick
+  progress, Observation-ignored). A landed download bumps
+  `fetchGeneration`, which re-makes the system-wallpaper still.
+- **`offloaded.json`** lists every path freed on purpose; the importer
+  treats those as present, so a re-import never re-renders, re-copies or
+  drops `playback` for them. The active wallpaper is never freed.
 - **Known gap**: hovering a tile doesn't fetch (only setting a wallpaper
   does), so an offloaded wallpaper shows no motion preview until it's been
   played once.

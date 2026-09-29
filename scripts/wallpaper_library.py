@@ -1334,6 +1334,7 @@ SCENE_RENDERER = 10
 def import_scenes(root, library, summary, entries, existing, skipped, now, root_id, live=True):
     """Every Wallpaper Engine scene item in the folder, as catalog entries."""
     items = workshop_items(root)
+    offloaded = offloaded_items(library)
     wetex = wetex_tool(library)
     cache_path = os.path.join(library, "scenes.json")
     try:
@@ -1364,7 +1365,7 @@ def import_scenes(root, library, summary, entries, existing, skipped, now, root_
         item_id = digest[:16]
         result = known.get("result") if known.get("result") and known.get("sha256") == digest else None
         current = known.get("renderer") == SCENE_RENDERER
-        output_ok = result and current and os.path.exists(os.path.join(library, result.get("playback", "")))
+        output_ok = result and current and local_or_offloaded(library, result.get("playback"), offloaded)
         if not output_ok:
             if not current:
                 for stale in ("stills/{}.jpg", "extracted/{}.mp4", "transcoded/{}.mp4", "live/{}.mp4"):
@@ -1412,7 +1413,8 @@ def import_scenes(root, library, summary, entries, existing, skipped, now, root_
             **({"still": result["still"]} if result.get("still") else {}),
             "thumbnail": f"thumbnails/{item_id}.jpg", "duration": result.get("duration"),
             "width": result.get("width"), "height": result.get("height"), "fps": result.get("fps"),
-            "size": os.path.getsize(media), "sha256": digest, "contentRating": rating,
+            "size": recorded_size(library, result["playback"], existing.get(item_id, {}).get("size")),
+            "sha256": digest, "contentRating": rating,
             "status": "quarantined",
             "statusReason": "license and author unknown" + ("" if rating == "Everyone" else "; no content rating")
                             + ("; the scene's animation and effects aren't included" if result["kind"] == "image" else ""),
@@ -1425,7 +1427,8 @@ def import_scenes(root, library, summary, entries, existing, skipped, now, root_
             entry["transcodedBecause"] = result["transcodedBecause"]
         thumb = os.path.join(library, entry["thumbnail"])
         # Redrawn with its picture: a thumbnail older than it shows the old one.
-        fresh = os.path.exists(thumb) and os.path.getmtime(thumb) >= os.path.getmtime(media)
+        # An offloaded picture isn't here to compare against: its thumbnail stands.
+        fresh = os.path.exists(thumb) and (not os.path.exists(media) or os.path.getmtime(thumb) >= os.path.getmtime(media))
         if not fresh and not thumbnail(media, thumb, result.get("duration") or 0):
             entry["thumbnail"] = None
         if item_id in entries:
@@ -1436,6 +1439,26 @@ def import_scenes(root, library, summary, entries, existing, skipped, now, root_
     with open(cache_path, "w") as handle:
         json.dump(cache, handle, indent=1, ensure_ascii=False)
     return imported
+
+
+def offloaded_items(library):
+    """Relative paths the app freed from this Mac because the personal server
+    holds them (`offloaded.json`, written by WallpaperStore.offloadAll). Such
+    a file is kept, not missing: never re-rendered, re-copied or dropped."""
+    try:
+        with open(os.path.join(library, "offloaded.json")) as handle:
+            return set(json.load(handle))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return set()
+
+
+def local_or_offloaded(library, relative, offloaded):
+    return bool(relative) and (relative in offloaded or os.path.exists(os.path.join(library, relative)))
+
+
+def recorded_size(library, relative, fallback):
+    path = os.path.join(library, relative)
+    return os.path.getsize(path) if os.path.exists(path) else fallback
 
 
 def removed_items(library):
@@ -1499,6 +1522,7 @@ def import_library(root, library, live=True, self_contained=False):
         catalog = {"version": 1, "roots": [], "items": []}
     existing = {item["id"]: item for item in catalog.get("items", [])}
     now = datetime.datetime.now().isoformat(timespec="seconds")
+    offloaded = offloaded_items(library)
 
     skipped, duplicates, entries = [], [], {}
     for record in summary["files"]:
@@ -1562,20 +1586,23 @@ def import_library(root, library, live=True, self_contained=False):
         reason = needs_transcode(record)
         if reason:
             output = os.path.join(library, "transcoded", f"{item_id}.mp4")
-            error = None if os.path.exists(output) else transcode(path, output, record)
+            done = local_or_offloaded(library, f"transcoded/{item_id}.mp4", offloaded)
+            error = None if done else transcode(path, output, record)
             if error:
                 entry.update(status="unsupported", statusReason=f"{reason}; transcoding failed: {error}")
             else:
                 entry.update(playback=f"transcoded/{item_id}.mp4", transcodedBecause=reason,
-                             playbackSize=os.path.getsize(output))
+                             playbackSize=recorded_size(library, f"transcoded/{item_id}.mp4",
+                                                        existing.get(item_id, {}).get("playbackSize")))
         else:
             # Without a copy this one plays from the source folder, so it stops
             # working if that folder goes away. A copy already made is always
             # reused, so a later run without --self-contained never undoes it.
             kept = os.path.join(library, "originals", f"{item_id}{record['extension']}")
-            if os.path.exists(kept):
+            if local_or_offloaded(library, f"originals/{item_id}{record['extension']}", offloaded):
                 entry.update(playback=f"originals/{item_id}{record['extension']}",
-                             playbackSize=os.path.getsize(kept))
+                             playbackSize=recorded_size(library, f"originals/{item_id}{record['extension']}",
+                                                        existing.get(item_id, {}).get("playbackSize")))
             elif self_contained:
                 os.makedirs(os.path.dirname(kept), exist_ok=True)
                 partial = kept + ".part"

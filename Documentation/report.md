@@ -6,74 +6,40 @@ log; it never needs reading in full.
 ---
 
 ## CURRENT STATE
-_(overwritten every checkpoint — 2026-09-29, full library offloaded)_
+_(overwritten every checkpoint — 2026-09-29, audit findings fixed)_
 
 ### Working right now (verified only)
-- **The real, full-library "Free Up Space" ran, by the user's explicit
-  go-ahead — not a sample.** Verified independently of the tool's own count:
-  - Freed **1509 files, 20,048,694,697 bytes (18.7 GiB)**. Disk free space
-    went 33 GiB → 51 GiB, matching. `live/`, `stills/`, `extracted/`,
-    `transcoded/` are all now genuinely empty (0 B); `thumbnails/` untouched
-    (34 MB) — kept on purpose so the grid stays instant.
-  - `catalog.json` and `removed.json`: byte-identical before and after
-    (1161 items, same file). Nothing was removed from the library — every
-    wallpaper is still there, just not stored twice any more.
-  - Set one of the just-freed wallpapers (Marvel's Spider-Man 2) as the
-    active desktop wallpaper afterward: fetched back in ~4s, confirmed
-    present. Original wallpaper restored after.
-  - Both the small-scale test earlier this checkpoint and this full run
-    used a temporary test, run once, then removed before committing —
-    nothing from either is in the persisted suite.
-- **New finding, real and worth acting on: 294 wallpapers' actual playback
-  file lives directly under `originals/`** (plain-video imports where the
-  self-contained copy *is* the playback file — no separate `live/` copy was
-  ever made, to avoid storing the same bytes twice). `originals/` was never
-  pushed to the server, on the understanding that it was pure backup
-  scratch — wrong for these 294, same category of gap as `extracted/`/
-  `transcoded/` two checkpoints ago. **The safety check caught it
-  correctly**: 280 of them (some of the 294 already had no local copy for
-  other reasons) were left alone, not deleted, because the server couldn't
-  confirm a copy — exactly the mechanism working as designed. But it means
-  **~52 GB across these 294 wallpapers has no off-Mac copy at all** right
-  now — the one real gap left in an otherwise fully-backed-up library.
-- 216 tests pass, 0 warnings, Dock app rebuilt and relaunched.
+- 1161 wallpapers. Full-library offload was run (`b07714a`, 18.7 GiB freed).
+  The 280 `originals/` files it correctly kept (server didn't have them) are
+  being pushed now; they get freed once the server confirms them.
+- **Audit (`Documentation/audit-2026-09-29.md`) resolved:** 8 findings fixed,
+  1 fixed by construction (not profiled), 1 retracted with reasoning. Key
+  real-app proofs: server down at launch → wallpaper downloads by itself once
+  it's back (t+24 s; before: never); lock-screen still refreshed after a late
+  download; importer re-import keeps `playback` for offloaded files
+  (control run reproduces the old bug).
+- 224 tests pass (8 new), 0 warnings, app rebuilt and relaunched. User's
+  wallpaper, settings and desktop picture restored after testing.
 
 ### Files touched this checkpoint
-- `Sources/AllSetCore/Wallpaper/WallpaperStore.swift` — `fetch(relative:)`,
-  `fetchThumbnail`, `fetchProgress(for:)`, `offloadAll`, `offloadableSpace`,
-  `offloadProgress`; `libraryCopies` now observed.
-- `Sources/AllSet/Wallpaper/WallpaperPages.swift` — thumbnail fetch in
-  `LibraryTile`; `FreeUpSpaceRow`; header/banner counts that know about the
-  server.
-- `Sources/AllSet/Wallpaper/WallpaperController.swift` — reads
-  `fetchProgress(for:)`.
-- `Tests/AllSetCoreTests/WallpaperLibraryTests.swift` — stub answers HEAD
-  like a file server; 5 new tests.
-- `Documentation/architecture.md`, `report.md`.
-- Live, outside-the-repo change with no commit: this Mac's actual library
-  is now offloaded (see above) — 18.7 GiB freed for real.
+- `WallpaperStore.swift` — shared/cancellable/retrying fetch, `fetching`,
+  `fetchGeneration`, `isFetching`, truncation check; offload skips the active
+  wallpaper, runs file work detached, guards re-entry, writes `offloaded.json`.
+- `WallpaperController.swift` — retrying fetch in `WallpaperView`; system
+  still re-made on `fetchGeneration`.
+- `WallpaperPages.swift` — async estimate. `PageCPUProbe.swift` — no server
+  while probing. `wallpaper_library.py` — honours `offloaded.json`.
+- Tests: stub gains delay / GET counter / wrong Content-Length; 8 new tests.
 
 ### Known issues / blockers
-- **294 wallpapers (~52 GB) whose playback file lives under `originals/`
-  have no server backup** — found by the full run's own safety check
-  correctly refusing to delete them. Fixable the same way the
-  `extracted/`/`transcoded/` gap was: extend `push_wallpapers.sh` (or a
-  narrower push of just these 294 paths) and re-run. Not done yet.
-- Every offloaded wallpaper now depends on Tailscale + the server being up.
-  Off that network, a not-yet-played-since-offload wallpaper shows the
-  default art until it's back.
-- Hovering a tile doesn't fetch, so an offloaded wallpaper has no motion
-  preview until played once.
-- The system-wallpaper still (Mission Control/lock screen) isn't refreshed
-  when an active wallpaper finishes fetching — it keeps the last one.
-- ~700 older wallpapers still lack the crossfade fix and blank-render check.
-- `libraryServerURL` has no settings UI; the SSH key has no passphrase.
-- The 24 wallpapers the user deleted in the app are still on the server
-  (`push_wallpapers.sh` never deletes there, by design).
+- Offloaded wallpapers still need Tailscale + server (architectural).
+- Hover preview doesn't fetch (intentional). ATS exception is by IP.
+- ~700 older wallpapers lack the crossfade fix and blank check.
+- No settings UI for the server URL; SSH key has no passphrase.
 
 ### Next step
-Awaiting the user: back up the 294 `originals/`-as-playback wallpapers
-(closes the one remaining real gap), or any of the other known issues above.
+When the `originals/` push finishes: verify all 280 on the server, free
+them (`offloadAll(only:)`), measure, update this block.
 
 ---
 
@@ -157,3 +123,7 @@ Result: no code changes needed; docs now agree with reality.
   safety check correctly kept them rather than deleting unconfirmed
   copies. ~52GB there still has no off-Mac backup. 216 tests, no code
   changes this checkpoint (docs + the real run only).
+- Audit findings fixed: retrying/shared/cancellable fetch, importer honours
+  offloaded.json, active wallpaper never freed, system still refreshed after a
+  late fetch, file work off the main thread. Proven in the real app with the
+  server stopped at launch. 224 tests.

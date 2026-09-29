@@ -109,16 +109,27 @@ public final class WallpaperStore {
     /// Fetches from `config.libraryServerURL` under way, fraction done, by
     /// relative path (`live/<id>.mp4`, `thumbnails/<id>.jpg`…) — not by id, so
     /// a wallpaper's video and its thumbnail never share one slot.
-    public private(set) var fetches: [String: Double] = [:]
+    /// Observation-ignored: it ticks four times a second per download, and a
+    /// view reading it would redraw that often. Views read `fetching` (which
+    /// changes only when a download starts or ends) instead.
+    @ObservationIgnored public private(set) var fetches: [String: Double] = [:]
+    /// Relative paths being downloaded right now.
+    public private(set) var fetching: Set<String> = []
+    /// Bumped each time a wallpaper's playable file lands, so anything that
+    /// depends on one (the system-wallpaper still) can redo its work.
+    public private(set) var fetchGeneration = 0
     /// A "free up space" run in progress: files checked so far, of how many.
     public private(set) var offloadProgress: (done: Int, total: Int)?
+    @ObservationIgnored private var isOffloading = false
     /// Whether `config.libraryServerURL` answered recently. Nil: not checked
     /// yet. Checked at most once per `Self.reachabilityMaxAge`, however many
     /// callers ask, same shape as `StatusService`.
     public private(set) var serverReachable: Bool?
     @ObservationIgnored private var serverCheckedAt: Date?
     @ObservationIgnored private var serverCheckInFlight = false
-    @ObservationIgnored private var fetchTasks: [String: URLSessionDownloadTask] = [:]
+    /// One download per relative path, shared by everyone who asks for it;
+    /// `waiters` counts them so the last one to give up cancels it.
+    @ObservationIgnored private var inflight: [String: (token: UUID, task: Task<URL, Error>, waiters: Int)] = [:]
     @ObservationIgnored private static let reachabilityMaxAge: TimeInterval = 30
     /// Instance, not static: each `WallpaperStore` (one per test, one in the
     /// running app) gets its own session, so a test can point it at a stub
@@ -264,7 +275,7 @@ public final class WallpaperStore {
         }
     }
 
-    public enum LibraryFetchError: Error { case noServer, alreadyFetching }
+    public enum LibraryFetchError: Error { case noServer, incomplete }
 
     /// Fetches a library video's file from `config.libraryServerURL` into the
     /// same relative path it lives at locally, so every other resolution
@@ -279,7 +290,32 @@ public final class WallpaperStore {
         }
         let fetched = try await fetch(relative: relative)
         libraryCopies.insert(id)
+        fetchGeneration += 1
         return libraryURL(id) ?? fetched
+    }
+
+    /// `fetchLibraryVideo`, tried again with growing pauses until it works or
+    /// the caller is cancelled: a server that's down, or Tailscale still
+    /// connecting at login, must not leave the wallpaper on default art until
+    /// the next relaunch. Stops only when there's nothing to fetch from.
+    @discardableResult
+    public func fetchLibraryVideoRetrying(_ id: String,
+                                          delays: [Duration] = [2, 5, 10, 30, 60].map { .seconds($0) }) async -> URL? {
+        var attempt = 0
+        while !Task.isCancelled {
+            do {
+                return try await fetchLibraryVideo(id)
+            } catch {
+                let video = libraryVideo(id)
+                if config.libraryServerURL == nil || (hasLoadedLibrary && (video?.playback ?? video?.still) == nil) { return nil }
+                if !(error is CancellationError) {
+                    log.error("Fetch of library wallpaper \(id, privacy: .public) failed (attempt \(attempt + 1)): \(error.localizedDescription, privacy: .public)")
+                }
+            }
+            try? await Task.sleep(for: delays[min(attempt, delays.count - 1)])
+            attempt += 1
+        }
+        return nil
     }
 
     /// The grid's picture of a wallpaper, fetched back the same way when it
@@ -292,50 +328,98 @@ public final class WallpaperStore {
         return try await fetch(relative: relative)
     }
 
-    /// How far along fetching this wallpaper's playable file is, if it is.
-    /// Reading it is what lets a view redraw when a fetch starts and ends.
-    public func fetchProgress(for id: String) -> Double? {
-        let underway = fetches
-        guard let video = libraryVideo(id), let relative = video.playback ?? video.still else { return nil }
-        return underway[relative]
+    /// Whether this wallpaper's playable file is downloading. Reading it is
+    /// what redraws a view when a download starts and ends (`fetching` only
+    /// changes then — never per progress tick).
+    public func isFetching(_ id: String) -> Bool {
+        let underway = fetching
+        guard let video = libraryVideo(id), let relative = video.playback ?? video.still else { return false }
+        return underway.contains(relative)
     }
 
-    /// Downloads `<server>/<relative>` to `<library>/<relative>`. In-flight
-    /// work is keyed by the relative path, so a wallpaper's video and its
-    /// thumbnail can be fetched at the same time without colliding.
+    /// `<server>/<relative>` into `<library>/<relative>`. One download per
+    /// path, shared by every caller asking for it at the same time; it's
+    /// cancelled only when the last of them gives up.
     private func fetch(relative: String) async throws -> URL {
-        guard let base = config.libraryServerURL, let root = URL(string: base) else { throw LibraryFetchError.noServer }
-        guard fetchTasks[relative] == nil else { throw LibraryFetchError.alreadyFetching }
-        let remote = root.appendingPathComponent(relative)
-        let destination = libraryDirectory.appendingPathComponent(relative)
+        let token: UUID
+        let task: Task<URL, Error>
+        if let entry = inflight[relative] {
+            token = entry.token
+            task = entry.task
+            inflight[relative]?.waiters += 1
+        } else {
+            guard let base = config.libraryServerURL, let root = URL(string: base) else { throw LibraryFetchError.noServer }
+            let remote = root.appendingPathComponent(relative)
+            let destination = libraryDirectory.appendingPathComponent(relative)
+            let newToken = UUID()
+            token = newToken
+            task = Task {
+                defer { self.finish(relative, token: newToken) }
+                return try await self.download(remote, to: destination, relative: relative)
+            }
+            inflight[relative] = (newToken, task, 1)
+        }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.abandon(relative, token: token) }
+        }
+    }
+
+    private func finish(_ relative: String, token: UUID) {
+        if inflight[relative]?.token == token { inflight[relative] = nil }
+    }
+
+    private func abandon(_ relative: String, token: UUID) {
+        guard let entry = inflight[relative], entry.token == token else { return }
+        if entry.waiters > 1 {
+            inflight[relative]?.waiters -= 1
+        } else {
+            inflight[relative] = nil
+            entry.task.cancel()
+        }
+    }
+
+    private func download(_ remote: URL, to destination: URL, relative: String) async throws -> URL {
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         fetches[relative] = 0
-        defer { fetches[relative] = nil; fetchTasks[relative] = nil }
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let task = fetchSession.downloadTask(with: remote) { temporary, response, error in
-                // The temporary file is gone once this returns, so move it now.
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let temporary, (response as? HTTPURLResponse)?.statusCode == 200 {
-                    do {
-                        try? FileManager.default.removeItem(at: destination)
-                        try FileManager.default.moveItem(at: temporary, to: destination)
-                        continuation.resume()
-                    } catch {
+        fetching.insert(relative)
+        defer { fetches[relative] = nil; fetching.remove(relative) }
+        let handle = DownloadHandle()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                let task = fetchSession.downloadTask(with: remote) { temporary, response, error in
+                    // The temporary file is gone once this returns, so move it now.
+                    if let error {
                         continuation.resume(throwing: error)
+                    } else if let temporary, let http = response as? HTTPURLResponse, http.statusCode == 200 {
+                        // A body shorter than it said it would be never lands.
+                        let size = (try? FileManager.default.attributesOfItem(atPath: temporary.path))?[.size] as? Int64
+                        if http.expectedContentLength > 0, size != http.expectedContentLength {
+                            continuation.resume(throwing: LibraryFetchError.incomplete)
+                            return
+                        }
+                        do {
+                            try? FileManager.default.removeItem(at: destination)
+                            try FileManager.default.moveItem(at: temporary, to: destination)
+                            continuation.resume()
+                        } catch {
+                            continuation.resume(throwing: error)
+                        }
+                    } else {
+                        continuation.resume(throwing: URLError(.badServerResponse))
                     }
-                } else {
-                    continuation.resume(throwing: URLError(.badServerResponse))
+                }
+                handle.start(task)
+                Task { [weak self] in
+                    while task.state == .running {
+                        self?.fetches[relative] = task.progress.fractionCompleted
+                        try? await Task.sleep(for: .milliseconds(250))
+                    }
                 }
             }
-            fetchTasks[relative] = task
-            task.resume()
-            Task { [weak self] in
-                while task.state == .running {
-                    self?.fetches[relative] = task.progress.fractionCompleted
-                    try? await Task.sleep(for: .milliseconds(250))
-                }
-            }
+        } onCancel: {
+            handle.cancel()
         }
         return destination
     }
@@ -359,20 +443,28 @@ public final class WallpaperStore {
 
     /// A wallpaper's playable files that exist on this Mac right now: the
     /// video or still it plays, plus a live loop's still. Thumbnails stay —
-    /// they're tiny, and keep the grid instant and browsable offline.
-    private func offloadCandidates(only ids: Set<String>?) -> [OffloadCandidate] {
-        library.filter { ids?.contains($0.id) ?? true }.flatMap { video in
-            Set([video.playback, video.still].compactMap { $0 }).sorted().compactMap { relative -> OffloadCandidate? in
-                let path = libraryDirectory.appendingPathComponent(relative).path
-                guard let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? Int64 else { return nil }
-                return OffloadCandidate(id: video.id, relative: relative, size: size)
+    /// they're tiny, and keep the grid instant and browsable offline. The
+    /// wallpaper on the desktop stays too: freeing it would only download it
+    /// straight back. The disk checks run off the main thread.
+    private func offloadCandidates(only ids: Set<String>?) async -> [OffloadCandidate] {
+        let active: String? = if case .library(let id) = config.source { id } else { nil }
+        let wanted = library.filter { (ids?.contains($0.id) ?? true) && $0.id != active }
+            .map { video in (video.id, Set([video.playback, video.still].compactMap { $0 }).sorted()) }
+        let directory = libraryDirectory
+        return await Task.detached(priority: .userInitiated) {
+            wanted.flatMap { id, relatives in
+                relatives.compactMap { relative -> OffloadCandidate? in
+                    let path = directory.appendingPathComponent(relative).path
+                    guard let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? Int64 else { return nil }
+                    return OffloadCandidate(id: id, relative: relative, size: size)
+                }
             }
-        }
+        }.value
     }
 
     /// How much `offloadAll()` could free right now, before checking the server.
-    public func offloadableSpace(only ids: Set<String>? = nil) -> (files: Int, bytes: Int64) {
-        let candidates = offloadCandidates(only: ids)
+    public func offloadableSpace(only ids: Set<String>? = nil) async -> (files: Int, bytes: Int64) {
+        let candidates = await offloadCandidates(only: ids)
         return (candidates.count, candidates.reduce(0) { $0 + $1.size })
     }
 
@@ -380,12 +472,17 @@ public final class WallpaperStore {
     /// personal server is confirmed to hold: a HEAD request for that exact
     /// path must answer 200 with the same size, or the file stays. The
     /// catalog and `removed.json` are untouched — the wallpaper stays in the
-    /// library and is fetched back the next time it's played. `ids` limits
-    /// the run to some wallpapers (nil: all of them).
+    /// library and is fetched back the next time it's played. What was freed
+    /// is listed in `offloaded.json`, so the importer keeps it rather than
+    /// re-rendering or dropping it. `ids` limits the run (nil: all). A second
+    /// call while one runs does nothing.
     @discardableResult
     public func offloadAll(only ids: Set<String>? = nil) async -> OffloadResult {
         var result = OffloadResult()
-        let candidates = offloadCandidates(only: ids)
+        guard !isOffloading else { return result }
+        isOffloading = true
+        defer { isOffloading = false }
+        let candidates = await offloadCandidates(only: ids)
         guard let base = config.libraryServerURL, let root = URL(string: base) else {
             result.kept = candidates.map(\.relative)
             return result
@@ -410,18 +507,32 @@ public final class WallpaperStore {
                 }
             }
         }
-        for candidate in confirmed {
-            do {
-                try FileManager.default.removeItem(at: libraryDirectory.appendingPathComponent(candidate.relative))
-            } catch {
-                result.kept.append(candidate.relative)
-                continue
-            }
+        let directory = libraryDirectory
+        let toDelete = confirmed
+        let deleted = await Task.detached(priority: .userInitiated) {
+            toDelete.filter { (try? FileManager.default.removeItem(at: directory.appendingPathComponent($0.relative))) != nil }
+        }.value
+        let deletedPaths = Set(deleted.map(\.relative))
+        result.kept += confirmed.map(\.relative).filter { !deletedPaths.contains($0) }
+        for candidate in deleted {
             result.freedFiles += 1
             result.freedBytes += candidate.size
             if libraryVideo(candidate.id)?.playback == candidate.relative { libraryCopies.remove(candidate.id) }
         }
+        recordOffloaded(deleted.map(\.relative))
         return result
+    }
+
+    /// Adds to `offloaded.json`: relative paths deliberately freed from this
+    /// Mac because the server holds them. Read by the importer.
+    private func recordOffloaded(_ relatives: [String]) {
+        guard !relatives.isEmpty else { return }
+        let url = libraryDirectory.appendingPathComponent("offloaded.json")
+        var paths = Set((try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? [])
+        paths.formUnion(relatives)
+        if let data = try? JSONEncoder().encode(paths.sorted()) {
+            try? data.write(to: url, options: .atomic)
+        }
     }
 
     private nonisolated static func serverHolds(_ candidate: OffloadCandidate, root: URL, session: URLSession) async -> Bool {
@@ -525,5 +636,30 @@ public final class WallpaperStore {
         } catch {
             log.error("Couldn't save wallpaper settings: \(error.localizedDescription, privacy: .public)")
         }
+    }
+}
+
+/// A download that can be cancelled from any thread, including before it
+/// has started.
+private final class DownloadHandle: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: URLSessionDownloadTask?
+    private var cancelled = false
+
+    func start(_ task: URLSessionDownloadTask) {
+        lock.lock()
+        self.task = task
+        let cancelled = self.cancelled
+        lock.unlock()
+        task.resume()
+        if cancelled { task.cancel() }
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let task = self.task
+        lock.unlock()
+        task?.cancel()
     }
 }
