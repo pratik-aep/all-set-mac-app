@@ -558,4 +558,49 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         _ = try await task.value
         #expect(store.fetchProgress(for: id) == nil)
     }
+
+    // MARK: deleteEverywhere
+
+    @MainActor @Test func deleteEverywhereRemovesLocallyAndCallsTheDeleteService() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        try FileManager.default.createDirectory(at: store.libraryDirectory.appendingPathComponent("live"), withIntermediateDirectories: true)
+        try Data("here".utf8).write(to: store.libraryDirectory.appendingPathComponent("live/f1.mp4"))
+        StubURLProtocol.handler = { request in
+            #expect(request.httpMethod == "DELETE")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
+            // request.httpBody, not .httpBodyStream: URLSession may convert
+            // a body to a stream before a URLProtocol sees it, and reading
+            // that stream outside a run loop can block indefinitely.
+            if let body = request.httpBody, let sent = try? JSONSerialization.jsonObject(with: body) as? [String: Any] {
+                #expect(sent["id"] as? String == id)
+                #expect(sent["paths"] as? [String] == ["live/f1.mp4"])
+            }
+            return (200, Data("{}".utf8))
+        }
+        store.deleteServiceURL = URL(string: "http://stub.invalid/wallpaper")!
+        store.deleteServiceToken = "test-token"
+
+        let outcome = await store.deleteEverywhere(id)
+
+        #expect(outcome == .success)
+        #expect(!FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("live/f1.mp4").path))
+        #expect(store.libraryVideo(id) == nil)
+    }
+
+    /// The local part is unconditional and already done by the time the
+    /// server is even asked — a server failure doesn't undo it or hide it.
+    @MainActor @Test func deleteEverywhereStaysLocalWhenTheServerFails() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        try FileManager.default.createDirectory(at: store.libraryDirectory.appendingPathComponent("live"), withIntermediateDirectories: true)
+        try Data("here".utf8).write(to: store.libraryDirectory.appendingPathComponent("live/f1.mp4"))
+        StubURLProtocol.handler = { _ in (500, Data("{\"error\":\"db down\"}".utf8)) }
+        store.deleteServiceURL = URL(string: "http://stub.invalid/wallpaper")!
+        store.deleteServiceToken = "test-token"
+
+        let outcome = await store.deleteEverywhere(id)
+
+        guard case .localOnly = outcome else { Issue.record("expected .localOnly, got \(String(describing: outcome))"); return }
+        #expect(!FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("live/f1.mp4").path))
+        #expect(store.libraryVideo(id) == nil)
+    }
 }

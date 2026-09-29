@@ -151,9 +151,15 @@ private struct WallpaperHero: View {
 private struct VideosPage: View {
     let services: AppServices
     @State private var isDropTarget = false
+    @State private var detailVideo: LibraryVideo?
+    /// Owned tiles only offload on delete; everywhere else, permanent +
+    /// admin-gated. Lifted here (not just in LibrarySection) so the detail
+    /// sheet, which overlays the whole page, agrees with the grid.
+    @State private var ownedOnly = false
 
     var body: some View {
         let store = services.wallpaper
+        ZStack(alignment: .bottom) {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .bottom) {
@@ -197,7 +203,7 @@ private struct VideosPage: View {
                         }
                     }
                 }
-                LibrarySection(services: services)
+                LibrarySection(services: services, detailVideo: $detailVideo, ownedOnly: $ownedOnly)
             }
             .padding(28)
         }
@@ -211,6 +217,22 @@ private struct VideosPage: View {
         .dropDestination(for: URL.self) { urls, _ in
             !store.importVideos(from: urls).isEmpty
         } isTargeted: { isDropTarget = $0 }
+        if let video = detailVideo {
+            LibraryDetailSheet(video: video, store: store, images: services.images, deleteKind: deleteKind(for: video)) {
+                store.set(.library(video.id))
+                detailVideo = nil
+            } onClose: {
+                withMotion(Motion.standard) { detailVideo = nil }
+            }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+        }
+    }
+
+    /// Owned tiles only offload; everywhere else, permanent + admin-gated.
+    private func deleteKind(for video: LibraryVideo) -> LibraryTile.DeleteKind {
+        ownedOnly ? .offloadOnly { await services.wallpaper.offloadAll(only: [video.id]) }
+                  : .permanent { await services.wallpaper.deleteEverywhere(video.id) }
     }
 
     private func importVideos() {
@@ -285,6 +307,11 @@ private struct VideoTile: View {
 /// rest the pointer on one.
 private struct LibrarySection: View {
     let services: AppServices
+    /// Both owned by `VideosPage`: its bottom detail sheet overlays the
+    /// whole page (this section alone scrolls with the grid), and needs to
+    /// agree with the grid on which delete behaviour applies.
+    @Binding var detailVideo: LibraryVideo?
+    @Binding var ownedOnly: Bool
 
     @State private var query = ""
     @State private var category: Aerial.Category?
@@ -312,6 +339,7 @@ private struct LibrarySection: View {
             let shown = sort.sorted(all.filter { video in
                 (category == nil || video.category == category) && video.matches(query)
                     && (show == .all || (show == .live) == (video.kind == .video))
+                    && (!ownedOnly || store.canPlay(video))
             })
             let stills = all.filter { $0.kind == .image }.count
             // Not on this Mac, but the personal server has a copy to fetch.
@@ -371,6 +399,10 @@ private struct LibrarySection: View {
                         .frame(width: 240)
                     chip(nil, title: "All", symbol: "sparkles")
                     ForEach(kinds) { chip($0, title: $0.title, symbol: $0.symbol) }
+                    if hasServer {
+                        Divider().frame(height: 16)
+                        ownedChip
+                    }
                 }
                 if shown.isEmpty {
                     ContentUnavailableView.search(text: query)
@@ -378,10 +410,10 @@ private struct LibrarySection: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 14)], spacing: 14) {
                         ForEach(shown) { video in
                             LibraryTile(video: video, store: store, images: services.images,
-                                        isCurrent: store.config.source == .library(video.id)) {
+                                        isCurrent: store.config.source == .library(video.id), deleteKind: deleteKind(for: video)) {
                                 store.set(.library(video.id))
-                            } onDelete: {
-                                store.deleteLibraryVideo(video.id)
+                            } onShowDetails: {
+                                detailVideo = video
                             }
                         }
                     }
@@ -389,6 +421,28 @@ private struct LibrarySection: View {
             }
             .task { store.checkServerReachable() }
         }
+    }
+
+    /// Owned tiles only offload; everywhere else, permanent + admin-gated.
+    private func deleteKind(for video: LibraryVideo) -> LibraryTile.DeleteKind {
+        ownedOnly ? .offloadOnly { await services.wallpaper.offloadAll(only: [video.id]) }
+                  : .permanent { await services.wallpaper.deleteEverywhere(video.id) }
+    }
+
+    private var ownedChip: some View {
+        Button {
+            withMotion(Motion.quick) { ownedOnly.toggle() }
+        } label: {
+            Label("Owned", systemImage: ownedOnly ? "checkmark.circle.fill" : "internaldrive")
+                .font(.callout.weight(.medium))
+                .foregroundStyle(ownedOnly ? Color.white : .primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(ownedOnly ? Color.accentColor : Color.primary.opacity(0.07)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle())
+        .help("Only wallpapers stored on this Mac right now — delete here removes just this Mac's copy, not the wallpaper.")
     }
 
     private func chip(_ value: Aerial.Category?, title: String, symbol: String) -> some View {
@@ -466,12 +520,24 @@ private struct FreeUpSpaceRow: View {
 }
 
 private struct LibraryTile: View {
+    /// What the trash button does here, decided by the caller (the Owned
+    /// filter vs. the main grid), not by the tile itself.
+    enum DeleteKind {
+        /// This Mac's copy only — the wallpaper stays in the library and on
+        /// the server, and comes back the next time it's played.
+        case offloadOnly(@Sendable () async -> WallpaperStore.OffloadResult)
+        /// Gone everywhere: this Mac, the server's file, the database row.
+        /// Gated by Touch ID/the Mac password before it runs at all.
+        case permanent(@Sendable () async -> WallpaperStore.DeleteEverywhereOutcome?)
+    }
+
     let video: LibraryVideo
     let store: WallpaperStore
     let images: ImageLibrary
     let isCurrent: Bool
+    let deleteKind: DeleteKind
     let onUse: () -> Void
-    let onDelete: () -> Void
+    let onShowDetails: () -> Void
 
     @State private var thumbnail: NSImage?
     @State private var isHovering = false
@@ -479,6 +545,7 @@ private struct LibraryTile: View {
     @State private var isPreviewing = false
     @State private var confirmingDelete = false
     @State private var downloadProgress: Double?
+    @State private var deleteProblem: String?
 
     private static let thumbnailPixels = 512
 
@@ -504,8 +571,22 @@ private struct LibraryTile: View {
                     // Resolved only when previewing: finding the file costs a
                     // disk check, too much to do for every card as it scrolls by.
                     // Stills have nothing more to show than their card.
-                    if isPreviewing, video.kind == .video, let url = store.libraryURL(video.id) {
-                        LoopingVideo(url: url, isPlaying: true).transition(.opacity)
+                    if isPreviewing, video.kind == .video {
+                        if let url = store.libraryURL(video.id) {
+                            LoopingVideo(url: url, isPlaying: true).transition(.opacity)
+                        } else {
+                            // Not on this Mac: a hover never downloads on its
+                            // own (every scroll-by would trigger one) — tap
+                            // opens the detail sheet, which does fetch.
+                            VStack(spacing: 4) {
+                                Image(systemName: "arrow.down.circle").font(.title2)
+                                Text("Tap to preview").font(.caption2)
+                            }
+                            .foregroundStyle(.white)
+                            .padding(10)
+                            .background(.black.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+                            .transition(.opacity)
+                        }
                     }
                 }
                 .scaleEffect(isHovering ? 1.03 : 1)
@@ -520,7 +601,7 @@ private struct LibraryTile: View {
                     Button {
                         confirmingDelete = true
                     } label: {
-                        Image(systemName: "trash.fill")
+                        Image(systemName: isOffloadDelete ? "internaldrive" : "trash.fill")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.white)
                             .padding(6)
@@ -530,17 +611,26 @@ private struct LibraryTile: View {
                     .buttonStyle(.plain)
                     .padding(8)
                     .transition(.opacity)
-                    .help("Delete this wallpaper permanently")
+                    .help(isOffloadDelete ? "Remove from this Mac only — stays on your server"
+                          : "Delete this wallpaper permanently, everywhere (admin)")
                 }
             }
             // On the tile, not the hover-only button: moving the pointer to the
             // dialog ends the hover, and a dialog on a view that disappears
             // closes with it.
-            .confirmationDialog("Delete “\(video.title)” for good?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-                Button("Delete Permanently", role: .destructive) { onDelete() }
+            .confirmationDialog(isOffloadDelete ? "Remove “\(video.title)” from this Mac?" : "Delete “\(video.title)” for good?",
+                                isPresented: $confirmingDelete, titleVisibility: .visible) {
+                Button(isOffloadDelete ? "Remove From This Mac" : "Delete Permanently", role: .destructive) { runDelete() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This removes it from All Set and this Mac. It won't come back even if you re-import the same folder.")
+                Text(isOffloadDelete
+                     ? "Stays in your library and on your server. Downloads again the next time you play it."
+                     : "Removes it everywhere: this Mac, your server's copy, and the database. Asks to confirm it's you first, and can't be undone.")
+            }
+            .alert("Couldn't finish deleting “\(video.title)”", isPresented: .init(get: { deleteProblem != nil }, set: { if !$0 { deleteProblem = nil } })) {
+                Button("OK") {}
+            } message: {
+                Text((deleteProblem ?? "") + " It's already gone from this Mac; try again once that's fixed to finish removing it from the server.")
             }
             .overlay(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -554,6 +644,10 @@ private struct LibraryTile: View {
                         }
                         Spacer(minLength: 4)
                         Text(video.resolutionLabel).foregroundStyle(.white.opacity(0.75))
+                        if let size = video.size {
+                            Text("·").foregroundStyle(.white.opacity(0.5))
+                            Text(Self.size(size)).foregroundStyle(.white.opacity(0.75))
+                        }
                     }
                     .font(.caption.weight(.semibold))
                     if isFetching {
@@ -579,6 +673,8 @@ private struct LibraryTile: View {
                 .background(LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .top, endPoint: .bottom))
             }
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onShowDetails)
             .onHover { hovering in
                 withMotion(Motion.quick) { isHovering = hovering }
                 if !hovering { isPreviewing = false }
@@ -614,6 +710,159 @@ private struct LibraryTile: View {
                 }
             }
             .help(video.statusReason.map { "\(video.title): personal use (\($0))" } ?? video.title)
+    }
+
+    private var isOffloadDelete: Bool { if case .offloadOnly = deleteKind { true } else { false } }
+
+    private static func size(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private func runDelete() {
+        switch deleteKind {
+        case .offloadOnly(let offload):
+            Task { _ = await offload() }
+        case .permanent(let delete):
+            Task {
+                guard await AdminGate.authorize(reason: "delete “\(video.title)” everywhere") else { return }
+                switch await delete() {
+                case .success, nil: break
+                case .localOnly(let reason): deleteProblem = reason
+                }
+            }
+        }
+    }
+}
+
+/// A bigger look at one wallpaper, sliding up over the grid: a real
+/// preview (fetching it if it isn't local — tapping is deliberate, unlike
+/// a hover) plus every detail the tile's small footer has no room for.
+private struct LibraryDetailSheet: View {
+    let video: LibraryVideo
+    let store: WallpaperStore
+    let images: ImageLibrary
+    let deleteKind: LibraryTile.DeleteKind
+    let onUse: () -> Void
+    let onClose: () -> Void
+
+    @State private var thumbnail: NSImage?
+    @State private var confirmingDelete = false
+    @State private var deleteProblem: String?
+
+    var body: some View {
+        let isFetching = store.isFetching(video.id)
+        let url = store.libraryURL(video.id)
+        VStack(spacing: 0) {
+            ZStack {
+                Rectangle().fill(.quaternary)
+                if let thumbnail { Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fill) }
+                if let url {
+                    if video.kind == .image {
+                        Image(nsImage: NSImage(byReferencing: url)).resizable().aspectRatio(contentMode: .fill)
+                    } else {
+                        LoopingVideo(url: url, isPlaying: true)
+                    }
+                } else if isFetching {
+                    ProgressView().controlSize(.large).tint(.white)
+                }
+            }
+            .frame(height: 320)
+            .clipped()
+            .task(id: video.id) {
+                guard url == nil, let file = store.libraryThumbnailURL(video) else { return }
+                if let cached = images.cachedThumbnail(at: file, maxPixels: 1024) {
+                    thumbnail = cached
+                } else {
+                    thumbnail = await images.thumbnail(at: file, maxPixels: 1024)
+                }
+            }
+            .task(id: video.id) {
+                guard url == nil, store.config.libraryServerURL != nil else { return }
+                await store.fetchLibraryVideoRetrying(video.id, delays: [.seconds(2)])
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(video.title).font(.title2.bold())
+                        Text(video.category.title).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button(action: onClose) { Image(systemName: "xmark.circle.fill").font(.title2) }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140))], alignment: .leading, spacing: 8) {
+                    detail("Resolution", video.resolutionLabel)
+                    if let size = video.size { detail("Size", Self.size(size)) }
+                    if let duration = video.duration { detail("Length", String(format: "%.0fs", duration)) }
+                    if let fps = video.fps { detail("Frame rate", String(format: "%.0f fps", fps)) }
+                    detail("Kind", video.kind == .image ? "Still" : "Live")
+                }
+                if let reason = video.statusReason {
+                    Label(reason, systemImage: "lock.shield").font(.caption).foregroundStyle(.secondary)
+                }
+                HStack {
+                    Button(action: onUse) {
+                        Label(store.config.source == .library(video.id) ? "Current" : "Set as Wallpaper", systemImage: "photo.artframe")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.config.source == .library(video.id))
+                    Button(role: .destructive) { confirmingDelete = true } label: {
+                        Label(isOffloadDelete ? "Remove From This Mac" : "Delete Permanently", systemImage: "trash")
+                    }
+                    Spacer()
+                }
+            }
+            .padding(20)
+        }
+        .frame(maxWidth: 640)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(.separator))
+        .shadow(radius: 24, y: 8)
+        .padding(24)
+        .confirmationDialog(isOffloadDelete ? "Remove “\(video.title)” from this Mac?" : "Delete “\(video.title)” for good?",
+                            isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button(isOffloadDelete ? "Remove From This Mac" : "Delete Permanently", role: .destructive) { runDelete() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(isOffloadDelete
+                 ? "Stays in your library and on your server. Downloads again the next time you play it."
+                 : "Removes it everywhere: this Mac, your server's copy, and the database. Asks to confirm it's you first, and can't be undone.")
+        }
+        .alert("Couldn't finish deleting “\(video.title)”", isPresented: .init(get: { deleteProblem != nil }, set: { if !$0 { deleteProblem = nil } })) {
+            Button("OK") {}
+        } message: {
+            Text((deleteProblem ?? "") + " It's already gone from this Mac.")
+        }
+    }
+
+    private func detail(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.callout.weight(.medium))
+        }
+    }
+
+    private var isOffloadDelete: Bool { if case .offloadOnly = deleteKind { true } else { false } }
+
+    private static func size(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private func runDelete() {
+        switch deleteKind {
+        case .offloadOnly(let offload):
+            Task { _ = await offload(); onClose() }
+        case .permanent(let delete):
+            Task {
+                guard await AdminGate.authorize(reason: "delete “\(video.title)” everywhere") else { return }
+                switch await delete() {
+                case .success, nil: onClose()
+                case .localOnly(let reason): deleteProblem = reason
+                }
+            }
+        }
     }
 }
 

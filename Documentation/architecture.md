@@ -139,9 +139,29 @@ server doesn't repeat either:
 - **`offloaded.json`** lists every path freed on purpose; the importer
   treats those as present, so a re-import never re-renders, re-copies or
   drops `playback` for them. The active wallpaper is never freed.
-- **Known gap**: hovering a tile doesn't fetch (only setting a wallpaper
-  does), so an offloaded wallpaper shows no motion preview until it's been
-  played once.
+- **Hover still doesn't fetch, by design, not a gap**: it shows "tap to
+  preview" instead of nothing when the file isn't local. A hover firing on
+  every scroll-by would download too readily; a tap is deliberate. Tapping
+  opens `LibraryDetailSheet`, which does fetch.
+- **Two deletes, one button, decided by context, not by the tile**:
+  `LibraryTile.DeleteKind` — `.offloadOnly` (the Owned filter: local copy
+  only, stays in the catalog and on the server) or `.permanent`
+  (everywhere else). `.permanent` runs `AdminGate.authorize` (Touch ID,
+  falling back to the Mac password) before calling
+  `WallpaperStore.deleteEverywhere`, which does the existing local
+  `deleteLibraryVideo` cleanup first — unconditional, already proven — then
+  calls the delete service for the server file and the Postgres row. A
+  server failure is reported, not swallowed; the local deletion already
+  happened either way.
+- **`scripts/cloud/delete_service.py`**: the one destructive server
+  endpoint, deliberately behind more than the fetch path is. Bound to
+  `127.0.0.1` on the server, not the Tailscale interface like Caddy —
+  reached only through the SSH tunnel (`tunnel.sh` forwards this port
+  too). Bearer-token auth on top of that (token in
+  `~/.allset_delete_token` server-side, this Mac's Keychain client-side via
+  `DeleteAPIKeychain`), and it only ever deletes a path that resolves
+  strictly inside `~/AllSetStorage/wallpapers/`. Not a launchd service yet
+  — started by hand, same as the tunnel.
 
 ## How a scene becomes a wallpaper
 ```

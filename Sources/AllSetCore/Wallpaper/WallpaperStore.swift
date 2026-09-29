@@ -561,8 +561,9 @@ public final class WallpaperStore {
     /// `scripts/wallpaper_library.py` writes fields (`sha256`, `sceneNotes`,
     /// `movement`…) that the app's model doesn't carry, and a decode-reencode
     /// through it would silently drop those for every other wallpaper too.
-    public func deleteLibraryVideo(_ id: String) {
-        guard let video = libraryVideo(id) else { return }
+    @discardableResult
+    public func deleteLibraryVideo(_ id: String) -> LibraryVideo? {
+        guard let video = libraryVideo(id) else { return nil }
         if config.source == .library(id) {
             config.isEnabled = false
             config.source = WallpaperConfig().source
@@ -591,6 +592,53 @@ public final class WallpaperStore {
         library.removeAll { $0.id == id }
         libraryIndex = Dictionary(library.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
         libraryCopies.remove(id)
+        return video
+    }
+
+    /// The delete service's own address: always the SSH tunnel's local
+    /// forward (`scripts/cloud/tunnel.sh`), never the Tailscale address —
+    /// unlike fetching, a permanent cross-system delete is deliberately
+    /// only reachable this way. Overridable for tests.
+    public var deleteServiceURL = URL(string: "http://localhost:8081/wallpaper")!
+    /// Instance, not a direct `DeleteAPIKeychain.token` read — so a test
+    /// doesn't have to overwrite the real Keychain entry to exercise this.
+    public var deleteServiceToken: String? = DeleteAPIKeychain.token
+
+    public enum DeleteEverywhereOutcome: Sendable, Equatable {
+        /// Gone here, on the server, and from the database.
+        case success
+        /// Gone here — that part is unconditional and already done by the
+        /// time this returns — but the server or database wasn't reached;
+        /// says why, so it can be retried or cleaned up by hand.
+        case localOnly(String)
+    }
+
+    /// Deletes a wallpaper everywhere: this Mac (via `deleteLibraryVideo`,
+    /// unconditionally first), then the server's copy of its files and its
+    /// Postgres row, through the delete service. Call only after
+    /// `AdminGate.authorize` — this function itself doesn't gate anything.
+    @discardableResult
+    public func deleteEverywhere(_ id: String) async -> DeleteEverywhereOutcome? {
+        guard let video = libraryVideo(id) else { return nil }
+        let paths = Set([video.playback, video.thumbnail, video.still].compactMap { $0 }).sorted()
+        deleteLibraryVideo(id)
+        guard let token = deleteServiceToken else {
+            return .localOnly("No delete-service token in Keychain — see DeleteAPIKeychain.swift.")
+        }
+        var request = URLRequest(url: deleteServiceURL)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["id": id, "paths": paths])
+        guard let (data, response) = try? await fetchSession.data(for: request),
+              let http = response as? HTTPURLResponse else {
+            return .localOnly("Couldn't reach the delete service — is the tunnel open (scripts/cloud/tunnel.sh)?")
+        }
+        guard http.statusCode == 200 else {
+            let body = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?.description ?? "HTTP \(http.statusCode)"
+            return .localOnly(body)
+        }
+        return .success
     }
 
     /// Copies videos in, so the wallpaper keeps working if the originals move.
