@@ -355,6 +355,7 @@ struct WallpaperView: View {
     let config: WallpaperConfig
     let services: AppServices
     @Environment(\.widgetIsVisible) private var isPlaying
+    @State private var downloadProgress: Double?
 
     var body: some View {
         ZStack {
@@ -405,7 +406,20 @@ struct WallpaperView: View {
                         ArtView(piece: ArtPiece(style: .aurora, palette: .aurora), animated: true, speed: config.speed,
                                 frameRate: config.frameRate)
                         if isFetching {
-                            ProgressView().controlSize(.small).padding(20)
+                            VStack(spacing: 4) {
+                                ProgressView(value: downloadProgress ?? 0).frame(width: 120)
+                                Text(downloadProgress.map { "\(Int($0 * 100))%" } ?? "Starting…")
+                                    .font(.caption2).foregroundStyle(.white.opacity(0.85))
+                            }
+                            .padding(16)
+                            // A local timer, not Observation: `fetches` ticks 4
+                            // times a second, too often to redraw this view on.
+                            .task(id: isFetching) {
+                                while !Task.isCancelled {
+                                    downloadProgress = services.wallpaper.fetchProgress(for: id)
+                                    try? await Task.sleep(for: .milliseconds(150))
+                                }
+                            }
                         }
                     }
                     .task(id: "\(id)#\(services.wallpaper.hasLoadedLibrary)") {

@@ -478,6 +478,7 @@ private struct LibraryTile: View {
     /// The video starts after a moment's rest, not as the pointer passes over.
     @State private var isPreviewing = false
     @State private var confirmingDelete = false
+    @State private var downloadProgress: Double?
 
     private static let thumbnailPixels = 512
 
@@ -487,6 +488,11 @@ private struct LibraryTile: View {
         // have it: worth trying rather than calling it unplayable outright.
         let onServer = !playable && store.config.libraryServerURL != nil
             && (video.playback != nil || video.still != nil) && store.serverReachable != false
+        // Set from the store's own count-of-callers state, not a fetch this
+        // tile starts itself: whichever wallpaper is actually downloading (set
+        // as active, or another tile's own hover-preview) shows its progress
+        // here too, since it's the same shared download either way.
+        let isFetching = store.isFetching(video.id)
         Color.clear
             .aspectRatio(16 / 9, contentMode: .fit)
             .overlay {
@@ -550,7 +556,13 @@ private struct LibraryTile: View {
                         Text(video.resolutionLabel).foregroundStyle(.white.opacity(0.75))
                     }
                     .font(.caption.weight(.semibold))
-                    if isHovering {
+                    if isFetching {
+                        ProgressView(value: downloadProgress ?? 0)
+                            .tint(.white)
+                        Text(downloadProgress.map { "Downloading… \(Int($0 * 100))%" } ?? "Downloading…")
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.85))
+                    } else if isHovering {
                         Button(action: onUse) {
                             Label(isCurrent ? "Current" : playable ? "Set as Wallpaper"
                                   : onServer ? "Fetch from Server" : "Drive Not Connected",
@@ -590,6 +602,16 @@ private struct LibraryTile: View {
                     _ = try? await store.fetchThumbnail(video.id)
                 }
                 thumbnail = await images.thumbnail(at: file, maxPixels: Self.thumbnailPixels)
+            }
+            // A local timer, not Observation: `fetches` ticks 4 times a
+            // second, and only this one tile — not every tile watching
+            // `isFetching` — should redraw that often.
+            .task(id: isFetching) {
+                guard isFetching else { downloadProgress = nil; return }
+                while !Task.isCancelled {
+                    downloadProgress = store.fetchProgress(for: video.id)
+                    try? await Task.sleep(for: .milliseconds(150))
+                }
             }
             .help(video.statusReason.map { "\(video.title): personal use (\($0))" } ?? video.title)
     }

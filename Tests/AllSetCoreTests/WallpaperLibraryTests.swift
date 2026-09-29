@@ -543,4 +543,19 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         let (a, b) = await (first, second)
         #expect(a.freedFiles + b.freedFiles == 1)
     }
+
+    /// `fetchProgress` is what the download bar reads: nil when idle, then
+    /// real progress while a download is under way.
+    @MainActor @Test func fetchProgressReflectsAnUnderwayDownload() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        #expect(store.fetchProgress(for: id) == nil)
+        StubURLProtocol.delay = 0.3
+        StubURLProtocol.handler = { _ in (200, Data(repeating: 0, count: 200_000)) }
+        let task = Task { try await store.fetchLibraryVideo(id) }
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(store.isFetching(id))
+        #expect(store.fetchProgress(for: id) != nil)
+        _ = try await task.value
+        #expect(store.fetchProgress(for: id) == nil)
+    }
 }

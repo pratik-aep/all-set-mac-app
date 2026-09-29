@@ -337,6 +337,14 @@ public final class WallpaperStore {
         return underway.contains(relative)
     }
 
+    /// 0...1, or nil if it isn't downloading. Not observed — call this from a
+    /// view's own timer while `isFetching(id)` is true, not from `body`
+    /// directly: `fetches` ticks 4 times a second, too often to redraw on.
+    public func fetchProgress(for id: String) -> Double? {
+        guard let video = libraryVideo(id), let relative = video.playback ?? video.still else { return nil }
+        return fetches[relative]
+    }
+
     /// `<server>/<relative>` into `<library>/<relative>`. One download per
     /// path, shared by every caller asking for it at the same time; it's
     /// cancelled only when the last of them gives up.

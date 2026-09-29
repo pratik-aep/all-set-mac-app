@@ -131,3 +131,14 @@ Result: no code changes needed; docs now agree with reality.
   server stopped at launch. 224 tests.
 - originals/ pushed (280 files, 52.5 GB, verified by name+size) and freed:
   AllSet folder 797 MB, free disk 50 -> 98 GiB; one fetched back live.
+- Per-wallpaper download progress bar (Library grid tiles + the desktop
+  wallpaper itself): real % while a fetch is under way, replacing a bare
+  spinner/nothing. Root cause of the user's "fetch not applying" report:
+  clicking several tiles quickly cancels each fetch for the previous one
+  (by design - correct), with zero feedback to show it was working at all.
+  New WallpaperStore.fetchProgress(for:) is a plain, non-observed read;
+  each view polls it on its own 150ms timer only while isFetching(id) is
+  true, so redraws stay local to the one downloading tile. Verified against
+  the real server: a 68 MB wallpaper landed byte-exact after hitting (and
+  correctly recovering from) the async-load race on its first attempt.
+  225 tests pass, 0 warnings.
