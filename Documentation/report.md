@@ -9,9 +9,12 @@ log; it never needs reading in full.
 _(overwritten every checkpoint — 2026-09-29, audit findings fixed)_
 
 ### Working right now (verified only)
-- 1161 wallpapers. Full-library offload was run (`b07714a`, 18.7 GiB freed).
-  The 280 `originals/` files it correctly kept (server didn't have them) are
-  being pushed now; they get freed once the server confirms them.
+- 1161 wallpapers, **all backed up on the server and freed locally except
+  the active one**. Total freed: 18.7 GiB (`b07714a`) + 52.5 GB `originals/`
+  (280 files: pushed, verified 280/280 by name+size, freed with the checked
+  offload — nothing kept). The AllSet folder is now **797 MB**; free disk
+  50 → 98 GiB. A freed `originals/` wallpaper fetched back in the real app
+  in ~4 s at its exact size. `offloaded.json` lists all 280.
 - **Audit (`Documentation/audit-2026-09-29.md`) resolved:** 8 findings fixed,
   1 fixed by construction (not profiled), 1 retracted with reasoning. Key
   real-app proofs: server down at launch → wallpaper downloads by itself once
@@ -38,8 +41,7 @@ _(overwritten every checkpoint — 2026-09-29, audit findings fixed)_
 - No settings UI for the server URL; SSH key has no passphrase.
 
 ### Next step
-When the `originals/` push finishes: verify all 280 on the server, free
-them (`offloadAll(only:)`), measure, update this block.
+Awaiting the user. Nothing pending.
 
 ---
 
@@ -127,3 +129,5 @@ Result: no code changes needed; docs now agree with reality.
   offloaded.json, active wallpaper never freed, system still refreshed after a
   late fetch, file work off the main thread. Proven in the real app with the
   server stopped at launch. 224 tests.
+- originals/ pushed (280 files, 52.5 GB, verified by name+size) and freed:
+  AllSet folder 797 MB, free disk 50 -> 98 GiB; one fetched back live.
