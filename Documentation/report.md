@@ -6,38 +6,37 @@ log; it never needs reading in full.
 ---
 
 ## CURRENT STATE
-_(overwritten every checkpoint — 2026-09-29, local copies made optional)_
+_(overwritten every checkpoint — 2026-09-29, full library offloaded)_
 
 ### Working right now (verified only)
-- **1161 wallpapers** in the catalog (1164 last checkpoint; the 3 fewer are
-  the user's own deletions through the app's trash button — `catalog.json`
-  and `removed.json` both last written at 05:01, before any of this
-  checkpoint's work, and 24 `removed.json` entries read "removed by the user
-  in the app").
-- **Personal home server** (second Mac, Tailscale-only): Postgres holds the
-  catalog metadata; Caddy serves all five playable folders (`live/`,
-  `stills/`, `thumbnails/`, `extracted/`, `transcoded/`), verified complete.
-- **Local copies are now optional, proven in the real app:**
-  - `fetchThumbnail(id)` joins `fetchLibraryVideo(id)`; both go through one
-    `fetch(relative:)`, in-flight work keyed by relative path.
-  - `offloadAll(only:)` deletes a local playable file only after a `HEAD`
-    on the server answers 200 with the identical size; anything unconfirmed
-    stays. Catalog and `removed.json` untouched. Thumbnails kept.
-  - "Free Up Space…" in the Library header: estimate → confirm → per-file
-    progress → freed vs. kept.
-  - **Real test, small scale:** 3 real wallpapers (a live loop + its still,
-    a still-only image, an `extracted/` video), 4 files, 119 MB — all 4
-    verified on the real server and freed; thumbnails kept; catalog
-    entries intact; server still serving them. Then set the freed still as
-    the active wallpaper in the running app: fetched back in ~4s,
-    byte-identical. The original active wallpaper was restored after.
-  - Two of those three (Abandoned City, Formula 1) are **still offloaded**,
-    deliberately — that's the intended state now, and they come back the
-    moment they're played.
-- 216 tests pass (5 new: thumbnail fetch, video+thumbnail fetched at once
-  without colliding, offload deletes only server-confirmed files and
-  round-trips, offload without a server keeps everything, offload limited
-  to some wallpapers). 0 warnings, Dock app rebuilt and relaunched.
+- **The real, full-library "Free Up Space" ran, by the user's explicit
+  go-ahead — not a sample.** Verified independently of the tool's own count:
+  - Freed **1509 files, 20,048,694,697 bytes (18.7 GiB)**. Disk free space
+    went 33 GiB → 51 GiB, matching. `live/`, `stills/`, `extracted/`,
+    `transcoded/` are all now genuinely empty (0 B); `thumbnails/` untouched
+    (34 MB) — kept on purpose so the grid stays instant.
+  - `catalog.json` and `removed.json`: byte-identical before and after
+    (1161 items, same file). Nothing was removed from the library — every
+    wallpaper is still there, just not stored twice any more.
+  - Set one of the just-freed wallpapers (Marvel's Spider-Man 2) as the
+    active desktop wallpaper afterward: fetched back in ~4s, confirmed
+    present. Original wallpaper restored after.
+  - Both the small-scale test earlier this checkpoint and this full run
+    used a temporary test, run once, then removed before committing —
+    nothing from either is in the persisted suite.
+- **New finding, real and worth acting on: 294 wallpapers' actual playback
+  file lives directly under `originals/`** (plain-video imports where the
+  self-contained copy *is* the playback file — no separate `live/` copy was
+  ever made, to avoid storing the same bytes twice). `originals/` was never
+  pushed to the server, on the understanding that it was pure backup
+  scratch — wrong for these 294, same category of gap as `extracted/`/
+  `transcoded/` two checkpoints ago. **The safety check caught it
+  correctly**: 280 of them (some of the 294 already had no local copy for
+  other reasons) were left alone, not deleted, because the server couldn't
+  confirm a copy — exactly the mechanism working as designed. But it means
+  **~52 GB across these 294 wallpapers has no off-Mac copy at all** right
+  now — the one real gap left in an otherwise fully-backed-up library.
+- 216 tests pass, 0 warnings, Dock app rebuilt and relaunched.
 
 ### Files touched this checkpoint
 - `Sources/AllSetCore/Wallpaper/WallpaperStore.swift` — `fetch(relative:)`,
@@ -51,13 +50,18 @@ _(overwritten every checkpoint — 2026-09-29, local copies made optional)_
 - `Tests/AllSetCoreTests/WallpaperLibraryTests.swift` — stub answers HEAD
   like a file server; 5 new tests.
 - `Documentation/architecture.md`, `report.md`.
+- Live, outside-the-repo change with no commit: this Mac's actual library
+  is now offloaded (see above) — 18.7 GiB freed for real.
 
 ### Known issues / blockers
-- **The full-library "Free Up Space" has not been run** — by design; it
-  needs the user's go-ahead. Expected: ~20 GB of playable files freed,
-  thumbnails (~34 MB) kept.
-- Once offloaded, every wallpaper depends on Tailscale + the server being
-  up. Off that network, a not-yet-played wallpaper shows the default art.
+- **294 wallpapers (~52 GB) whose playback file lives under `originals/`
+  have no server backup** — found by the full run's own safety check
+  correctly refusing to delete them. Fixable the same way the
+  `extracted/`/`transcoded/` gap was: extend `push_wallpapers.sh` (or a
+  narrower push of just these 294 paths) and re-run. Not done yet.
+- Every offloaded wallpaper now depends on Tailscale + the server being up.
+  Off that network, a not-yet-played-since-offload wallpaper shows the
+  default art until it's back.
 - Hovering a tile doesn't fetch, so an offloaded wallpaper has no motion
   preview until played once.
 - The system-wallpaper still (Mission Control/lock screen) isn't refreshed
@@ -68,8 +72,8 @@ _(overwritten every checkpoint — 2026-09-29, local copies made optional)_
   (`push_wallpapers.sh` never deletes there, by design).
 
 ### Next step
-Awaiting the user: run "Free Up Space…" on the full library (their call,
-~20 GB), or any of the known issues above.
+Awaiting the user: back up the 294 `originals/`-as-playback wallpapers
+(closes the one remaining real gap), or any of the other known issues above.
 
 ---
 
@@ -145,3 +149,11 @@ Result: no code changes needed; docs now agree with reality.
   Content-Length), "Free Up Space…" in the Library. Real test: 4 files /
   119 MB freed from 3 real wallpapers, one fetched back by the running app
   in ~4s byte-identical. Full-library run left for the user. 216 tests.
+- Full-library "Free Up Space" run for real, by explicit go-ahead: freed
+  1509 files / 18.7 GiB, verified independently (disk free space, folder
+  sizes, catalog/removed.json byte-identical, one freed wallpaper fetched
+  back live in ~4s). Found a new real gap in the process: 294 wallpapers
+  whose playback file lives under originals/ (never backed up) - the
+  safety check correctly kept them rather than deleting unconfirmed
+  copies. ~52GB there still has no off-Mac backup. 216 tests, no code
+  changes this checkpoint (docs + the real run only).
