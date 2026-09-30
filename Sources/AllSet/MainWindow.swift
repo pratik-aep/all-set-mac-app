@@ -236,14 +236,16 @@ struct FormPage<Lead: View, Content: View>: View {
     var body: some View {
         Form {
             if title != nil || Lead.self != EmptyView.self {
+                // A section of nothing but a header: grouped forms draw headers
+                // on the canvas, outside the rounded boxes.
                 Section {
+                } header: {
                     VStack(alignment: .leading, spacing: DS.Space.l) {
                         if let title { PageHeader(eyebrow: eyebrow, title: title, subtitle: subtitle) }
                         lead
                     }
+                    .textCase(nil)
                     .padding(.bottom, DS.Space.xs)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
                 }
             }
             content

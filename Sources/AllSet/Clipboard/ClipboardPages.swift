@@ -14,7 +14,9 @@ struct ClipboardPage: View {
     var body: some View {
         let store = services.clipboard
         let results = store.search(query, kind: kind)
-        HSplitView {
+        // A plain stack, not HSplitView: the split view is AppKit's and would
+        // slide under the floating navigation.
+        HStack(spacing: 0) {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: DS.Space.m) {
                     PageHeader(eyebrow: store.items.isEmpty ? "Tools" : "\(store.items.count) items", title: "Clipboard",
@@ -65,13 +67,15 @@ struct ClipboardPage: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .frame(minWidth: 380)
+            .frame(minWidth: 380, maxWidth: .infinity)
+
+            Divider().opacity(0.5)
 
             Form {
                 ClipboardSettingsSections(services: services, confirmingClear: $confirmingClear)
             }
             .dsFormStyle()
-            .frame(minWidth: 300, idealWidth: 340, maxWidth: 420)
+            .frame(width: 340)
         }
         .motion(Motion.standard, value: status)
         .confirmationDialog("Clear clipboard history?", isPresented: $confirmingClear) {

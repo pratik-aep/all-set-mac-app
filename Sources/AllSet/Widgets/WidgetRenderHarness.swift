@@ -577,6 +577,17 @@ extension WidgetRenderHarness {
                 return parts.count == 2 ? CGSize(width: parts[0], height: parts[1]) : nil
             }
         try? ArtGPU.compileNow()
+        // A fresh machine has no widgets; borrow two so On Your Desktop and
+        // the customizer have something to show, and put things back after.
+        var borrowed: [UUID] = []
+        if services.widgets.widgets.isEmpty {
+            for kind in [WidgetKind.clock, .weather] {
+                if let entry = WidgetCatalog.entries.first(where: { $0.kind == kind }) {
+                    borrowed.append(services.addWidget(entry.make()).id)
+                }
+            }
+        }
+        defer { for id in borrowed { services.widgets.remove(id) } }
         let window = UnconstrainedWindow(contentRect: CGRect(origin: CGPoint(x: 80, y: 80), size: sizes.first ?? CGSize(width: 1280, height: 800)),
                                          styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                                          backing: .buffered, defer: false)

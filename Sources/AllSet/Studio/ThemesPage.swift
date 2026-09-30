@@ -366,7 +366,9 @@ private struct ThemeSnapshot: View {
         }
         .aspectRatio(fills ? nil : ThemeComposition.canvas.width / ThemeComposition.canvas.height, contentMode: fills ? .fill : .fit)
         .motion(Motion.standard, value: cache.image(for: set, dark: dark) != nil)
-        .task(id: cache.key(set, dark: dark)) { cache.request(set, dark: dark, services: services) }
+        // Keyed on the purge generation too: a purge (memory pressure) drops
+        // queued requests, and a card still waiting must ask again.
+        .task(id: "\(cache.key(set, dark: dark))#\(cache.generation)") { cache.request(set, dark: dark, services: services) }
         .onDisappear { cache.cancel(set, dark: dark) }
         .accessibilityHidden(true)
     }

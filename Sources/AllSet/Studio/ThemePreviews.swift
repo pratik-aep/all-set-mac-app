@@ -167,7 +167,9 @@ final class ThemePreviewCache {
     @ObservationIgnored private var lastUse: [String: Int] = [:]
     @ObservationIgnored private var useCount = 0
     @ObservationIgnored private var bytes = 0
-    @ObservationIgnored private var generation = 0
+    /// Goes up with every purge. Observed: cards on screen ask again when it
+    /// changes, since a purge drops the requests they were waiting on.
+    private(set) var generation = 0
 
     private func keep(_ image: CGImage, as name: String) {
         // ImageRenderer draws 16 bits a channel; the screen shows 8. Half the
