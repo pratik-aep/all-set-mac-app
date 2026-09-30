@@ -122,8 +122,10 @@ struct HeroSection<Media: View, Actions: View>: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            media
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // The hero decides its size; media only fills it. Sized by the
+            // media, a filling picture grew the stack and pushed the words out.
+            Color.clear
+                .overlay { media }
                 .clipped()
             // Darkest bottom-left, where the words are; the rest of the media stays clear.
             LinearGradient(colors: [.black.opacity(0.78), .black.opacity(0.25), .clear],

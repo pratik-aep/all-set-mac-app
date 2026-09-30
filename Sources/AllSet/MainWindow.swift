@@ -245,7 +245,7 @@ struct FormPage<Lead: View, Content: View>: View {
                         lead
                     }
                     .textCase(nil)
-                    .padding(.bottom, DS.Space.xs)
+                    .padding(.bottom, DS.Space.m)
                 }
             }
             content
