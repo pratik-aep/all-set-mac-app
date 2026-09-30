@@ -342,7 +342,7 @@ private struct FeaturedThemeHero: View {
                         .clipped()
                     // Busy widgets behind the words: dim them, more so when
                     // the card carries the picture.
-                    Color.black.opacity(showsCard ? 0.72 : 0.45)
+                    Color.black.opacity(showsCard ? 0.72 : 0.6)
                     if showsCard {
                         ThemeSnapshot(set: set, dark: set.isDark, services: services)
                             .frame(width: cardHeight * ratio, height: cardHeight)
