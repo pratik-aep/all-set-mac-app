@@ -29,7 +29,6 @@ struct LiveWallpaperPage: View {
     }
 
     var body: some View {
-        let store = services.wallpaper
         let setWallpaper = LibraryContext(action: .init(title: "Set as Wallpaper", symbol: "photo.artframe") { source in
             if case .art(let piece) = source {
                 services.pickWallpaper(.art(piece))
