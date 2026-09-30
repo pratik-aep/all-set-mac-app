@@ -1,18 +1,21 @@
 import AllSetCore
 import AppKit
 
-/// A theme set being tried on the desktop, and what to put back.
+/// A theme set being tried on the desktop, and everything to put back.
 struct ThemePreview: Equatable {
     let setID: String
-    let widgets: [WidgetInstance]
-    let wallpaper: WallpaperConfig
-    /// The widget size to go back to.
-    let scale: Double
+    let before: DesktopSnapshot
 }
 
-/// How a theme set goes onto the desktop.
+/// A theme set just put on the desktop, and the desktop from before it.
+struct ThemeUndo: Equatable {
+    let name: String
+    let before: DesktopSnapshot
+}
+
+/// How a theme set goes onto the desktop. Every mode can be undone.
 enum ThemeInstall {
-    /// The set's widgets replace the current ones (Undo brings them back).
+    /// The set's widgets replace the current ones.
     case replace
     /// The set's widgets join the current ones, in free spots.
     case add
@@ -23,51 +26,41 @@ enum ThemeInstall {
 extension AppServices {
     /// Installs a theme set: its widgets, look and (if asked) wallpaper.
     func install(_ set: ThemeSet, mode: ThemeInstall, wallpaper setsWallpaper: Bool) {
-        let photos = themePhotos.sources(for: set.id)
-        let screen = NSScreen.screens.first
-        let bounds = screen?.visibleFrame.size ?? CGSize(width: 1440, height: 860)
+        // Installing over a preview starts from the desktop before the preview.
+        if ui.themePreview != nil { endThemePreview(keep: false) }
+        let before = desktopSnapshot
         switch mode {
         case .replace:
-            ui.layoutBeforeTheme = widgets.widgets
-            ui.scaleBeforeTheme = settings.widgetScale
-            // Sized and centered to fill this screen, whatever its size.
-            widgets.replaceAll(with: prepared(fittedToScreen(ThemeSet.personalized(
-                set.widgets(screenName: screen?.localizedName, bounds: Self.unbounded), with: photos))))
+            widgets.replaceAll(with: themeWidgets(set))
             themeStats.record(.install, for: set.id)
         case .add:
-            for widget in prepared(ThemeSet.personalized(set.widgets(screenName: screen?.localizedName, bounds: bounds), with: photos)) {
-                addWidget(widget)
-            }
+            let screen = NSScreen.screens.first
+            let bounds = screen?.visibleFrame.size ?? CGSize(width: 1440, height: 860)
+            let added = ThemeSet.personalized(set.widgets(screenName: screen?.localizedName, bounds: bounds),
+                                              with: themePhotos.sources(for: set.id))
+            for widget in prepared(added) { addWidget(widget) }
             themeStats.record(.install, for: set.id)
         case .restyle:
             if let theme = set.designTheme {
                 apply(theme, wallpaper: false)
             } else if let setup = set.setup {
-                apply(setup, wallpaper: false, useKit: false)
+                apply(setup, wallpaper: false)
             }
             themeStats.record(.apply, for: set.id)
         }
-        if let setup = set.setup, mode != .restyle {
-            // The original setups also set the font and corners.
-            settings.widgetFont = setup.font
-            settings.widgetCornerRadius = setup.cornerRadius
-        }
-        if setsWallpaper, let wallpaper = set.wallpaper { self.wallpaper.set(wallpaper) }
-        settings.widgetDesignTheme = set.designTheme?.id
-        settings.widgetTheme = set.setup?.id
-        settings.showWidgets = true
+        if setsWallpaper, let source = set.wallpaper { wallpaper.set(source) }
+        settings.adopt(set)
+        ui.themeUndo = ThemeUndo(name: set.name, before: before)
     }
 
-    /// Tries a set on the desktop until Keep or Go Back.
-    func previewOnDesktop(_ set: ThemeSet) {
+    /// Tries a set on the desktop until Keep or Go Back. It's put there
+    /// exactly as Install would, so Keep has nothing left to change.
+    func previewOnDesktop(_ set: ThemeSet, wallpaper setsWallpaper: Bool) {
         if ui.themePreview != nil { endThemePreview(keep: false) }
-        let screen = NSScreen.screens.first
-        ui.themePreview = ThemePreview(setID: set.id, widgets: widgets.widgets, wallpaper: wallpaper.config, scale: settings.widgetScale)
-        widgets.replaceAll(with: prepared(fittedToScreen(ThemeSet.personalized(
-            set.widgets(screenName: screen?.localizedName, bounds: Self.unbounded),
-            with: themePhotos.sources(for: set.id)))))
-        if let source = set.wallpaper { wallpaper.set(source) }
-        settings.showWidgets = true
+        ui.themePreview = ThemePreview(setID: set.id, before: desktopSnapshot)
+        widgets.replaceAll(with: themeWidgets(set))
+        if setsWallpaper, let source = set.wallpaper { wallpaper.set(source) }
+        settings.adopt(set)
         themeStats.record(.preview, for: set.id)
     }
 
@@ -75,17 +68,35 @@ extension AppServices {
         guard let preview = ui.themePreview else { return }
         ui.themePreview = nil
         if keep {
-            ui.layoutBeforeTheme = preview.widgets
-            ui.scaleBeforeTheme = preview.scale
+            // Undo goes back to the desktop from before the preview.
             if let set = ThemeLibrary.set(preview.setID) {
-                settings.widgetDesignTheme = set.designTheme?.id
+                ui.themeUndo = ThemeUndo(name: set.name, before: preview.before)
                 themeStats.record(.install, for: set.id)
             }
         } else {
-            widgets.replaceAll(with: preview.widgets)
-            settings.widgetScale = preview.scale
-            wallpaper.config = preview.wallpaper
+            preview.before.restore(settings: settings, widgets: widgets, wallpaper: wallpaper)
         }
+    }
+
+    /// Puts back the desktop from before the last theme: widgets, size,
+    /// font, corners, theme and wallpaper.
+    func undoTheme() {
+        guard let undo = ui.themeUndo else { return }
+        // The undo reaches further back than any preview on top of it.
+        ui.themePreview = nil
+        undo.before.restore(settings: settings, widgets: widgets, wallpaper: wallpaper)
+        ui.themeUndo = nil
+    }
+
+    private var desktopSnapshot: DesktopSnapshot {
+        DesktopSnapshot(settings: settings, widgets: widgets, wallpaper: wallpaper)
+    }
+
+    /// A set's widgets with the person's photos, sized and centered to fill
+    /// the primary screen, whatever its size.
+    private func themeWidgets(_ set: ThemeSet) -> [WidgetInstance] {
+        let layout = set.widgets(screenName: NSScreen.screens.first?.localizedName, bounds: Self.unbounded)
+        return prepared(fittedToScreen(ThemeSet.personalized(layout, with: themePhotos.sources(for: set.id))))
     }
 
     /// Gives location-based widgets a city: one already used, else a guess

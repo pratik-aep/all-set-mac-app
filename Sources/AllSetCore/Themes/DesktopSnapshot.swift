@@ -1,0 +1,58 @@
+import Foundation
+
+/// Everything putting a theme on the desktop can change, captured before it
+/// does so it can all be put back: the widgets, their size, font and corners,
+/// which theme they're dressed in, whether they show, and the wallpaper.
+/// Undo and a desktop preview's Go Back both restore one of these, so neither
+/// can leave half of a theme behind.
+public struct DesktopSnapshot: Equatable, Sendable {
+    public var widgets: [WidgetInstance]
+    public var scale: Double
+    public var font: WidgetFont
+    public var cornerRadius: Double
+    public var widgetTheme: String?
+    public var designTheme: String?
+    public var showWidgets: Bool
+    public var wallpaper: WallpaperConfig
+
+    @MainActor
+    public init(settings: AppSettings, widgets: WidgetStore, wallpaper: WallpaperStore) {
+        self.widgets = widgets.widgets
+        scale = settings.widgetScale
+        font = settings.widgetFont
+        cornerRadius = settings.widgetCornerRadius
+        widgetTheme = settings.widgetTheme
+        designTheme = settings.widgetDesignTheme
+        showWidgets = settings.showWidgets
+        self.wallpaper = wallpaper.config
+    }
+
+    @MainActor
+    public func restore(settings: AppSettings, widgets: WidgetStore, wallpaper: WallpaperStore) {
+        widgets.replaceAll(with: self.widgets)
+        settings.widgetScale = scale
+        settings.widgetFont = font
+        settings.widgetCornerRadius = cornerRadius
+        settings.widgetTheme = widgetTheme
+        settings.widgetDesignTheme = designTheme
+        settings.showWidgets = showWidgets
+        // Only when it differs: setting it restarts the wallpaper.
+        if wallpaper.config != self.wallpaper { wallpaper.config = self.wallpaper }
+    }
+}
+
+extension AppSettings {
+    /// What a theme set decides beyond its widgets, the same however it was
+    /// put on the desktop (installed, added, restyled or kept after a
+    /// preview): an original setup's font and corners, which theme the
+    /// desktop is in, and that widgets show.
+    public func adopt(_ set: ThemeSet) {
+        if let setup = set.setup {
+            widgetFont = setup.font
+            widgetCornerRadius = setup.cornerRadius
+        }
+        widgetDesignTheme = set.designTheme?.id
+        widgetTheme = set.setup?.id
+        showWidgets = true
+    }
+}

@@ -155,13 +155,13 @@ struct ThemesPage: View {
 
     @ViewBuilder
     private var banners: some View {
-        if services.ui.layoutBeforeTheme != nil {
+        if let undo = services.ui.themeUndo {
             HStack(spacing: 12) {
                 Image(systemName: "arrow.uturn.backward.circle.fill").font(.title2).foregroundStyle(.tint)
-                Text("Your widgets were swapped for a theme's set.")
+                Text("\(undo.name) is on your desktop. Undo puts back your widgets, their look and your wallpaper.")
                 Spacer()
-                Button("Undo") { withMotion(Motion.standard) { services.undoThemeLayout() } }
-                Button("Keep It") { withMotion(Motion.standard) { services.ui.layoutBeforeTheme = nil } }
+                Button("Undo") { withMotion(Motion.standard) { services.undoTheme() } }
+                Button("Keep It") { withMotion(Motion.standard) { services.ui.themeUndo = nil } }
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.tint.opacity(0.12)))
@@ -481,7 +481,7 @@ struct ThemeDetailPage: View {
                 .keyboardShortcut(.defaultAction)
                 .help("Replace your widgets with this set")
                 Button {
-                    services.previewOnDesktop(set)
+                    services.previewOnDesktop(set, wallpaper: setsWallpaper)
                 } label: {
                     Label("Preview on Desktop", systemImage: "eye")
                 }

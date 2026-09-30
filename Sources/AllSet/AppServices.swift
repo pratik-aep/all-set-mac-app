@@ -16,10 +16,8 @@ final class UIState {
     /// another app already owns.
     var shortcutConflicts = Set<String>()
     var applyingWorkspace: UUID?
-    /// The layout from before a theme's starter set replaced it, for Undo.
-    var layoutBeforeTheme: [WidgetInstance]?
-    /// The widget size from before that, for Undo.
-    var scaleBeforeTheme: Double?
+    /// The last theme put on the desktop and the desktop from before it, for Undo.
+    var themeUndo: ThemeUndo?
     /// A theme set being tried on the desktop, with what to go back to.
     var themePreview: ThemePreview?
     /// How hard All Set may work: from Low Power Mode, the Mac's temperature,
@@ -177,21 +175,13 @@ final class AppServices {
         MainWindowController.shared.show(services: self)
     }
 
-    /// Dresses the desktop in a theme: every widget, the font and corners,
-    /// and (if asked) the wallpaper. With `useKit`, the theme's own starter
-    /// layout replaces the widgets, which Undo can bring back.
-    func apply(_ theme: WidgetTheme, wallpaper setsWallpaper: Bool, useKit: Bool) {
+    /// Dresses every widget on the desktop in a theme, sets its font and
+    /// corners, and (if asked) its wallpaper.
+    func apply(_ theme: WidgetTheme, wallpaper setsWallpaper: Bool) {
         settings.widgetFont = theme.font
         settings.widgetCornerRadius = theme.cornerRadius
-        if useKit {
-            let screen = NSScreen.screens.first
-            ui.layoutBeforeTheme = widgets.widgets
-            ui.scaleBeforeTheme = settings.widgetScale
-            widgets.replaceAll(with: fittedToScreen(theme.kitWidgets(screenName: screen?.localizedName, bounds: Self.unbounded)))
-        } else {
-            for widget in widgets.widgets {
-                widgets.update(widget.id) { $0 = theme.styled($0) }
-            }
+        for widget in widgets.widgets {
+            widgets.update(widget.id) { $0 = theme.styled($0) }
         }
         if setsWallpaper { wallpaper.set(theme.wallpaper) }
         settings.widgetTheme = theme.id
@@ -234,7 +224,7 @@ final class AppServices {
             if let theme = DesignTheme.named(id) {
                 apply(theme, wallpaper: false)
             } else if let setup = WidgetTheme.named(id) {
-                apply(setup, wallpaper: false, useKit: false)
+                apply(setup, wallpaper: false)
             } else if let set = ThemeLibrary.set(id) {
                 install(set, mode: .restyle, wallpaper: false)
             }
@@ -248,15 +238,6 @@ final class AppServices {
                 }
             }
         }
-    }
-
-    /// Puts back the widgets a theme's starter set replaced.
-    func undoThemeLayout() {
-        guard let previous = ui.layoutBeforeTheme else { return }
-        widgets.replaceAll(with: previous)
-        if let scale = ui.scaleBeforeTheme { settings.widgetScale = scale }
-        ui.layoutBeforeTheme = nil
-        ui.scaleBeforeTheme = nil
     }
 
     /// Puts a widget in the first free spot on the primary screen.
