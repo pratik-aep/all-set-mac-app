@@ -54,17 +54,16 @@ private struct LibraryTile<Content: View, Actions: View>: View {
                     .scaleEffect(isHovering ? 1.04 : 1)
                     .allowsHitTesting(false)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .shadow(color: .black.opacity(isHovering ? 0.25 : 0), radius: 10, y: 4)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.accentColor, lineWidth: picked ? 3 : 0)
+                RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                    .strokeBorder(picked ? Color.white.opacity(0.92) : DS.Surface.hairline, lineWidth: picked ? 3 : 1)
             }
             .overlay(alignment: .topTrailing) {
                 if context.isPicking {
                     Image(systemName: picked ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 18))
-                        .foregroundStyle(picked ? Color.accentColor : .white)
+                        .foregroundStyle(.white)
                         .shadow(radius: 3)
                         .padding(8)
                 }
@@ -83,11 +82,11 @@ private struct LibraryTile<Content: View, Actions: View>: View {
                     .padding(8)
                     .frame(maxWidth: .infinity)
                     .background(LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .top, endPoint: .bottom))
-                    .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 12, bottomTrailingRadius: 12))
+                    .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: DS.Radius.card, bottomTrailingRadius: DS.Radius.card))
                     .transition(.opacity)
                 }
             }
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
             .onTapGesture { context.toggle(source) }
             .onHover { hovering in withMotion(Motion.responsive) { isHovering = hovering } }
     }
@@ -101,11 +100,14 @@ private struct TileButton: View {
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
-                .font(.caption.weight(.semibold))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.black.opacity(0.88))
                 .frame(maxWidth: .infinity)
+                .frame(height: 24)
+                .background(Capsule().fill(Color.white.opacity(0.92)))
+                .contentShape(Capsule())
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.small)
+        .buttonStyle(PressableStyle())
     }
 }
 
@@ -122,47 +124,123 @@ struct ArtLibraryPage: View {
 
     var body: some View {
         if embedded {
-            content
+            content(width: 0)
         } else {
-            ScrollView { content.padding(28) }
+            GeometryReader { geometry in
+                ScrollView {
+                    content(width: geometry.size.width)
+                        .padding(.horizontal, DS.Space.pageMargin(for: geometry.size.width))
+                        .padding(.vertical, DS.Space.xl)
+                }
+            }
+            .background(AppBackground())
         }
     }
 
-    private var content: some View {
-        VStack(alignment: .leading, spacing: 22) {
+    private var pieceCount: Int { ArtStyle.allCases.count * ArtPalette.allCases.count }
+
+    private func content(width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: embedded ? DS.Space.l : DS.Space.section) {
             if embedded {
-                SectionHeader(title: "Art", subtitle: "\(ArtPiece.all.count) generative artworks. Hover to see them move.")
+                SectionHeader(title: "Art", subtitle: "\(pieceCount) generative artworks. Hover to see them move.")
             } else {
-                PageHeader(title: "Art", subtitle: "\(ArtPiece.all.count) generative artworks. Hover to see them move; any of them can be a photo, a live scene or a widget background.")
+                PageHeader(eyebrow: "\(pieceCount) generative artworks", title: "Art",
+                           subtitle: "Hover to see them move. Any of them can be a wallpaper, a live scene or a widget background.")
+                if !context.isPicking {
+                    ArtHero(piece: featured, services: services, height: min(max(width * 0.3, 260), 400))
+                }
             }
             PaletteFilter(selection: $palette)
-            ForEach(ArtStyle.allCases) { style in
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(style.title).font(.title3.bold())
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 12)], spacing: 12) {
-                        ForEach(ArtPalette.allCases.filter { palette == nil || $0 == palette }) { palette in
-                            let piece = ArtPiece(style: style, palette: palette)
-                            LibraryTile(source: .art(piece), context: context, caption: palette.title) { hovering in
-                                ArtView(piece: piece, animated: hovering)
-                            } actions: {
-                                if let action = context.action {
-                                    TileButton(title: action.title, symbol: action.symbol) { action.run(.art(piece)) }
-                                } else {
-                                    TileButton(title: "Live Scene", symbol: "sparkles") {
-                                        var scene = WidgetInstance(kind: .ambient)
-                                        scene.options.art = piece
-                                        services.addWidget(scene)
-                                    }
-                                    TileButton(title: "Wallpaper", symbol: "photo.artframe") {
-                                        services.pickWallpaper(.art(piece))
-                                    }
-                                }
-                            }
+            if let palette {
+                // One palette: every style in it, side by side.
+                grid(ArtStyle.allCases.map { ArtPiece(style: $0, palette: palette) }, caption: \.style.title)
+            } else if context.isPicking {
+                ForEach(ArtStyle.allCases) { style in
+                    VStack(alignment: .leading, spacing: DS.Space.s) {
+                        Text(style.title).dsText(.headline)
+                        grid(ArtPalette.allCases.map { ArtPiece(style: style, palette: $0) }, caption: \.palette.title)
+                    }
+                }
+            } else {
+                // Browsing: a rail per style keeps a long library skimmable.
+                ForEach(ArtStyle.allCases) { style in
+                    VStack(alignment: .leading, spacing: DS.Space.m) {
+                        SectionHeader(title: style.title, subtitle: "\(ArtPalette.allCases.count) palettes")
+                        MediaRail(items: ArtPalette.allCases.map { ArtPiece(style: style, palette: $0) }, cardWidth: 180) { piece in
+                            tile(piece, caption: piece.palette.title)
                         }
                     }
                 }
             }
         }
+    }
+
+    /// Changes once a day, so the page opens on something new.
+    private var featured: ArtPiece {
+        let day = Calendar.current.ordinality(of: .day, in: .era, for: .now) ?? 0
+        let styles = ArtStyle.allCases, palettes = ArtPalette.allCases
+        return ArtPiece(style: styles[day % styles.count], palette: palettes[(day / styles.count + day) % palettes.count])
+    }
+
+    private func grid(_ pieces: [ArtPiece], caption: KeyPath<ArtPiece, String>) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: DS.Space.s)], spacing: DS.Space.s) {
+            ForEach(pieces) { piece in
+                tile(piece, caption: piece[keyPath: caption])
+            }
+        }
+    }
+
+    private func tile(_ piece: ArtPiece, caption: String) -> some View {
+        LibraryTile(source: .art(piece), context: context, caption: caption) { hovering in
+            ArtView(piece: piece, animated: hovering)
+        } actions: {
+            if let action = context.action {
+                TileButton(title: action.title, symbol: action.symbol) { action.run(.art(piece)) }
+            } else {
+                TileButton(title: "Live Scene", symbol: "sparkles") { addScene(piece) }
+                TileButton(title: "Wallpaper", symbol: "photo.artframe") {
+                    services.pickWallpaper(.art(piece))
+                }
+            }
+        }
+    }
+
+    private func addScene(_ piece: ArtPiece) {
+        var scene = WidgetInstance(kind: .ambient)
+        scene.options.art = piece
+        services.addWidget(scene)
+    }
+}
+
+/// The Art page's lead piece, full width; it moves under the pointer.
+private struct ArtHero: View {
+    let piece: ArtPiece
+    let services: AppServices
+    let height: CGFloat
+
+    @State private var isHovering = false
+
+    var body: some View {
+        HeroSection(eyebrow: "Today\u{2019}s piece", title: piece.style.title,
+                    metadata: [piece.palette.title, "Generative", "Moves on hover"], height: height) {
+            ArtView(piece: piece, animated: isHovering)
+        } actions: {
+            Button {
+                services.pickWallpaper(.art(piece))
+            } label: {
+                Label("Set as Wallpaper", systemImage: "photo.artframe")
+            }
+            .buttonStyle(.pillProminent)
+            Button {
+                var scene = WidgetInstance(kind: .ambient)
+                scene.options.art = piece
+                services.addWidget(scene)
+            } label: {
+                Label("Add Live Scene", systemImage: "sparkles")
+            }
+            .buttonStyle(.pill)
+        }
+        .onHover { isHovering = $0 }
     }
 }
 
@@ -171,30 +249,38 @@ private struct PaletteFilter: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chip(title: "All", colors: [.gray, .secondary], value: nil)
+            HStack(spacing: DS.Space.xs) {
+                chip(title: "All Palettes", colors: [.white.opacity(0.5), .white.opacity(0.15)], value: nil)
                 ForEach(ArtPalette.allCases) { palette in
                     chip(title: palette.title, colors: palette.colors[2...4].map { Color($0) }, value: palette)
                 }
             }
+            .padding(.vertical, 2)
         }
     }
 
     private func chip(title: String, colors: [Color], value: ArtPalette?) -> some View {
-        Button {
+        let isSelected = selection == value
+        return Button {
             withMotion(Motion.standard) { selection = value }
         } label: {
             HStack(spacing: 6) {
                 Circle()
                     .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 14, height: 14)
-                Text(title).font(.callout.weight(.medium))
+                    .overlay(Circle().strokeBorder(.black.opacity(isSelected ? 0.15 : 0)))
+                Text(title)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Capsule().fill(selection == value ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.06)))
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(isSelected ? Color.black.opacity(0.88) : DS.Ink.secondary)
+            .padding(.leading, DS.Space.xs)
+            .padding(.trailing, DS.Space.s)
+            .frame(height: 28)
+            .background(Capsule().fill(isSelected ? Color.white.opacity(0.92) : DS.Surface.raised))
+            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

@@ -32,57 +32,67 @@ struct GalleryPage: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 26) {
-                HStack(alignment: .bottom, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(category?.title ?? "All Widgets")
-                            .font(.largeTitle.bold())
-                        Text(category == .aesthetic
-                             ? "Decorative pieces for the desktop: signs, stickers, prints and scenes."
-                             : "\(entries.count) widgets. Pick a size, add it, then make it yours with a theme, colors and settings.")
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                    HStack(spacing: 6) {
-                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                        TextField("Search widgets", text: $query)
-                            .textFieldStyle(.plain)
-                        if !query.isEmpty {
-                            Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Clear search")
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(alignment: .leading, spacing: DS.Space.section) {
+                    VStack(alignment: .leading, spacing: DS.Space.m) {
+                        PageHeader(eyebrow: "\(entries.count) widgets",
+                                   title: category?.title ?? "Widget Gallery",
+                                   subtitle: category == .aesthetic
+                                       ? "Decorative pieces for the desktop: signs, stickers, prints and scenes."
+                                       : "Pick a size, add it, then make it yours with a theme, colors and settings.") {
+                            SearchField(text: $query, prompt: "Search widgets")
+                                .frame(width: geometry.size.width < 1000 ? 220 : 280)
                         }
+                        categoryPills
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .frame(width: 220)
-                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.primary.opacity(0.07)))
-                }
-                if !SearchMatch.normalize(query).isEmpty {
-                    if matches.isEmpty {
-                        ContentUnavailableView.search(text: query)
+                    if !SearchMatch.normalize(query).isEmpty {
+                        if matches.isEmpty {
+                            EmptyState(symbol: "magnifyingglass", title: "No widgets match \u{201C}\(query)\u{201D}",
+                                       message: "Try another word, or clear the search.",
+                                       actionTitle: "Clear Search", action: { query = "" })
+                        } else {
+                            grid(matches)
+                        }
                     } else {
-                        grid(matches)
-                    }
-                } else {
-                    ForEach(category.map { [$0] } ?? WidgetCategory.allCases) { section in
-                        VStack(alignment: .leading, spacing: 14) {
-                            if category == nil {
-                                Label(section.title, systemImage: section.symbol)
-                                    .font(.title2.bold())
+                        ForEach(category.map { [$0] } ?? WidgetCategory.allCases) { section in
+                            VStack(alignment: .leading, spacing: DS.Space.m) {
+                                if category == nil {
+                                    let count = WidgetCatalog.entries(in: section).count
+                                    SectionHeader(title: section.title, subtitle: "\(count) widgets",
+                                                  actionTitle: "See All", action: { services.ui.page = .gallery(section) })
+                                }
+                                grid(WidgetCatalog.entries(in: section))
                             }
-                            grid(WidgetCatalog.entries(in: section))
                         }
+                    }
+                }
+                .padding(.horizontal, DS.Space.pageMargin(for: geometry.size.width))
+                .padding(.vertical, DS.Space.xl)
+            }
+        }
+        .background(AppBackground())
+    }
+
+    /// Every category a click away, so a category page never strands you.
+    private var categoryPills: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: DS.Space.xs) {
+                FilterPill(title: "All", symbol: "square.grid.2x2.fill", isSelected: category == nil) {
+                    services.ui.page = .gallery(nil)
+                }
+                ForEach(WidgetCategory.allCases) { item in
+                    FilterPill(title: item.title, symbol: item.symbol, isSelected: category == item) {
+                        services.ui.page = .gallery(item)
                     }
                 }
             }
-            .padding(28)
+            .padding(.vertical, 2)
         }
     }
 
     private func grid(_ entries: [CatalogEntry]) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 18)], spacing: 18) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: DS.Space.l)], spacing: DS.Space.l) {
             ForEach(entries) { entry in
                 GalleryCard(entry: entry, services: services)
             }
@@ -171,7 +181,7 @@ private struct GalleryCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s) {
             ZStack {
                 StudioBackdrop(piece: ArtPiece(style: .blobs, palette: backdropPalette))
                 WidgetPreview(instance: sample, services: services, fit: CGSize(width: 250, height: 190))
@@ -183,20 +193,17 @@ private struct GalleryCard: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
             .frame(height: 220)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(DS.Surface.hairline))
             .overlay(alignment: .topTrailing) {
                 if !isThemed, !looks.isEmpty || kind == .photo {
                     Button {
                         withMotion(Motion.responsive) { variation += 1 }
                     } label: {
                         Image(systemName: "shuffle")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 28, height: 28)
-                            .background(Circle().fill(.black.opacity(0.35)))
                     }
-                    .buttonStyle(PressableStyle())
-                    .padding(10)
+                    .buttonStyle(FloatingButtonStyle(diameter: 30))
+                    .padding(DS.Space.s)
                     .opacity(isHovering ? 1 : 0)
                     .help("Another photo or colors")
                     .accessibilityLabel("Show another look")
@@ -206,12 +213,12 @@ private struct GalleryCard: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Preview of \(entry.title)")
 
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Label(entry.title, systemImage: entry.symbol).font(.headline)
-                    Text(entry.summary).font(.caption).foregroundStyle(.secondary)
+            HStack(alignment: .top, spacing: DS.Space.s) {
+                VStack(alignment: .leading, spacing: DS.Space.xxs) {
+                    Label(entry.title, systemImage: entry.symbol).dsText(.headline)
+                    Text(entry.summary).dsText(.meta).lineLimit(2)
                 }
-                Spacer()
+                Spacer(minLength: 0)
                 if entry.sizes.count > 1 {
                     Picker("Size", selection: $size.animation(Motion.resolved(Motion.responsive))) {
                         ForEach(entry.sizes) { size in
@@ -221,6 +228,7 @@ private struct GalleryCard: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .fixedSize()
+                    .controlSize(.small)
                     .help("Size")
                 }
             }
@@ -246,27 +254,27 @@ private struct GalleryCard: View {
                     .contentTransition(.symbolEffect(.replace))
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(.pillProminent)
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(.quaternary.opacity(0.5)))
+        .padding(DS.Space.s)
+        .background(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous).fill(DS.Surface.raised))
+        .overlay(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous).strokeBorder(DS.Surface.hairline))
     }
 
     private func chips(_ items: [(String, String)], selected: String?, pick: @escaping (String) -> Void) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+            HStack(spacing: DS.Space.xxs + 2) {
                 ForEach(items, id: \.0) { id, title in
                     let isSelected = selected == id
                     Button {
                         withMotion(Motion.responsive) { pick(id) }
                     } label: {
                         Text(title)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(isSelected ? Color.white : .primary)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(isSelected ? Color.black.opacity(0.88) : DS.Ink.secondary)
                             .padding(.horizontal, 9)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(isSelected ? Color.accentColor : Color.primary.opacity(0.07)))
+                            .frame(height: 22)
+                            .background(Capsule().fill(isSelected ? Color.white.opacity(0.92) : DS.Surface.hover))
                     }
                     .buttonStyle(PressableStyle())
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -296,9 +304,7 @@ struct WidgetInspector: View {
                     VStack(spacing: 14) {
                         WidgetPreview(instance: instance, services: services, fit: CGSize(width: 380, height: 380))
                             .motion(Motion.responsive, value: instance.size)
-                        Text("Live preview")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.7))
+                        Text("Live preview").dsText(.eyebrow, color: .white.opacity(0.7))
                     }
                 }
                 .frame(width: 420)
