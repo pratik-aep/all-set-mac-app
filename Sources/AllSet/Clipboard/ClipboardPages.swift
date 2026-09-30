@@ -153,6 +153,10 @@ private struct ClipboardSettingsSections: View {
                     Text("\(count) items").tag(count)
                 }
             }
+            Toggle(isOn: binding(\.clearOnQuit)) {
+                Text("Clear history when All Set quits")
+                Text("Pinned items stay.")
+            }
             Toggle(isOn: binding(\.pasteOnSelect)) {
                 Text("Paste when chosen")
                 Text(Accessibility.isTrusted ? "Choosing an item pastes it into the app in front." : "Needs Accessibility access, like window snapping.")

@@ -113,6 +113,15 @@ private struct WallpaperHero: View {
                 }
                 .toggleStyle(.switch)
                 .controlSize(.large)
+                if case .library(let id) = config.source, store.isFetching(id) {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Downloading from your server…").font(.callout).foregroundStyle(.secondary)
+                        Button("Cancel") { store.cancelFetch(id) }
+                            .controlSize(.small)
+                            .help("Stop downloading; the default art shows until you pick it again")
+                    }
+                }
                 HStack(spacing: 10) {
                     Button("Options…") { services.openWindow(.wallpaperOptions) }
                     if config.isEnabled, !services.ui.wallpaperPlaying {
@@ -660,9 +669,16 @@ private struct LibraryTile: View {
                     if isFetching {
                         ProgressView(value: downloadProgress ?? 0)
                             .tint(.white)
-                        Text(downloadProgress.map { "Downloading… \(Int($0 * 100))%" } ?? "Downloading…")
-                            .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.85))
+                        HStack {
+                            Text(downloadProgress.map { "Downloading… \(Int($0 * 100))%" } ?? "Downloading…")
+                                .font(.caption2)
+                                .foregroundStyle(.white.opacity(0.85))
+                            Spacer(minLength: 4)
+                            Button("Cancel") { store.cancelFetch(video.id) }
+                                .buttonStyle(.bordered)
+                                .controlSize(.mini)
+                                .help("Stop downloading this wallpaper")
+                        }
                     } else if isHovering {
                         Button(action: onUse) {
                             Label(isCurrent ? "Current" : playable ? "Set as Wallpaper"
@@ -774,7 +790,17 @@ private struct LibraryDetailSheet: View {
                         LoopingVideo(url: url, isPlaying: true)
                     }
                 } else if isFetching {
-                    ProgressView().controlSize(.large).tint(.white)
+                    VStack(spacing: 10) {
+                        ProgressView().controlSize(.large).tint(.white)
+                        Button("Cancel Download") { store.cancelFetch(video.id) }
+                            .buttonStyle(.bordered)
+                    }
+                } else if store.cancelledFetches.contains(video.id) {
+                    Button("Download Again", systemImage: "arrow.down.circle") {
+                        store.allowFetch(video.id)
+                        Task { await store.fetchLibraryVideoRetrying(video.id, delays: [.seconds(2)]) }
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
             }
             .frame(height: 320)
@@ -810,6 +836,8 @@ private struct LibraryDetailSheet: View {
             }
             .task(id: video.id) {
                 guard url == nil, store.config.libraryServerURL != nil else { return }
+                // Opening the preview is asking for it, even after a cancel.
+                store.allowFetch(video.id)
                 await store.fetchLibraryVideoRetrying(video.id, delays: [.seconds(2)])
             }
 

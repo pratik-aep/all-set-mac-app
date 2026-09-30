@@ -102,8 +102,7 @@ struct WidgetOptionsEditor: View {
 
             Section {
                 Button("Remove from Desktop", role: .destructive) {
-                    services.widgets.remove(id)
-                    services.ui.page = .gallery(nil)
+                    services.removeWidget(id)
                 }
             }
         }

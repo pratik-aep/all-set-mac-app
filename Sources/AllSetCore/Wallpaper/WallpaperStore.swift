@@ -46,7 +46,9 @@ public struct WallpaperConfig: Codable, Equatable, Sendable {
     public var motion: WallpaperMotion = .drift
     /// 0...0.6: darkens the wallpaper so icons and widgets stand out.
     public var dim = 0.0
-    public var pauseOnBattery = false
+    /// Stop moving while the Mac runs on its battery. On by default: a
+    /// moving wallpaper is the most power All Set can use.
+    public var pauseOnBattery = true
     /// Stop animating while windows cover the whole desktop.
     public var pauseWhenCovered = true
     /// Also set a matching still as the system wallpaper, which Mission Control,
@@ -60,6 +62,11 @@ public struct WallpaperConfig: Codable, Equatable, Sendable {
     /// missing locally can be fetched back instead of falling back to art.
     /// Nil: no server configured, missing means missing.
     public var libraryServerURL: String?
+    /// Which round of changed defaults this config has been through. Round 2
+    /// (2026-09-30) turned Pause on battery on once for settings saved before
+    /// it; turning it off again afterwards is kept.
+    public var defaultsVersion = WallpaperConfig.currentDefaultsVersion
+    public static let currentDefaultsVersion = 2
 
     public init() {}
 
@@ -78,6 +85,9 @@ public struct WallpaperConfig: Codable, Equatable, Sendable {
         matchSystemWallpaper = (try? container.decodeIfPresent(Bool.self, forKey: .matchSystemWallpaper)) ?? defaults.matchSystemWallpaper
         originalWallpapers = (try? container.decodeIfPresent([String: URL].self, forKey: .originalWallpapers)) ?? [:]
         libraryServerURL = try? container.decodeIfPresent(String.self, forKey: .libraryServerURL)
+        let savedVersion = (try? container.decodeIfPresent(Int.self, forKey: .defaultsVersion)) ?? 1
+        if savedVersion < 2 { pauseOnBattery = true }
+        defaultsVersion = Self.currentDefaultsVersion
     }
 }
 
@@ -130,6 +140,10 @@ public final class WallpaperStore {
     /// One download per relative path, shared by everyone who asks for it;
     /// `waiters` counts them so the last one to give up cancels it.
     @ObservationIgnored private var inflight: [String: (token: UUID, task: Task<URL, Error>, waiters: Int)] = [:]
+    /// Wallpapers whose download the person cancelled. Nothing fetches them
+    /// on its own again (the desktop's retrying included) until they ask:
+    /// picking the wallpaper, or opening its preview.
+    public private(set) var cancelledFetches = Set<String>()
     @ObservationIgnored private static let reachabilityMaxAge: TimeInterval = 30
     /// Instance, not static: each `WallpaperStore` (one per test, one in the
     /// running app) gets its own session, so a test can point it at a stub
@@ -162,8 +176,24 @@ public final class WallpaperStore {
     }
 
     public func set(_ source: WallpaperSource) {
+        if case .library(let id) = source { cancelledFetches.remove(id) }
         config.source = source
         config.isEnabled = true
+    }
+
+    /// Stops this wallpaper's download now, for everyone waiting on it, and
+    /// keeps it from starting again by itself. Nothing partial is left.
+    public func cancelFetch(_ id: String) {
+        cancelledFetches.insert(id)
+        guard let video = libraryVideo(id), let relative = video.playback ?? video.still,
+              let entry = inflight[relative] else { return }
+        inflight[relative] = nil
+        entry.task.cancel()
+    }
+
+    /// The person asked for this wallpaper again: downloads may start.
+    public func allowFetch(_ id: String) {
+        cancelledFetches.remove(id)
     }
 
     public func videoURL(_ name: String) -> URL {
@@ -302,7 +332,7 @@ public final class WallpaperStore {
     public func fetchLibraryVideoRetrying(_ id: String,
                                           delays: [Duration] = [2, 5, 10, 30, 60].map { .seconds($0) }) async -> URL? {
         var attempt = 0
-        while !Task.isCancelled {
+        while !Task.isCancelled, !cancelledFetches.contains(id) {
             do {
                 return try await fetchLibraryVideo(id)
             } catch {

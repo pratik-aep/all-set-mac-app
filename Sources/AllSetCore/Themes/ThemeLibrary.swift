@@ -59,6 +59,14 @@ public enum ThemeLibrary {
         case "crimsonNights": ([.musicIcons, .rnb, .neon], "the weeknd after hours red neon vegas night drive")
         case "opiumPunk": ([.musicIcons, .rock, .hipHop], "playboi carti vamp punk gothic red black opium")
         case "blondSummer": ([.musicIcons, .indie], "frank ocean blond summer orange cream sunflowers")
+        case "matchaMorning": ([.colourAndLight, .dreamy, .zen], "matcha green sage oat light morning calm cozy handwriting")
+        case "peachFizz": ([.colourAndLight, .pop], "peach coral orange light summer sunshine happy bright")
+        case "lavenderHaze": ([.colourAndLight, .dreamy, .ambient], "lavender lilac purple pastel light clouds soft dreamy")
+        case "candyPop": ([.colourAndLight, .pop, .retro], "candy bubblegum pink checkerboard y2k colorful playful light glitter")
+        case "oceanGlass": ([.colourAndLight, .ambient, .night], "ocean sea blue aqua waves glass calm")
+        case "sunsetDrive": ([.colourAndLight, .retro, .neon, .night], "sunset synthwave orange pink drive retro 80s cassette vinyl")
+        case "forestCabin": ([.colourAndLight, .indie, .zen], "forest pine green rain cabin cozy woods autumn typewriter")
+        case "desertBloom": ([.colourAndLight, .indie, .minimal], "desert sand terracotta boho warm dunes flowers")
         case "cloudNine", "pinkLatte", "coquette": ([.dreamy, .pop], "")
         case "goodThings", "grunge": ([.minimal, .night, .rock], "")
         case "diva", "luxeNoir": ([.luxury, .night], "")
@@ -71,6 +79,7 @@ public enum ThemeLibrary {
         default: ([.designer], "")
         }
         let fanIndex = WidgetTheme.fandom.firstIndex { $0.id == theme.id }
+        let isColour = WidgetTheme.colour.contains { $0.id == theme.id }
         let philosophy = fanIndex == nil
             ? "A desktop setup in the style people share: photos, words, cards and a wallpaper that go together."
             : "Original artwork and free-to-use photos in the mood of an era fans know: no official photos, logos or lyrics. Add your own photos to make it yours."
@@ -78,8 +87,8 @@ public enum ThemeLibrary {
                         description: "\(theme.tagline) A whole desktop, with its own wallpaper and layout.",
                         philosophy: philosophy, inspiration: inspirations[theme.id],
                         collections: collections, tags: "\(theme.id) \(tags)", look: .setup(theme.id), layout: [],
-                        added: isMoodboard || fanIndex != nil ? "2026-09-25" : "2026-09-24",
-                        baseline: isMoodboard ? 90 - Double(index) : fanIndex.map { spotlight[theme.id] ?? 88 - Double($0) } ?? 55)
+                        added: isColour ? "2026-09-30" : isMoodboard || fanIndex != nil ? "2026-09-25" : "2026-09-24",
+                        baseline: isMoodboard ? 90 - Double(index) : fanIndex.map { spotlight[theme.id] ?? 88 - Double($0) } ?? (isColour ? 70 : 55))
     }
 }
 

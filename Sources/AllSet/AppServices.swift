@@ -21,9 +21,18 @@ final class UIState {
     var desktopUndo: DesktopUndo?
     /// A theme set being tried on the desktop, with what to go back to.
     var themePreview: ThemePreview?
+    /// The widget removed last, and where it was, for Undo.
+    var removedWidget: RemovedWidget?
     /// How hard All Set may work: from Low Power Mode, the Mac's temperature,
     /// Reduce Motion and the charger. Every subsystem reads its limits here.
     var performance = PerformancePolicy()
+}
+
+/// A widget just taken off the desktop, and its place in the list.
+struct RemovedWidget: Equatable {
+    let instance: WidgetInstance
+    let index: Int
+    let id = UUID()
 }
 
 /// The app's long-lived models, shared by the notch, widgets, menu bar and settings.
@@ -92,6 +101,7 @@ final class AppServices {
         media.stop()
         monitor.stop()
         widgets.saveNow()
+        if clipboard.settings.clearOnQuit { clipboard.clear() }
         clipboard.save()
     }
 
@@ -239,6 +249,23 @@ final class AppServices {
                 }
             }
         }
+    }
+
+    /// Takes a widget off the desktop, remembering it so Undo can put it back
+    /// exactly as it was.
+    func removeWidget(_ id: UUID) {
+        guard let index = widgets.widgets.firstIndex(where: { $0.id == id }) else { return }
+        let instance = widgets.widgets[index]
+        if ui.page == .widget(id) { ui.page = .gallery(nil) }
+        widgets.remove(id)
+        ui.removedWidget = RemovedWidget(instance: instance, index: index)
+    }
+
+    func undoRemoveWidget() {
+        guard let removed = ui.removedWidget else { return }
+        ui.removedWidget = nil
+        guard widgets.instance(removed.instance.id) == nil else { return }
+        widgets.insert(removed.instance, at: removed.index)
     }
 
     /// Puts a widget in the first free spot on the primary screen.

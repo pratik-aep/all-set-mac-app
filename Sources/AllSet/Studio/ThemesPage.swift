@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Ways to browse the library.
 enum ThemeDiscovery: String, CaseIterable, Identifiable {
-    case all, featured, trending, new, artist, football, music, seasonal, popular, minimal, dark, colorful, developer, favorites
+    case all, featured, trending, new, artist, football, music, popular, minimal, dark, colorful, developer, favorites
 
     var id: String { rawValue }
 
@@ -17,7 +17,6 @@ enum ThemeDiscovery: String, CaseIterable, Identifiable {
         case .artist: "Moodboards"
         case .football: "Football"
         case .music: "Music Icons"
-        case .seasonal: "Seasonal"
         case .popular: "Popular"
         case .minimal: "Minimal"
         case .dark: "Dark"
@@ -36,7 +35,6 @@ enum ThemeDiscovery: String, CaseIterable, Identifiable {
         case .artist: "photo.stack"
         case .football: "soccerball"
         case .music: "music.mic"
-        case .seasonal: "leaf"
         case .popular: "flame"
         case .minimal: "circle"
         case .dark: "moon"
@@ -62,10 +60,6 @@ enum ThemeDiscovery: String, CaseIterable, Identifiable {
         case .artist: return all.filter { $0.collections.contains(.artistWorlds) }
         case .football: return all.filter { $0.collections.contains(.football) }
         case .music: return all.filter { $0.collections.contains(.musicIcons) }
-        case .seasonal:
-            let month = Calendar.current.component(.month, from: now)
-            return all.filter { !$0.seasons.isEmpty || $0.collections.contains(.seasonal) }
-                .sorted { ($0.seasons.contains(month) ? 0 : 1) < ($1.seasons.contains(month) ? 0 : 1) }
         case .popular: return all.sorted { stats.popularity($0) > stats.popularity($1) }
         case .minimal: return all.filter { $0.collections.contains(.minimal) || $0.collections.contains(.zen) }
         case .dark: return all.filter(\.isDark)
@@ -209,10 +203,10 @@ struct ThemesPage: View {
         }
         let featured = claim(Array(ThemeDiscovery.featured.sets(stats: stats).prefix(4)))
         var shelves: [(title: String, sets: [ThemeSet], more: ThemeDiscovery?)] = [
+            ("Colour & Light", claim(ThemeLibrary.sets(in: .colourAndLight)), nil),
             ("Football", claim(ThemeDiscovery.football.sets(stats: stats)), .football),
             ("Music Icons", claim(ThemeDiscovery.music.sets(stats: stats)), .music),
             ("Moodboards", claim(ThemeDiscovery.artist.sets(stats: stats)), .artist),
-            ("Trending now", claim(ThemeDiscovery.trending.sets(stats: stats)), .trending),
             ("Night", claim(ThemeLibrary.sets(in: .night)), nil),
             ("Dreamy", claim(ThemeLibrary.sets(in: .dreamy)), nil),
             ("Minimal & Designer", claim(ThemeLibrary.sets(in: .designer) + ThemeLibrary.sets(in: .minimal)), nil),
@@ -416,7 +410,9 @@ struct ThemeDetailPage: View {
                         appearance(set)
                         palette(set)
                         typography(set)
-                        motion(set)
+                        // Only design skins carry a motion language; the
+                        // setups would all read "Calm".
+                        if set.designTheme != nil { motion(set) }
                     }
                     research(set)
                 }

@@ -102,3 +102,22 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: kept.path))
     }
 }
+
+@Suite struct ClipboardPrivacyTests {
+    /// A copy made in a password manager just before switching away is still
+    /// left out: any app in front since the last look counts.
+    @Test func anyAppInFrontSinceTheLastLookCounts() {
+        let settings = ClipboardSettings()
+        #expect(settings.ignores(anyOf: ["com.apple.Safari", "com.1password.1password"]))
+        #expect(!settings.ignores(anyOf: ["com.apple.Safari", "com.apple.dt.Xcode"]))
+        #expect(!settings.ignores(anyOf: []))
+    }
+
+    @Test func clearOnQuitIsOffUnlessChosen() throws {
+        let old = try JSONDecoder().decode(ClipboardSettings.self, from: Data(#"{"isEnabled": true}"#.utf8))
+        #expect(!old.clearOnQuit)
+        var settings = ClipboardSettings()
+        settings.clearOnQuit = true
+        #expect(try JSONDecoder().decode(ClipboardSettings.self, from: JSONEncoder().encode(settings)).clearOnQuit)
+    }
+}

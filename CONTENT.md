@@ -92,7 +92,7 @@ Leopard Noir · City Noir · Angelic · Hypnotic · After Dark · Streetwear · 
 ### Gen Z / dark aesthetic themes (13) — original "worlds" with full kits
 Cloud Nine · Good Things · Pink Latte · Coquette · Grunge · Diva · Luxe Noir · Sepia Swag · Vigilante (Batman-vibe, no DC branding) · Neon Nights · Dark Academia · Midnight Lo-fi · Goth
 
-Each theme carries a name, tagline, description, philosophy, an inspiration note (dev-only), its own wallpaper, a `MotionLanguage`, and a `WallpaperAdaptation`.
+Each theme carries a name, tagline, description, philosophy, an inspiration line (shown on its card and page; football and music worlds describe their inspiration without naming anyone), its own wallpaper and a starter layout. Motion languages belong to the 15 design skins below, not to these themes.
 
 ---
 

@@ -95,3 +95,22 @@ import Testing
         #expect(wallpaper.config.source == .art(ArtPiece(style: .waves, palette: .ocean)))
     }
 }
+
+@Suite @MainActor struct WidgetStoreInsertTests {
+    /// Undoing a removal puts the widget back in its old place.
+    @Test func insertPutsAWidgetBackWhereItWas() {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("insert-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let store = WidgetStore(fileURL: home.appendingPathComponent("widgets.json"))
+        let a = WidgetInstance(kind: .clock), b = WidgetInstance(kind: .note), c = WidgetInstance(kind: .weather)
+        store.replaceAll(with: [a, b, c])
+        store.remove(b.id)
+        store.insert(b, at: 1)
+        #expect(store.widgets.map(\.id) == [a.id, b.id, c.id])
+        // An index past the end (other widgets went since) lands last.
+        store.remove(b.id)
+        store.remove(c.id)
+        store.insert(b, at: 5)
+        #expect(store.widgets.map(\.id) == [a.id, b.id])
+    }
+}

@@ -180,6 +180,11 @@ struct MainView: View {
                             .accessibilityAddTraits(.isStaticText)
                     }
                 }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if let removed = ui.removedWidget {
+                        RemovedWidgetBar(removed: removed, services: services)
+                    }
+                }
                 .navigationTitle(title(for: ui.page ?? .island))
         }
         .toolbar {
@@ -199,11 +204,11 @@ struct MainView: View {
         }
     }
 
-    /// One click, no confirmation: the widget leaves the desktop, and if its
-    /// settings were open the window moves to the gallery.
+    /// One click, no confirmation: the widget leaves the desktop (Undo
+    /// brings it back), and if its settings were open the window moves to
+    /// the gallery.
     private func removeWidget(_ id: UUID) {
-        if ui.page == .widget(id) { ui.page = .gallery(nil) }
-        withMotion(Motion.quick) { services.widgets.remove(id) }
+        withMotion(Motion.quick) { services.removeWidget(id) }
     }
 
     @ViewBuilder
@@ -278,6 +283,31 @@ struct MainView: View {
         case .monitor: "Monitor"
         case .general: "General"
         case .about: "About"
+        }
+    }
+}
+
+/// "Removed Clock. Undo" for a few seconds after a widget leaves the desktop.
+private struct RemovedWidgetBar: View {
+    let removed: RemovedWidget
+    let services: AppServices
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: removed.instance.kind.symbol).foregroundStyle(.secondary)
+            Text("Removed \(removed.instance.kind.title) from the desktop.")
+            Spacer()
+            Button("Undo") { withMotion(Motion.quick) { services.undoRemoveWidget() } }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
+        .task(id: removed.id) {
+            try? await Task.sleep(for: .seconds(8))
+            if services.ui.removedWidget?.id == removed.id {
+                withMotion(Motion.quick) { services.ui.removedWidget = nil }
+            }
         }
     }
 }

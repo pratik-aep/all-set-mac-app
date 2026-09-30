@@ -188,7 +188,7 @@ final class DesktopWidgetController {
             services: services,
             window: window.state,
             onDrag: { [weak self] phase in self?.handleDrag(id, phase) },
-            onRemove: { [weak self] in self?.services.widgets.remove(id) },
+            onRemove: { [weak self] in self?.services.removeWidget(id) },
             onConfigure: { [weak self] in self?.services.openWindow(.widget(id)) }
         )
         if let hostingView = window.contentView as? FirstClickHostingView<WidgetRoot> {

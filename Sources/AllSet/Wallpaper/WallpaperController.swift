@@ -425,7 +425,10 @@ struct WallpaperView: View {
                             }
                         }
                     }
-                    .task(id: "\(id)#\(services.wallpaper.hasLoadedLibrary)") {
+                    // The cancelled flag is part of the id too: picking the
+                    // wallpaper again after a Cancel clears it, which reruns
+                    // this and downloads it.
+                    .task(id: "\(id)#\(services.wallpaper.hasLoadedLibrary)#\(services.wallpaper.cancelledFetches.contains(id))") {
                         await services.wallpaper.fetchLibraryVideoRetrying(id)
                     }
                 }

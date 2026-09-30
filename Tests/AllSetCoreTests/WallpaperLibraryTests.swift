@@ -509,6 +509,27 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         #expect(!store.isFetching(id))
     }
 
+    /// The Cancel button: the download stops for everyone waiting, nothing
+    /// partial is left, and retrying doesn't start it again until the
+    /// wallpaper is picked once more.
+    @MainActor @Test func cancellingStopsTheDownloadAndItsRetries() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        StubURLProtocol.delay = 0.5
+        StubURLProtocol.handler = { _ in (200, Data("too late".utf8)) }
+        let retrying = Task { await store.fetchLibraryVideoRetrying(id, delays: [.milliseconds(10)]) }
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(store.isFetching(id))
+        store.cancelFetch(id)
+        #expect(await retrying.value == nil)
+        try await Task.sleep(for: .milliseconds(600))
+        #expect(!FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("live/f1.mp4").path))
+        #expect(!store.isFetching(id))
+        #expect(await store.fetchLibraryVideoRetrying(id) == nil)
+        // Picking it again lets it download.
+        store.set(.library(id))
+        #expect(!store.cancelledFetches.contains(id))
+    }
+
     /// A response shorter than its Content-Length never becomes the file.
     @MainActor @Test func truncatedDownloadIsRejected() async throws {
         let (store, id) = try await missingLibraryVideo()
@@ -604,3 +625,4 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         #expect(store.libraryVideo(id) == nil)
     }
 }
+

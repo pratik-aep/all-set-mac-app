@@ -80,3 +80,17 @@ import Testing
         #expect(reloaded.records["midnight"]?.installs == 1)
     }
 }
+
+@Suite struct ColourThemeTests {
+    @Test func colourThemesHaveTheirShelfAndAreColourful() {
+        #expect(WidgetTheme.colour.count >= 8)
+        let shelf = Set(ThemeLibrary.sets(in: .colourAndLight).map(\.id))
+        for theme in WidgetTheme.colour {
+            #expect(shelf.contains("setup.\(theme.id)"), "\(theme.id) isn't on the Colour & Light shelf")
+            #expect(theme.palette != .mono, "\(theme.id) should bring colour")
+            #expect(ThemeLibrary.search(theme.title).first?.id == "setup.\(theme.id)")
+        }
+        // Some light ones, not only dark.
+        #expect(WidgetTheme.colour.filter { !$0.isDark }.count >= 4)
+    }
+}

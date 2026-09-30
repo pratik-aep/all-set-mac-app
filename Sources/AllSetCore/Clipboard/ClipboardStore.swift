@@ -109,6 +109,8 @@ public struct ClipboardSettings: Codable, Equatable, Sendable {
     public var pickerShortcut: Shortcut? = Shortcut(keyCode: 0x09, modifiers: [.control, .option], key: "V")
     /// Apps whose copies are never recorded.
     public var ignoredApps: [String] = ClipboardSettings.passwordManagers
+    /// Forgets everything but pinned items when All Set quits.
+    public var clearOnQuit = false
 
     public static let passwordManagers = [
         "com.1password.1password", "com.agilebits.onepassword7", "com.bitwarden.desktop", "com.apple.keychainaccess",
@@ -117,8 +119,16 @@ public struct ClipboardSettings: Codable, Equatable, Sendable {
 
     public init() {}
 
+    /// Whether a copy made while any of `apps` was in front must not be
+    /// recorded. macOS doesn't say which app wrote the clipboard, so every
+    /// app that was in front since the last look counts: a password copied
+    /// in an ignored app just before switching away stays out of history.
+    public func ignores(anyOf apps: Set<String>) -> Bool {
+        !apps.isDisjoint(with: ignoredApps)
+    }
+
     private enum CodingKeys: String, CodingKey {
-        case isEnabled, historyLimit, pasteOnSelect, pickerShortcut, ignoredApps
+        case isEnabled, historyLimit, pasteOnSelect, pickerShortcut, ignoredApps, clearOnQuit
     }
 
     public init(from decoder: Decoder) throws {
@@ -131,6 +141,7 @@ public struct ClipboardSettings: Codable, Equatable, Sendable {
             ? (try? container.decode(Shortcut?.self, forKey: .pickerShortcut)) ?? nil
             : defaults.pickerShortcut
         ignoredApps = (try? container.decodeIfPresent([String].self, forKey: .ignoredApps)) ?? defaults.ignoredApps
+        clearOnQuit = (try? container.decodeIfPresent(Bool.self, forKey: .clearOnQuit)) ?? defaults.clearOnQuit
     }
 
     // Written by hand so a removed shortcut is saved as null. Left out, it
@@ -142,6 +153,7 @@ public struct ClipboardSettings: Codable, Equatable, Sendable {
         try container.encode(pasteOnSelect, forKey: .pasteOnSelect)
         try container.encode(pickerShortcut, forKey: .pickerShortcut)
         try container.encode(ignoredApps, forKey: .ignoredApps)
+        try container.encode(clearOnQuit, forKey: .clearOnQuit)
     }
 }
 

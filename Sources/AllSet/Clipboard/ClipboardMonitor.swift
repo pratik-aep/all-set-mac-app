@@ -13,6 +13,10 @@ final class ClipboardMonitor {
     /// The change All Set made itself, which shouldn't be recorded again.
     private var ownChangeCount = -1
     private var timer: Timer?
+    /// Every app that came to the front since the last look, plus the one in
+    /// front then: any of them may have made the copy.
+    private var frontSinceCheck = Set<String>()
+    private var activationObserver: NSObjectProtocol?
 
     /// nspasteboard.org markers that password managers and other apps use for
     /// secrets and throwaway data.
@@ -30,6 +34,15 @@ final class ClipboardMonitor {
     /// policy's pace); it's a single number comparison, but each check wakes the Mac.
     func start() {
         guard timer == nil else { return }
+        if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier { frontSinceCheck = [front] }
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            let id = (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
+            MainActor.assumeIsolated {
+                if let id { self?.frontSinceCheck.insert(id) }
+            }
+        }
         schedule()
         observe({ [services] in services.ui.performance.clipboardInterval }) { [weak self] _ in self?.schedule() }
     }
@@ -47,12 +60,15 @@ final class ClipboardMonitor {
 
     private func check() {
         let pasteboard = NSPasteboard.general
+        let source = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        var candidates = frontSinceCheck
+        if let source { candidates.insert(source) }
+        frontSinceCheck = source.map { [$0] } ?? []
         guard pasteboard.changeCount != changeCount else { return }
         changeCount = pasteboard.changeCount
         guard services.clipboard.settings.isEnabled, changeCount != ownChangeCount else { return }
         guard Set(pasteboard.types ?? []).isDisjoint(with: Self.privateTypes) else { return }
-        let source = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        if let source, services.clipboard.settings.ignoredApps.contains(source) { return }
+        if services.clipboard.settings.ignores(anyOf: candidates) { return }
         if let cgImage = copiedImage(pasteboard) {
             // Scaling and encoding a big screenshot takes a moment; not on the main thread.
             let directory = services.clipboard.imageDirectory

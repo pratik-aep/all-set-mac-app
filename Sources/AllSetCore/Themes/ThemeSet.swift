@@ -140,7 +140,7 @@ public struct SetItem: Sendable {
 /// The shelves and filters of the Themes library.
 public enum ThemeCollection: String, CaseIterable, Identifiable, Sendable {
     case featured, artistWorlds, night, dreamy, retro, pop, indie, rock, hipHop, rnb, cinematic, cosmic, minimal
-    case luxury, neon, ambient, zen, designer, developer, indian, bollywood, seasonal, weekend, holiday
+    case luxury, neon, ambient, zen, designer, developer, colourAndLight
     case football, musicIcons
 
     public var id: String { rawValue }
@@ -166,11 +166,7 @@ public enum ThemeCollection: String, CaseIterable, Identifiable, Sendable {
         case .zen: "Japanese Zen"
         case .designer: "Designer"
         case .developer: "Developer"
-        case .indian: "Indian"
-        case .bollywood: "Bollywood"
-        case .seasonal: "Seasonal"
-        case .weekend: "Weekend"
-        case .holiday: "Holiday"
+        case .colourAndLight: "Colour & Light"
         case .football: "Football"
         case .musicIcons: "Music Icons"
         }

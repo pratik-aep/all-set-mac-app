@@ -91,6 +91,12 @@ public final class WidgetStore {
         scheduleSave()
     }
 
+    /// Puts a widget back where it was, e.g. to undo removing it.
+    public func insert(_ instance: WidgetInstance, at index: Int) {
+        widgets.insert(instance, at: min(max(index, 0), widgets.count))
+        scheduleSave()
+    }
+
     public func remove(_ id: UUID) {
         widgets.removeAll { $0.id == id }
         scheduleSave()

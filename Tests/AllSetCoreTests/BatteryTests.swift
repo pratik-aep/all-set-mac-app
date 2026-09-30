@@ -18,3 +18,21 @@ import Testing
         #expect(PerformancePolicy(isOnBattery: true).artFrameRate < PerformancePolicy().artFrameRate)
     }
 }
+
+@Suite struct WallpaperBatteryDefaultTests {
+    /// Settings saved before the change get Pause on battery once...
+    @Test func olderSettingsPauseOnBatteryOnce() throws {
+        let old = try JSONDecoder().decode(WallpaperConfig.self, from: Data(#"{"isEnabled": true, "pauseOnBattery": false}"#.utf8))
+        #expect(old.pauseOnBattery)
+        #expect(old.defaultsVersion == WallpaperConfig.currentDefaultsVersion)
+    }
+
+    /// ...and turning it off afterwards sticks.
+    @Test func turningItOffAgainIsKept() throws {
+        var config = WallpaperConfig()
+        #expect(config.pauseOnBattery)
+        config.pauseOnBattery = false
+        let again = try JSONDecoder().decode(WallpaperConfig.self, from: JSONEncoder().encode(config))
+        #expect(!again.pauseOnBattery)
+    }
+}
