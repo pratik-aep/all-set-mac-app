@@ -231,12 +231,10 @@ struct MonitorPage: View {
 
             VStack(alignment: .leading, spacing: DS.Space.m) {
                 SectionHeader(title: "What\u{2019}s using your Mac", subtitle: "Energy and memory by app, helpers included.")
+                // The card draws its own box, as it does in the notch.
                 TopAppsCard(services: services)
-                    .padding(DS.Space.m)
-                    .frame(height: 320)
+                    .frame(height: 300)
                     .frame(maxWidth: 640, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).fill(DS.Surface.raised))
-                    .overlay(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(DS.Surface.hairline))
             }
         }
         .onAppear { services.monitor.setViewer("window", visible: true) }
