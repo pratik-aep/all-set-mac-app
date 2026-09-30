@@ -26,6 +26,8 @@ import Testing
         #expect(snapshot.topApps.count <= 5)
 
         #if arch(arm64)
+        // A CI virtual machine has no temperature sensors, GPU readings or core kinds.
+        guard !TestEnvironment.isCI else { return }
         #expect(snapshot.cpu.coreKinds.contains(.efficiency))
         #expect(snapshot.cpu.coreKinds.contains(.performance))
         #expect(snapshot.gpu != nil)
@@ -44,7 +46,8 @@ import Testing
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }()
 
-    @Test(.enabled(if: helperURL != nil, "Run `swift build` first to build the helper"))
+    @Test(.enabled(if: helperURL != nil, "Run `swift build` first to build the helper"),
+          .disabled(if: TestEnvironment.isCI, "Needs a logged-in Mac with Now Playing, not a CI virtual machine"))
     func helperLoadsInPerlAndReportsState() async throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
