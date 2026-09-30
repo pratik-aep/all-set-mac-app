@@ -558,7 +558,7 @@ extension WidgetRenderHarness {
     static let pages: [(name: String, page: AppPage)] = [
         ("island", .island), ("activities", .activities), ("themes", .themes), ("theme-seven", .themeSet("setup.seven")),
         ("gallery", .gallery(nil)), ("art", .art), ("look", .widgetAppearance), ("wallpaper", .wallpaper),
-        ("wallpaper-options", .wallpaperOptions), ("snapping", .snapping), ("workspaces", .workspaces),
+        ("wallpaper-art", .wallpaper), ("wallpaper-videos", .wallpaper), ("wallpaper-options", .wallpaperOptions), ("snapping", .snapping), ("workspaces", .workspaces),
         ("clipboard", .clipboard), ("shelf", .shelf), ("mixer", .mixer), ("taptap", .knocks), ("notes", .notes),
         ("screenshot", .screenshot), ("monitor", .monitor), ("general", .general), ("about", .about),
     ]
@@ -593,10 +593,18 @@ extension WidgetRenderHarness {
         for size in sizes {
             window.setContentSize(size)
             for (name, page) in pages where wanted?.contains(name) ?? true {
+                // The Wallpaper page opens on `wallpaperTab`; a fresh page picks it up.
+                let tab: LiveWallpaperPage.Tab = name == "wallpaper-art" ? .art : name == "wallpaper-videos" ? .videos : .aerials
+                if page == .wallpaper {
+                    services.ui.page = .about
+                    try? await Task.sleep(for: .milliseconds(200))
+                    services.ui.wallpaperTab = tab
+                }
                 services.ui.page = page
                 // Long enough for thumbnails, previews and first samples to
                 // land; pages of rendered previews need longer the first time.
-                let settle = ["themes", "theme-seven", "gallery", "art", "wallpaper"].contains(name) ? 6000 : 1800
+                let settle = ["themes", "theme-seven", "gallery", "art", "wallpaper", "wallpaper-art", "wallpaper-videos"]
+                    .contains(name) ? 6000 : 1800
                 try? await Task.sleep(for: .milliseconds(settle))
                 if let image = captureOwnWindow(window),
                    let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
