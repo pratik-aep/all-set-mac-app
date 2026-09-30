@@ -335,12 +335,15 @@ private struct FeaturedThemeHero: View {
             GeometryReader { geometry in
                 let cardHeight = geometry.size.height - DS.Space.l * 2
                 let ratio = ThemeComposition.canvas.width / ThemeComposition.canvas.height
+                let showsCard = geometry.size.width - cardHeight * ratio > 560
                 ZStack(alignment: .trailing) {
                     ThemeSnapshot(set: set, dark: set.isDark, services: services, fills: true)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()
-                    if geometry.size.width - cardHeight * ratio > 560 {
-                        Color.black.opacity(0.55)
+                    // Busy widgets behind the words: dim them, more so when
+                    // the card carries the picture.
+                    Color.black.opacity(showsCard ? 0.72 : 0.45)
+                    if showsCard {
                         ThemeSnapshot(set: set, dark: set.isDark, services: services)
                             .frame(width: cardHeight * ratio, height: cardHeight)
                             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
