@@ -330,7 +330,26 @@ private struct FeaturedThemeHero: View {
         let favorite = services.themeStats.isFavorite(set.id)
         HeroSection(eyebrow: "Featured theme", title: set.name,
                     metadata: [set.inspiration ?? set.tagline, "\(set.includedWidgets.count) widgets"], height: height) {
-            ThemeSnapshot(set: set, dark: set.isDark, services: services, fills: true)
+            // Wide heroes show the desktop whole, as a card on the right over
+            // its own colors; narrow ones crop it to fill, which crops little.
+            GeometryReader { geometry in
+                let cardHeight = geometry.size.height - DS.Space.l * 2
+                let ratio = ThemeComposition.canvas.width / ThemeComposition.canvas.height
+                ZStack(alignment: .trailing) {
+                    ThemeSnapshot(set: set, dark: set.isDark, services: services, fills: true)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .clipped()
+                    if geometry.size.width - cardHeight * ratio > 560 {
+                        Color.black.opacity(0.55)
+                        ThemeSnapshot(set: set, dark: set.isDark, services: services)
+                            .frame(width: cardHeight * ratio, height: cardHeight)
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous).strokeBorder(DS.Surface.hairline))
+                            .dsElevated()
+                            .padding(.trailing, DS.Space.l)
+                    }
+                }
+            }
         } actions: {
             Button("View Theme") { services.ui.page = .themeSet(set.id) }
                 .buttonStyle(.pillProminent)
