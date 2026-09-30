@@ -594,8 +594,10 @@ extension WidgetRenderHarness {
             window.setContentSize(size)
             for (name, page) in pages where wanted?.contains(name) ?? true {
                 services.ui.page = page
-                // Long enough for thumbnails, previews and first samples to land.
-                try? await Task.sleep(for: .milliseconds(1800))
+                // Long enough for thumbnails, previews and first samples to
+                // land; pages of rendered previews need longer the first time.
+                let settle = ["themes", "theme-seven", "gallery", "art", "wallpaper"].contains(name) ? 6000 : 1800
+                try? await Task.sleep(for: .milliseconds(settle))
                 if let image = captureOwnWindow(window),
                    let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
                     try? png.write(to: folder.appendingPathComponent("\(name)-\(Int(size.width))x\(Int(size.height)).png"))

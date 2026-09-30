@@ -127,7 +127,7 @@ struct ThemesPage: View {
             VStack(alignment: .trailing, spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Search themes: night, pink, developerâ¦", text: $query)
+                    TextField("Search themes: night, pink, developer…", text: $query)
                         .textFieldStyle(.plain)
                         .focused($searchFocused)
                     if !query.isEmpty {
