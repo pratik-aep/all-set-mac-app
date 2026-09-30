@@ -24,15 +24,17 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Build
+      - name: Build (0 warnings)
         run: |
           set -o pipefail
           swift build 2>&1 | tee build.log
           count=$(grep -c "warning:" build.log || true)
           echo "Warnings: $count"
+          # The project keeps to zero warnings, so a new one fails the build.
           if [ "$count" -gt 0 ]; then
-            echo "::warning::swift build reported $count warning(s); the project aims for 0"
             grep "warning:" build.log | sort -u | head -40
+            echo "::error::swift build reported $count warning(s); the project keeps to 0"
+            exit 1
           fi
 
       - name: Test
