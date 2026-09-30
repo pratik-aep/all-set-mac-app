@@ -1,0 +1,381 @@
+import SwiftUI
+
+// The shared building blocks of the main window. Pages compose these instead
+// of styling their own boxes, headers and buttons.
+
+// MARK: Canvas
+
+/// The dark canvas behind every page: graphite with a faint lift at the top,
+/// optionally warmed by the page's own accent. Static, so it costs nothing.
+struct AppBackground: View {
+    var accent: Color?
+
+    var body: some View {
+        ZStack {
+            LinearGradient(colors: [DS.Surface.canvasLift, DS.Surface.canvas], startPoint: .top, endPoint: .center)
+            if let accent {
+                RadialGradient(colors: [accent.opacity(0.18), .clear], center: .top, startRadius: 0, endRadius: 520)
+            }
+        }
+        .ignoresSafeArea()
+    }
+}
+
+// MARK: Page structure
+
+/// A page's title block: an optional eyebrow, the title, a line of context,
+/// and actions on the trailing edge.
+struct PageHeader<Actions: View>: View {
+    var eyebrow: String?
+    let title: String
+    var subtitle: String?
+    @ViewBuilder var actions: Actions
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: DS.Space.m) {
+            VStack(alignment: .leading, spacing: DS.Space.xs) {
+                if let eyebrow { Text(eyebrow).dsText(.eyebrow) }
+                Text(title).dsText(.title)
+                if let subtitle {
+                    Text(subtitle).dsText(.body, color: DS.Ink.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: DS.Space.m)
+            actions
+        }
+    }
+}
+
+extension PageHeader where Actions == EmptyView {
+    init(eyebrow: String? = nil, title: String, subtitle: String? = nil) {
+        self.init(eyebrow: eyebrow, title: title, subtitle: subtitle) { EmptyView() }
+    }
+}
+
+/// A scrolling page on the canvas, with margins that follow the window's width.
+struct PageScaffold<Content: View>: View {
+    var accent: Color?
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(alignment: .leading, spacing: DS.Space.section) {
+                    content
+                }
+                .padding(.horizontal, DS.Space.pageMargin(for: geometry.size.width))
+                .padding(.vertical, DS.Space.xl)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .background(AppBackground(accent: accent))
+    }
+}
+
+/// A section's heading, with an optional "See All" on the trailing edge.
+struct SectionHeader: View {
+    let title: String
+    var subtitle: String?
+    var actionTitle: String?
+    var action: (() -> Void)?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: DS.Space.s) {
+            VStack(alignment: .leading, spacing: DS.Space.xxs) {
+                Text(title).dsText(.section)
+                if let subtitle { Text(subtitle).dsText(.meta) }
+            }
+            Spacer(minLength: DS.Space.s)
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.plain)
+                    .font(DS.TextRole.meta.font)
+                    .foregroundStyle(DS.Ink.secondary)
+            }
+        }
+    }
+}
+
+/// Facts in a row, separated by dots: "Space · 3840×2160 · 37 MB".
+struct MetadataRow: View {
+    let items: [String]
+
+    var body: some View {
+        Text(items.filter { !$0.isEmpty }.joined(separator: "  ·  "))
+            .dsText(.meta)
+            .lineLimit(1)
+    }
+}
+
+// MARK: Media
+
+/// Large media with its title and actions laid over a soft vignette: the top
+/// of a content page. The media is the star; the text sits where it's darkest.
+struct HeroSection<Media: View, Actions: View>: View {
+    var eyebrow: String?
+    let title: String
+    var metadata: [String] = []
+    var height: CGFloat = 420
+    @ViewBuilder var media: Media
+    @ViewBuilder var actions: Actions
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            media
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+            // Darkest bottom-left, where the words are; the rest of the media stays clear.
+            LinearGradient(colors: [.black.opacity(0.78), .black.opacity(0.25), .clear],
+                           startPoint: .bottom, endPoint: .center)
+            LinearGradient(colors: [.black.opacity(0.45), .clear], startPoint: .leading, endPoint: .center)
+            VStack(alignment: .leading, spacing: DS.Space.s) {
+                if let eyebrow { Text(eyebrow).dsText(.eyebrow, color: DS.Ink.secondary) }
+                Text(title).dsText(.hero).lineLimit(2).minimumScaleFactor(0.7)
+                if !metadata.isEmpty { MetadataRow(items: metadata) }
+                HStack(spacing: DS.Space.s) { actions }
+                    .padding(.top, DS.Space.xs)
+            }
+            .padding(DS.Space.xl)
+            .frame(maxWidth: 620, alignment: .leading)
+        }
+        .frame(height: height)
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.hero, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DS.Radius.hero, style: .continuous).strokeBorder(DS.Surface.hairline))
+    }
+}
+
+/// A rounded media card: artwork first, an optional title below or over it,
+/// lifting a little under the pointer and ringed when chosen.
+struct MediaCard<Media: View>: View {
+    var aspectRatio: CGFloat = 16 / 9
+    var isSelected = false
+    var title: String?
+    var subtitle: String?
+    @ViewBuilder var media: Media
+
+    @State private var isHovering = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.xs) {
+            Color.clear
+                .aspectRatio(aspectRatio, contentMode: .fit)
+                .overlay { media }
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous)
+                        .strokeBorder(isSelected ? DS.Ink.primary : DS.Surface.hairline, lineWidth: isSelected ? 2 : 1)
+                }
+                .scaleEffect(isHovering ? 1.02 : 1)
+                .dsElevated()
+            if let title {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).dsText(.headline).lineLimit(1)
+                    if let subtitle { Text(subtitle).dsText(.meta) }
+                }
+                .padding(.horizontal, DS.Space.xxs)
+            }
+        }
+        .contentShape(Rectangle())
+        .onHover { hovering in withMotion(Motion.responsive) { isHovering = hovering } }
+    }
+}
+
+/// A horizontal row of cards that scrolls and settles on a card's edge. Lazy:
+/// only the cards in view are made.
+struct MediaRail<Items: RandomAccessCollection, Card: View>: View where Items.Element: Identifiable {
+    let items: Items
+    var cardWidth: CGFloat = 260
+    @ViewBuilder var card: (Items.Element) -> Card
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: DS.Space.m) {
+                ForEach(items) { item in
+                    card(item).frame(width: cardWidth)
+                }
+            }
+            .scrollTargetLayout()
+            .padding(.vertical, DS.Space.xs)
+        }
+        .scrollTargetBehavior(.viewAligned)
+    }
+}
+
+/// A large preview area: what a studio page is editing.
+struct PreviewCanvas<Content: View>: View {
+    var height: CGFloat = 360
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .background(DS.Surface.raised)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.hero, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: DS.Radius.hero, style: .continuous).strokeBorder(DS.Surface.hairline))
+    }
+}
+
+// MARK: Surfaces
+
+/// Translucent glass for things that float over content: navigation,
+/// overlays, sheets. Not for cards or lists.
+struct GlassPanel<Content: View>: View {
+    var cornerRadius: CGFloat = DS.Radius.panel
+    var padding: CGFloat = DS.Space.l
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let padded = content.padding(padding)
+        if #available(macOS 26, *) {
+            padded.glassEffect(.regular, in: shape)
+        } else {
+            padded
+                .background(.ultraThinMaterial, in: shape)
+                .overlay(shape.strokeBorder(DS.Surface.hairline))
+        }
+    }
+}
+
+// MARK: Controls
+
+/// Rounded pill buttons: `.pill` for most actions, `.pillProminent` for the
+/// one primary action on a page.
+struct PillButtonStyle: ButtonStyle {
+    var prominent = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        PillBody(configuration: configuration, prominent: prominent)
+    }
+
+    private struct PillBody: View {
+        let configuration: ButtonStyleConfiguration
+        let prominent: Bool
+        @Environment(\.isEnabled) private var isEnabled
+        @State private var isHovering = false
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(prominent ? Color.black.opacity(0.88) : DS.Ink.primary)
+                .padding(.horizontal, DS.Space.m)
+                .frame(height: 34)
+                .background(Capsule().fill(fill))
+                .opacity(isEnabled ? 1 : 0.45)
+                .scaleEffect(configuration.isPressed ? 0.96 : 1)
+                .contentShape(Capsule())
+                .onHover { isHovering = $0 }
+                .motion(Motion.press, value: configuration.isPressed)
+        }
+
+        private var fill: Color {
+            if prominent { return .white.opacity(configuration.isPressed ? 0.8 : isHovering ? 1 : 0.92) }
+            return configuration.isPressed ? DS.Surface.pressed : isHovering ? .white.opacity(0.13) : DS.Surface.hover
+        }
+    }
+}
+
+/// A round icon button that floats over content: favourite, close, arrows.
+struct FloatingButtonStyle: ButtonStyle {
+    var diameter: CGFloat = 34
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(DS.Ink.primary)
+            .frame(width: diameter, height: diameter)
+            .background(Circle().fill(.black.opacity(configuration.isPressed ? 0.6 : 0.42)))
+            .overlay(Circle().strokeBorder(DS.Surface.hairline))
+            .scaleEffect(configuration.isPressed ? 0.92 : 1)
+            .contentShape(Circle())
+            .motion(Motion.press, value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == PillButtonStyle {
+    static var pill: PillButtonStyle { PillButtonStyle() }
+    static var pillProminent: PillButtonStyle { PillButtonStyle(prominent: true) }
+}
+
+extension ButtonStyle where Self == FloatingButtonStyle {
+    static var floating: FloatingButtonStyle { FloatingButtonStyle() }
+}
+
+/// A filter chip: a category, a kind, a sort.
+struct FilterPill: View {
+    let title: String
+    var symbol: String?
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let symbol { Image(systemName: symbol).font(.system(size: 11, weight: .semibold)) }
+                Text(title)
+            }
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(isSelected ? Color.black.opacity(0.88) : DS.Ink.secondary)
+            .padding(.horizontal, DS.Space.s)
+            .frame(height: 28)
+            .background(Capsule().fill(isSelected ? Color.white.opacity(0.92) : DS.Surface.raised))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// A rounded search field.
+struct SearchField: View {
+    @Binding var text: String
+    var prompt = "Search"
+
+    var body: some View {
+        HStack(spacing: DS.Space.xs) {
+            Image(systemName: "magnifyingglass").foregroundStyle(DS.Ink.tertiary)
+            TextField(prompt, text: $text)
+                .textFieldStyle(.plain)
+                .foregroundStyle(DS.Ink.primary)
+            if !text.isEmpty {
+                Button { text = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(DS.Ink.tertiary) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+            }
+        }
+        .font(.system(size: 13))
+        .padding(.horizontal, DS.Space.s)
+        .frame(height: 34)
+        .background(Capsule().fill(DS.Surface.raised))
+        .overlay(Capsule().strokeBorder(DS.Surface.hairline))
+    }
+}
+
+/// Nothing here yet: a symbol, a line, and what to do about it.
+struct EmptyState: View {
+    let symbol: String
+    let title: String
+    var message: String?
+    var actionTitle: String?
+    var action: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: DS.Space.s) {
+            Image(systemName: symbol)
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(DS.Ink.tertiary)
+            Text(title).dsText(.headline)
+            if let message {
+                Text(message).dsText(.body, color: DS.Ink.secondary).multilineTextAlignment(.center)
+            }
+            if let actionTitle, let action {
+                Button(actionTitle, action: action).buttonStyle(.pill).padding(.top, DS.Space.xs)
+            }
+        }
+        .frame(maxWidth: 360)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, DS.Space.xxl)
+    }
+}

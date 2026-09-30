@@ -109,18 +109,6 @@ private struct TileButton: View {
     }
 }
 
-private struct PageHeader: View {
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.largeTitle.bold())
-            Text(subtitle).foregroundStyle(.secondary)
-        }
-    }
-}
-
 // MARK: Art
 
 struct ArtLibraryPage: View {

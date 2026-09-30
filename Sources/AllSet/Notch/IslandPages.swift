@@ -110,7 +110,7 @@ struct IslandPage: View {
             }
             .disabled(!settings.notchEnabled)
         }
-        .formStyle(.grouped)
+        .dsFormStyle()
         .onChange(of: previewState, initial: true) { _, state in apply(state) }
         // A preview: numbers every couple of seconds are plenty.
         .onAppear { services.monitor.setViewer("window", visible: true, interval: 2) }
@@ -194,7 +194,7 @@ struct MonitorPage: View {
             }
             MonitorSettings(settings: services.settings)
         }
-        .formStyle(.grouped)
+        .dsFormStyle()
         .onAppear { services.monitor.setViewer("window", visible: true) }
         .onDisappear { services.monitor.setViewer("window", visible: false) }
     }

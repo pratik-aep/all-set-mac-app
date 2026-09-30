@@ -307,7 +307,7 @@ struct WidgetInspector: View {
                 Form {
                     WidgetOptionsEditor(id: id, services: services)
                 }
-                .formStyle(.grouped)
+                .dsFormStyle()
             }
         } else {
             ContentUnavailableView("Widget removed", systemImage: "square.dashed",

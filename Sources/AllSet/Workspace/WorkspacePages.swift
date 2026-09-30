@@ -74,7 +74,7 @@ struct WindowSnappingPage: View {
                     }
                 }
             }
-            .formStyle(.grouped)
+            .dsFormStyle()
         }
     }
 

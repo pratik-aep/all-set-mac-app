@@ -1204,7 +1204,7 @@ struct WallpaperOptionsPage: View {
                 Button("Choose a Wallpaper…") { services.openWindow(.wallpaper) }
             }
         }
-        .formStyle(.grouped)
+        .dsFormStyle()
         .motion(Motion.standard, value: store.config)
     }
 

@@ -78,7 +78,7 @@ struct ClipboardPage: View {
             Form {
                 ClipboardSettingsSections(services: services, confirmingClear: $confirmingClear)
             }
-            .formStyle(.grouped)
+            .dsFormStyle()
             .frame(minWidth: 300, idealWidth: 340, maxWidth: 420)
         }
         .motion(Motion.standard, value: status)

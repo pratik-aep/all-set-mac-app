@@ -186,7 +186,12 @@ struct MainView: View {
                     }
                 }
                 .navigationTitle(title(for: ui.page ?? .island))
+                .background(AppBackground())
         }
+        // The main window is always dark: the content (art, wallpapers,
+        // themes) leads, and a dark canvas is what lets it. Desktop widgets
+        // and the notch keep their own appearance.
+        .preferredColorScheme(.dark)
         .toolbar {
             ToolbarItemGroup {
                 Toggle(isOn: Binding(get: { services.settings.showWidgets },
@@ -318,6 +323,6 @@ struct FormPage<Content: View>: View {
 
     var body: some View {
         Form { content }
-            .formStyle(.grouped)
+            .dsFormStyle()
     }
 }

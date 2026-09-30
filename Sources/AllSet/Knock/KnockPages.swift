@@ -53,7 +53,7 @@ struct KnockPage: View {
                 }
             }
         }
-        .formStyle(.grouped)
+        .dsFormStyle()
         .onAppear { knocks.isTuning = true }
         .onDisappear { knocks.isTuning = false }
         .sheet(item: $choosing) { count in

@@ -411,7 +411,7 @@ struct SoundMixerPage: View {
                     .disabled(!mixer.hasChanges)
             }
         }
-        .formStyle(.grouped)
+        .dsFormStyle()
     }
 }
 
