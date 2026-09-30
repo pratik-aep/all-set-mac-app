@@ -16,37 +16,30 @@ struct ClipboardPage: View {
         let results = store.search(query, kind: kind)
         HSplitView {
             VStack(spacing: 0) {
-                VStack(spacing: 12) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                        TextField("Search your clipboard", text: $query)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 15))
-                        if !query.isEmpty {
-                            Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
-                                .buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: DS.Space.m) {
+                    PageHeader(eyebrow: store.items.isEmpty ? "Tools" : "\(store.items.count) items", title: "Clipboard",
+                               subtitle: "Everything you copy, searchable. Double-click to copy again.")
+                    SearchField(text: $query, prompt: "Search your clipboard")
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: DS.Space.xs) {
+                            FilterPill(title: "All", symbol: "square.grid.2x2", isSelected: kind == nil) { kind = nil }
+                            ForEach(ClipboardItem.Kind.allCases, id: \.self) { item in
+                                FilterPill(title: item.title, symbol: item.symbol, isSelected: kind == item) { kind = item }
+                            }
                         }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(.primary.opacity(0.07)))
-
-                    HStack(spacing: 6) {
-                        filterChip("All", symbol: "square.grid.2x2", value: nil)
-                        ForEach(ClipboardItem.Kind.allCases, id: \.self) { kind in
-                            filterChip(kind.title, symbol: kind.symbol, value: kind)
-                        }
-                        Spacer()
+                        .padding(.vertical, 1)
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, DS.Space.l)
+                .padding(.top, DS.Space.l)
+                .padding(.bottom, DS.Space.s)
 
                 if results.isEmpty {
-                    ContentUnavailableView(store.items.isEmpty ? "Nothing copied yet" : "No matches",
-                                           systemImage: "doc.on.clipboard",
-                                           description: Text(store.items.isEmpty
-                                                             ? "Copy some text, a link, an image or files and they'll appear here."
-                                                             : "Try another search or filter."))
+                    EmptyState(symbol: "doc.on.clipboard", title: store.items.isEmpty ? "Nothing copied yet" : "No matches",
+                               message: store.items.isEmpty
+                                   ? "Copy some text, a link, an image or files and they\u{2019}ll appear here."
+                                   : "Try another search or filter.")
+                        .frame(maxHeight: .infinity)
                 } else {
                     List(results) { item in
                         ClipboardRow(item: item, services: services)
@@ -62,15 +55,14 @@ struct ClipboardPage: View {
                             }
                     }
                     .listStyle(.inset)
+                    .scrollContentBackground(.hidden)
                 }
                 if let status {
-                    Text(status)
-                        .font(.callout.weight(.medium))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(.bar))
-                        .padding(.bottom, 12)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    GlassPanel(cornerRadius: 18, padding: 0) {
+                        Text(status).dsText(.body).padding(.horizontal, DS.Space.m).frame(height: 36)
+                    }
+                    .padding(.bottom, DS.Space.m)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .frame(minWidth: 380)
@@ -113,19 +105,6 @@ struct ClipboardPage: View {
         Divider()
         Button(item.isPinned ? "Unpin" : "Pin") { services.clipboard.togglePin(item.id) }
         Button("Delete", role: .destructive) { services.clipboard.remove(item.id) }
-    }
-
-    private func filterChip(_ title: String, symbol: String, value: ClipboardItem.Kind?) -> some View {
-        Button {
-            kind = value
-        } label: {
-            Label(title, systemImage: symbol)
-                .font(.callout.weight(.medium))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(kind == value ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.06)))
-        }
-        .buttonStyle(.plain)
     }
 
     private func show(_ message: String) {
@@ -230,25 +209,21 @@ struct ShelfPage: View {
 
     var body: some View {
         let shelf = services.shelf
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HStack(alignment: .bottom) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Shelf").font(.largeTitle.bold())
-                        Text("Drop files on the notch (or here) to keep them handy, then drag them into any app or folder. Files stay where they are; the shelf just remembers them. Drop pictures or PDFs and Make PDF turns them into one PDF.")
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if let pdfStatus {
-                        Text(pdfStatus).foregroundStyle(.secondary)
-                    }
-                    if !shelf.items.isEmpty {
+        PageScaffold {
+            PageHeader(eyebrow: shelf.items.isEmpty ? "Tools" : "\(shelf.items.count) parked", title: "Shelf",
+                       subtitle: "Drop files on the notch (or here) to keep them handy, then drag them into any app or folder. Files stay where they are; the shelf just remembers them.") {
+                if !shelf.items.isEmpty {
+                    FlowLayout(spacing: DS.Space.xs) {
+                        if let pdfStatus {
+                            Text(pdfStatus).dsText(.meta).frame(height: 34)
+                        }
                         if ShelfActions.canMakePDF(shelf) {
                             Button {
                                 Task { pdfStatus = await ShelfActions.makePDF(shelf) }
                             } label: {
                                 Label("Make PDF", systemImage: "doc.richtext")
                             }
+                            .buttonStyle(.pill)
                             .help("Combine the pictures and PDFs here into one PDF, saved to Downloads")
                         }
                         Button {
@@ -256,29 +231,28 @@ struct ShelfPage: View {
                         } label: {
                             Label("AirDrop All", systemImage: "square.and.arrow.up")
                         }
+                        .buttonStyle(.pill)
                         Button("Clear", role: .destructive) { shelf.clear() }
+                            .buttonStyle(.pill)
                     }
+                    .fixedSize()
                 }
+            }
 
-                if shelf.items.isEmpty {
-                    VStack(spacing: 10) {
-                        Image(systemName: "tray.and.arrow.down.fill")
-                            .font(.system(size: 40))
-                            .foregroundStyle(.secondary)
-                        Text("Drop files here").font(.headline)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 260)
-                    .background(RoundedRectangle(cornerRadius: 16).strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
-                        .foregroundStyle(isTargeted ? Color.accentColor : Color.secondary.opacity(0.4)))
-                } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 12)], spacing: 12) {
-                        ForEach(shelf.items) { item in
-                            ShelfTile(item: item, shelf: shelf, iconSize: 64)
-                        }
+            if shelf.items.isEmpty {
+                EmptyState(symbol: "tray.and.arrow.down.fill", title: "Drop files here",
+                           message: "Pictures and PDFs can become one PDF with Make PDF.")
+                    .frame(minHeight: 260)
+                    .background(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [8, 6]))
+                        .foregroundStyle(isTargeted ? Color.white.opacity(0.7) : DS.Surface.hairline.opacity(3)))
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: DS.Space.s)], spacing: DS.Space.s) {
+                    ForEach(shelf.items) { item in
+                        ShelfTile(item: item, shelf: shelf, iconSize: 64)
                     }
                 }
             }
-            .padding(28)
         }
         .onDrop(of: ShelfDrop.types, isTargeted: $isTargeted) { providers in
             ShelfDrop.accept(providers, into: shelf)

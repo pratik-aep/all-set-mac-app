@@ -134,33 +134,6 @@ struct ActivitySettings: View {
     }
 }
 
-struct MonitorSettings: View {
-    @Bindable var settings: AppSettings
-
-    var body: some View {
-        Section {
-            Picker("Update every", selection: $settings.refreshInterval) {
-                Text("½ second").tag(0.5)
-                Text("1 second").tag(1.0)
-                Text("2 seconds").tag(2.0)
-            }
-        } header: {
-            Text("Refresh")
-        } footer: {
-            Text("While stats are on screen. Otherwise All Set checks every few seconds to save energy.")
-        }
-
-        Section("Units") {
-            Picker("Temperature", selection: $settings.temperatureUnit) {
-                ForEach(TemperatureUnit.allCases) { unit in
-                    Text(unit.title).tag(unit)
-                }
-            }
-            .pickerStyle(.segmented)
-        }
-    }
-}
-
 struct AboutSettings: View {
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development build"

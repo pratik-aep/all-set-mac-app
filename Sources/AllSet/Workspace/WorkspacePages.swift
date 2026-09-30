@@ -10,10 +10,10 @@ struct WindowSnappingPage: View {
     var body: some View {
         let store = services.workspaces
         let settings = store.settings
-        VStack(spacing: 0) {
+        FormPage(eyebrow: "Workspace", title: "Window Snapping",
+                 subtitle: "Halves, thirds and quarters from the keyboard, or by dragging a window to an edge.") {
             AccessibilityBanner()
-                .padding([.horizontal, .top], 20)
-            Form {
+        } content: {
                 Section {
                     Toggle(isOn: binding(\.shortcutsEnabled)) {
                         Text("Keyboard shortcuts")
@@ -73,8 +73,6 @@ struct WindowSnappingPage: View {
                         store.settings.shortcuts = [:]
                     }
                 }
-            }
-            .dsFormStyle()
         }
     }
 
@@ -101,49 +99,53 @@ struct WorkspacesPage: View {
 
     var body: some View {
         let store = services.workspaces
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HStack(alignment: .bottom) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Workspaces").font(.largeTitle.bold())
-                        Text("Save the windows you have open as a workspace, then bring the whole setup back with one click or shortcut.")
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button {
-                        isSaving = true
-                    } label: {
-                        Label("Save Current Layout…", systemImage: "plus.rectangle.on.rectangle")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+        PageScaffold {
+            PageHeader(eyebrow: store.workspaces.isEmpty ? "Workspace" : "\(store.workspaces.count) saved",
+                       title: "Workspaces",
+                       subtitle: "Save the windows you have open, then bring the whole setup back with one click or shortcut.") {
+                Button {
+                    isSaving = true
+                } label: {
+                    Label("Save Current Layout…", systemImage: "plus.rectangle.on.rectangle")
                 }
+                .buttonStyle(.pillProminent)
+            }
 
-                AccessibilityBanner()
+            AccessibilityBanner()
 
-                if store.workspaces.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label("Arrange your apps the way you like them for a task, like coding or studying.", systemImage: "1.circle.fill")
-                        Label("Click Save Current Layout and pick which apps belong.", systemImage: "2.circle.fill")
-                        Label("Switch back any time: apps open, windows move into place and everything else hides.", systemImage: "3.circle.fill")
-                    }
-                    .font(.callout)
-                    .padding(20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 16).fill(.quaternary.opacity(0.5)))
-                } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 18)], spacing: 18) {
-                        ForEach(store.workspaces) { workspace in
-                            WorkspaceCard(workspace: workspace, services: services)
-                        }
+            if store.workspaces.isEmpty {
+                HStack(alignment: .top, spacing: DS.Space.m) {
+                    step(1, "Arrange", "Lay out your apps the way you like them for a task, like coding or studying.")
+                    step(2, "Save", "Click Save Current Layout and pick which apps belong.")
+                    step(3, "Switch", "Apps open, windows move into place and everything else hides.")
+                }
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: DS.Space.l)], spacing: DS.Space.l) {
+                    ForEach(store.workspaces) { workspace in
+                        WorkspaceCard(workspace: workspace, services: services)
                     }
                 }
             }
-            .padding(28)
         }
         .sheet(isPresented: $isSaving) {
             SaveWorkspaceSheet(services: services)
         }
+    }
+
+    private func step(_ number: Int, _ title: String, _ detail: String) -> some View {
+        VStack(alignment: .leading, spacing: DS.Space.xs) {
+            Text("\(number)")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.black.opacity(0.88))
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Color.white.opacity(0.92)))
+            Text(title).dsText(.headline).padding(.top, DS.Space.xxs)
+            Text(detail).dsText(.body, color: DS.Ink.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(DS.Space.m)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).fill(DS.Surface.raised))
+        .overlay(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(DS.Surface.hairline))
     }
 }
 
@@ -161,10 +163,9 @@ private struct WorkspaceCard: View {
                     TextField("Name", text: Binding(get: { workspace.name },
                                                     set: { name in store.update(workspace.id) { $0.name = name } }))
                         .textFieldStyle(.plain)
-                        .font(.headline)
+                        .font(DS.TextRole.headline.font)
                     Text("\(workspace.apps.count) apps · \(workspace.apps.reduce(0) { $0 + $1.windows.count }) windows")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .dsText(.meta)
                 }
                 Spacer()
                 Menu {
@@ -216,12 +217,13 @@ private struct WorkspaceCard: View {
                         Label("Switch", systemImage: "arrow.right.circle.fill")
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.pillProminent)
                 .disabled(services.ui.applyingWorkspace != nil)
             }
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.quaternary.opacity(0.5)))
+        .padding(DS.Space.m)
+        .background(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous).fill(DS.Surface.raised))
+        .overlay(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous).strokeBorder(DS.Surface.hairline))
     }
 }
 
@@ -325,25 +327,26 @@ struct AccessibilityBanner: View {
                         .font(.system(size: 22))
                         .foregroundStyle(.orange)
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Allow All Set to move windows").font(.headline)
+                        Text("Allow All Set to move windows").dsText(.headline)
                         Text("macOS asks before an app can move other apps' windows. Turn on All Set in Privacy & Security › Accessibility. This page updates as soon as you do.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                            .dsText(.body, color: DS.Ink.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                         HStack {
                             Button("Allow Access…") {
                                 Accessibility.requestAccess()
                                 Accessibility.openSettings()
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.pillProminent)
                             Button("Open Settings") { Accessibility.openSettings() }
+                                .buttonStyle(.pill)
                         }
                         .padding(.top, 2)
                     }
                     Spacer(minLength: 0)
                 }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 14).fill(Color.orange.opacity(0.12)))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.orange.opacity(0.3)))
+                .padding(DS.Space.m)
+                .background(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).fill(Color.orange.opacity(0.12)))
+                .overlay(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(Color.orange.opacity(0.3)))
             }
         }
         .task {
