@@ -1191,7 +1191,7 @@ struct WallpaperOptionsPage: View {
             } header: {
                 Text("Energy")
             } footer: {
-                Text("The wallpaper also pauses when the screen is locked or asleep, and in Low Power Mode.")
+                Text("The wallpaper always pauses while an app is full screen, when the screen is locked or asleep, and in Low Power Mode.")
             }
 
             Section {

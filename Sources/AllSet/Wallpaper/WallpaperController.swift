@@ -152,9 +152,12 @@ final class WallpaperController {
         var anyPlaying = false
         for window in windows.values {
             var playing = allowed
-            if playing, config.pauseWhenCovered {
+            if playing {
+                // A full-screen app gets its own Space, which marks this window occluded.
                 playing = window.occlusionState.contains(.visible)
-                    && DesktopCoverage.uncoveredFraction(of: window.frame, by: covering) >= Self.minimumUncovered
+                if playing, config.pauseWhenCovered {
+                    playing = DesktopCoverage.uncoveredFraction(of: window.frame, by: covering) >= Self.minimumUncovered
+                }
             }
             if window.state.isPlaying != playing { window.state.isPlaying = playing }
             anyPlaying = anyPlaying || playing
