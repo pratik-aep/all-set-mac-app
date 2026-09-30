@@ -13,7 +13,8 @@ struct KnockPage: View {
     var body: some View {
         let knocks = services.knocks
         let store = knocks.store
-        Form {
+        FormPage(eyebrow: "Tools", title: "TapTap",
+                 subtitle: "Knock on your Mac to run something: one, two or three knocks, each its own action.") {
             Section {
                 KnockHeader(knocks: knocks, isEnabled: binding(\.isEnabled))
             }
@@ -53,7 +54,6 @@ struct KnockPage: View {
                 }
             }
         }
-        .dsFormStyle()
         .onAppear { knocks.isTuning = true }
         .onDisappear { knocks.isTuning = false }
         .sheet(item: $choosing) { count in

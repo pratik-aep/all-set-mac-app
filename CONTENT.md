@@ -19,7 +19,7 @@ All Set is a macOS menu-bar/Dock utility built from these pieces:
 - **System monitor** — CPU, GPU, memory, disk, network, battery, thermal, top apps.
 - **Settings** — general, widgets, notch, wallpaper.
 
-Main window pages (`AppPage`): Dynamic Island, Activities, Themes, one Theme Set's detail page, Widget Gallery (per category or all), Art library, per-widget customization, widget appearance, Wallpaper, Wallpaper Options, Window Snapping, Workspaces, Clipboard, Shelf, Mixer, Knocks (TapTap), Notes, AI Screenshot, System Monitor, General settings, About.
+Main window pages (`AppPage`), reached from a floating navigation of five places (Island, Desktop, Workspace, Tools, System; ⌘1–⌘5) with each place's pages as pills: Dynamic Island, Activities, Themes, one Theme Set's detail page, Widget Gallery (per category or all), Art library, On Your Desktop (the widgets placed now), per-widget customization, widget appearance, Wallpaper, Wallpaper Options, Window Snapping, Workspaces, Clipboard, Shelf, Mixer, Knocks (TapTap), Notes, AI Screenshot, System Monitor, General settings, About.
 
 ---
 

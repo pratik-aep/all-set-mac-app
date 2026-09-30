@@ -345,7 +345,8 @@ struct SoundMixerPage: View {
         let volume = services.volume
         let running = Set(mixer.apps.map(\.id))
         let remembered = mixer.store.volumes.keys.filter { !running.contains($0) }.sorted()
-        Form {
+        FormPage(eyebrow: "Tools", title: "Sound Mixer",
+                 subtitle: "Where sound plays, and how loud each app is.") {
             if mixer.needsPermission {
                 Section {
                     AudioPermissionBanner(mixer: mixer)
@@ -411,7 +412,6 @@ struct SoundMixerPage: View {
                     .disabled(!mixer.hasChanges)
             }
         }
-        .dsFormStyle()
     }
 }
 

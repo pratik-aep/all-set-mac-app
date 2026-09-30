@@ -56,7 +56,8 @@ Sources/
     Wallpaper/         WallpaperController (desktop-level window per screen) and wallpaper pages
     Workspace/         Accessibility wrappers, hot keys, WindowManager, WorkspaceController, pages
     Clipboard/         ClipboardMonitor, the ⌃⌥V picker, OCR, Clipboard and Shelf pages
-    MainWindow.swift   The main window and its sidebar
+    Design/            Design tokens, shared components and the floating navigation
+    MainWindow.swift   The main window: its pages, under the floating navigation
   AllSetCore/          Everything testable without UI
     System/            CPU, GPU, memory, network, disk, battery, temperature readers
     Media/             Now Playing: MediaController and the helper protocol

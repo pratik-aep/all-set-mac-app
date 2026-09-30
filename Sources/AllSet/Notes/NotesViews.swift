@@ -156,25 +156,47 @@ struct NotesPage: View {
     @State private var draft = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 10) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(Color.accentColor)
+        let open = notes.notes.filter { !$0.isDone }.count
+        let done = notes.notes.filter(\.isDone).count
+        VStack(alignment: .leading, spacing: DS.Space.m) {
+            PageHeader(eyebrow: notes.notes.isEmpty ? "Tools" : "\(open) to do · \(done) done", title: "Notes",
+                       subtitle: "Quick points, here or in the island\u{2019}s Notes tab. Pasting a list adds each line.") {
+                HStack(spacing: DS.Space.xs) {
+                    Button("Copy All") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(notes.asText, forType: .string)
+                    }
+                    .buttonStyle(.pill)
+                    .disabled(notes.notes.isEmpty)
+                    Button("Clear Done") { withMotion(Motion.standard) { notes.removeDone() } }
+                        .buttonStyle(.pill)
+                        .disabled(!notes.notes.contains(where: \.isDone))
+                }
+            }
+
+            HStack(spacing: DS.Space.s) {
+                Image(systemName: "plus")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color.black.opacity(0.88))
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(Color.white.opacity(0.92)))
                 TextField("Add a point, then press Return", text: $draft)
                     .textFieldStyle(.plain)
-                    .font(.title3)
+                    .font(.system(size: 15))
                     .onSubmit {
                         withMotion(Motion.quick) { notes.add(draft) }
                         draft = ""
                     }
             }
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 12).fill(.quaternary.opacity(0.6)))
+            .padding(.horizontal, DS.Space.s)
+            .frame(height: 48)
+            .background(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).fill(DS.Surface.raised))
+            .overlay(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(DS.Surface.hairline))
 
             if notes.notes.isEmpty {
-                ContentUnavailableView("No notes yet", systemImage: "note.text",
-                                       description: Text("Jot quick points here or in the island's Notes tab. Pasting a list adds each line as its own point."))
+                EmptyState(symbol: "note.text", title: "No notes yet",
+                           message: "Type above and press Return. Check points off as you go.")
+                    .frame(maxHeight: .infinity, alignment: .top)
             } else {
                 List {
                     ForEach(notes.notes) { note in
@@ -186,20 +208,10 @@ struct NotesPage: View {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
             }
-
-            HStack {
-                Text("\(notes.notes.filter { !$0.isDone }.count) to do, \(notes.notes.filter(\.isDone).count) done")
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Copy All") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(notes.asText, forType: .string)
-                }
-                .disabled(notes.notes.isEmpty)
-                Button("Clear Done") { withMotion(Motion.standard) { notes.removeDone() } }
-                    .disabled(!notes.notes.contains(where: \.isDone))
-            }
         }
-        .padding(24)
+        .padding(.horizontal, DS.Space.l)
+        .padding(.top, DS.Space.l)
+        .frame(maxWidth: 820, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

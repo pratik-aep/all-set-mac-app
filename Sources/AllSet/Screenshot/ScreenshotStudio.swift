@@ -436,32 +436,64 @@ struct ScreenshotPage: View {
     let services: AppServices
 
     var body: some View {
-        VStack(spacing: 18) {
-            Image(systemName: "camera.viewfinder")
-                .font(.system(size: 54, weight: .light))
-                .foregroundStyle(Color.accentColor)
-            Text("AI Screenshot").font(.largeTitle.bold())
-            Text("Drag out part of the screen, then tell Claude or ChatGPT what to change: blur personal details, highlight something, crop, add arrows and labels, or just ask what's on screen.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: 520)
-            HStack(spacing: 12) {
-                Button {
-                    Task { await ScreenshotStudioController.shared.capture(services: services) }
-                } label: {
-                    Label("Take Screenshot", systemImage: "camera.viewfinder")
-                        .padding(.horizontal, 8)
+        PageScaffold {
+            PageHeader(eyebrow: "Tools", title: "AI Screenshot",
+                       subtitle: "Drag out part of the screen, then tell Claude or ChatGPT what to change.")
+            // The canvas leads: a selection being drawn, with the two ways in.
+            ZStack {
+                StudioBackdrop(piece: ArtPiece(style: .aurora, palette: .midnight))
+                VStack(spacing: DS.Space.l) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                            .fill(.black.opacity(0.18))
+                        RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                            .strokeBorder(.white.opacity(0.85), style: StrokeStyle(lineWidth: 1.5, dash: [7, 5]))
+                        Image(systemName: "camera.viewfinder")
+                            .font(.system(size: 44, weight: .light))
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+                    .frame(width: 280, height: 150)
+                    HStack(spacing: DS.Space.s) {
+                        Button {
+                            Task { await ScreenshotStudioController.shared.capture(services: services) }
+                        } label: {
+                            Label("Take Screenshot", systemImage: "camera.viewfinder")
+                        }
+                        .buttonStyle(.pillProminent)
+                        Button("Open a Picture…") { ScreenshotStudioController.shared.open() }
+                            .buttonStyle(.pill)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                Button("Open a Picture…") { ScreenshotStudioController.shared.open() }
-                    .controlSize(.large)
             }
-            Text("Also in the Dynamic Island (the camera button) and as a TapTap action.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            .frame(height: 340)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.hero, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: DS.Radius.hero, style: .continuous).strokeBorder(DS.Surface.hairline))
+
+            VStack(alignment: .leading, spacing: DS.Space.m) {
+                SectionHeader(title: "Ask for anything", subtitle: "Also in the Dynamic Island (the camera button) and as a TapTap action.")
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: DS.Space.m)], spacing: DS.Space.m) {
+                    idea("eye.slash.fill", "Blur personal details", "Names, emails, faces and numbers.")
+                    idea("highlighter", "Highlight", "Point out what matters with a box or a glow.")
+                    idea("crop", "Crop and annotate", "Arrows, labels and a tighter frame.")
+                    idea("text.bubble.fill", "Ask what\u{2019}s on screen", "Explain an error, a chart or a menu.")
+                }
+            }
         }
-        .padding(40)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func idea(_ symbol: String, _ title: String, _ detail: String) -> some View {
+        VStack(alignment: .leading, spacing: DS.Space.xs) {
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(DS.Ink.primary)
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(DS.Surface.hover))
+            Text(title).dsText(.headline).padding(.top, DS.Space.xxs)
+            Text(detail).dsText(.meta).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(DS.Space.m)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).fill(DS.Surface.raised))
+        .overlay(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(DS.Surface.hairline))
     }
 }

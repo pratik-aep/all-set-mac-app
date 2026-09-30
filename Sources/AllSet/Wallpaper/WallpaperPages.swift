@@ -1152,7 +1152,8 @@ struct WallpaperOptionsPage: View {
 
     var body: some View {
         let store = services.wallpaper
-        Form {
+        FormPage(eyebrow: "Desktop", title: "Wallpaper Options",
+                 subtitle: "How the live wallpaper looks, moves and saves energy.") {
             Section {
                 Toggle("Live wallpaper", isOn: binding(\.isEnabled))
                 LabeledContent("Dim") {
@@ -1207,7 +1208,6 @@ struct WallpaperOptionsPage: View {
                 Button("Choose a Wallpaper…") { services.openWindow(.wallpaper) }
             }
         }
-        .dsFormStyle()
         .motion(Motion.standard, value: store.config)
     }
 
