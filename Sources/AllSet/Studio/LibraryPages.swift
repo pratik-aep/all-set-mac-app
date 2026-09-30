@@ -114,34 +114,47 @@ private struct TileButton: View {
 struct ArtLibraryPage: View {
     let services: AppServices
     var context = LibraryContext()
+    /// Inside another page's scroll (the Wallpaper page's Art source): no
+    /// scroll view or page title of its own.
+    var embedded = false
 
     @State private var palette: ArtPalette?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+        if embedded {
+            content
+        } else {
+            ScrollView { content.padding(28) }
+        }
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            if embedded {
+                SectionHeader(title: "Art", subtitle: "\(ArtPiece.all.count) generative artworks. Hover to see them move.")
+            } else {
                 PageHeader(title: "Art", subtitle: "\(ArtPiece.all.count) generative artworks. Hover to see them move; any of them can be a photo, a live scene or a widget background.")
-                PaletteFilter(selection: $palette)
-                ForEach(ArtStyle.allCases) { style in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(style.title).font(.title3.bold())
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 12)], spacing: 12) {
-                            ForEach(ArtPalette.allCases.filter { palette == nil || $0 == palette }) { palette in
-                                let piece = ArtPiece(style: style, palette: palette)
-                                LibraryTile(source: .art(piece), context: context, caption: palette.title) { hovering in
-                                    ArtView(piece: piece, animated: hovering)
-                                } actions: {
-                                    if let action = context.action {
-                                        TileButton(title: action.title, symbol: action.symbol) { action.run(.art(piece)) }
-                                    } else {
-                                        TileButton(title: "Live Scene", symbol: "sparkles") {
-                                            var scene = WidgetInstance(kind: .ambient)
-                                            scene.options.art = piece
-                                            services.addWidget(scene)
-                                        }
-                                        TileButton(title: "Wallpaper", symbol: "photo.artframe") {
-                                            services.pickWallpaper(.art(piece))
-                                        }
+            }
+            PaletteFilter(selection: $palette)
+            ForEach(ArtStyle.allCases) { style in
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(style.title).font(.title3.bold())
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 12)], spacing: 12) {
+                        ForEach(ArtPalette.allCases.filter { palette == nil || $0 == palette }) { palette in
+                            let piece = ArtPiece(style: style, palette: palette)
+                            LibraryTile(source: .art(piece), context: context, caption: palette.title) { hovering in
+                                ArtView(piece: piece, animated: hovering)
+                            } actions: {
+                                if let action = context.action {
+                                    TileButton(title: action.title, symbol: action.symbol) { action.run(.art(piece)) }
+                                } else {
+                                    TileButton(title: "Live Scene", symbol: "sparkles") {
+                                        var scene = WidgetInstance(kind: .ambient)
+                                        scene.options.art = piece
+                                        services.addWidget(scene)
+                                    }
+                                    TileButton(title: "Wallpaper", symbol: "photo.artframe") {
+                                        services.pickWallpaper(.art(piece))
                                     }
                                 }
                             }
@@ -149,7 +162,6 @@ struct ArtLibraryPage: View {
                     }
                 }
             }
-            .padding(28)
         }
     }
 }

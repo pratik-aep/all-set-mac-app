@@ -3,7 +3,8 @@ import AppKit
 import AVFoundation
 import SwiftUI
 
-/// Pick and preview the live wallpaper.
+/// Pick and preview the live wallpaper: the one on the desktop as a large
+/// live hero, then the sources to choose from, all in one scroll.
 struct LiveWallpaperPage: View {
     let services: AppServices
 
@@ -19,9 +20,23 @@ struct LiveWallpaperPage: View {
             case .videos: "My Videos"
             }
         }
+
+        var symbol: String {
+            switch self {
+            case .aerials: "airplane"
+            case .art: "paintpalette"
+            case .videos: "film.stack"
+            }
+        }
     }
 
     @State private var tab: Tab
+    /// The library's detail sheet overlays the whole page, so it lives here.
+    @State private var detailVideo: LibraryVideo?
+    /// Owned tiles only offload on delete; everywhere else, permanent and
+    /// admin-gated. Here so the detail sheet agrees with the grid.
+    @State private var ownedOnly = false
+    @State private var isDropTarget = false
 
     init(services: AppServices, tab: Tab = .aerials) {
         self.services = services
@@ -29,6 +44,7 @@ struct LiveWallpaperPage: View {
     }
 
     var body: some View {
+        let store = services.wallpaper
         let setWallpaper = LibraryContext(action: .init(title: "Set as Wallpaper", symbol: "photo.artframe") { source in
             if case .art(let piece) = source {
                 services.pickWallpaper(.art(piece))
@@ -37,41 +53,92 @@ struct LiveWallpaperPage: View {
             }
         })
 
-        VStack(spacing: 0) {
-            WallpaperHero(services: services)
-                .padding([.horizontal, .top], 24)
-                .padding(.bottom, 16)
-            if services.ui.desktopUndo != nil {
-                DesktopUndoBanner(services: services)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 12)
-            }
-            Picker("Source", selection: $tab) {
-                ForEach(Tab.allCases) { tab in
-                    Text(tab.title).tag(tab)
+        ZStack(alignment: .bottom) {
+            GeometryReader { geometry in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: DS.Space.section) {
+                        VStack(alignment: .leading, spacing: DS.Space.m) {
+                            WallpaperHero(services: services, height: Self.heroHeight(for: geometry.size))
+                            if services.ui.desktopUndo != nil {
+                                DesktopUndoBanner(services: services)
+                            }
+                        }
+                        sourceBar
+                        switch tab {
+                        case .aerials: AerialsSection(services: services)
+                        case .art: ArtLibraryPage(services: services, context: setWallpaper, embedded: true)
+                        case .videos: VideosSection(services: services, detailVideo: $detailVideo, ownedOnly: $ownedOnly)
+                        }
+                    }
+                    .padding(.horizontal, DS.Space.pageMargin(for: geometry.size.width))
+                    .padding(.top, DS.Space.l)
+                    .padding(.bottom, DS.Space.xxl)
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 24)
-            .padding(.bottom, 4)
-            Divider().padding(.top, 8)
+            .background(AppBackground())
+            .overlay {
+                if isDropTarget {
+                    RoundedRectangle(cornerRadius: DS.Radius.hero, style: .continuous)
+                        .strokeBorder(DS.Ink.primary, lineWidth: 2)
+                        .padding(DS.Space.xs)
+                        .allowsHitTesting(false)
+                }
+            }
+            // Videos dropped anywhere on the page are imported, and My Videos shows them.
+            .dropDestination(for: URL.self) { urls, _ in
+                guard !store.importVideos(from: urls).isEmpty else { return false }
+                withMotion(Motion.standard) { tab = .videos }
+                return true
+            } isTargeted: { isDropTarget = $0 }
 
-            Group {
-                switch tab {
-                case .aerials: AerialsPage(services: services)
-                case .art: ArtLibraryPage(services: services, context: setWallpaper)
-                case .videos: VideosPage(services: services)
+            if let video = detailVideo {
+                // Dims the page behind the preview; a click anywhere on it goes back.
+                Color.black.opacity(0.45)
+                    .contentShape(Rectangle())
+                    .onTapGesture { withMotion(Motion.standard) { detailVideo = nil } }
+                    .transition(.opacity)
+                    .accessibilityHidden(true)
+                LibraryDetailSheet(video: video, store: store, images: services.images, deleteKind: deleteKind(for: video)) {
+                    services.pickWallpaper(.library(video.id))
+                    detailVideo = nil
+                } onClose: {
+                    withMotion(Motion.standard) { detailVideo = nil }
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        // Picks up a fresh import without restarting.
+        .onAppear { store.reloadLibrary() }
+    }
+
+    /// Where to look for a wallpaper: one row of pills, the chosen one filled.
+    private var sourceBar: some View {
+        HStack(spacing: DS.Space.xs) {
+            ForEach(Tab.allCases) { item in
+                FilterPill(title: item.title, symbol: item.symbol, isSelected: tab == item) {
+                    withMotion(Motion.quick) { tab = item }
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    /// Big enough to feel like a screen, never so big it hides what's below.
+    static func heroHeight(for size: CGSize) -> CGFloat {
+        min(max(size.height * 0.52, 280), 480)
+    }
+
+    /// Owned tiles only offload; everywhere else, permanent and admin-gated.
+    private func deleteKind(for video: LibraryVideo) -> LibraryTile.DeleteKind {
+        ownedOnly ? .offloadOnly { await services.wallpaper.offloadAll(only: [video.id]) }
+                  : .permanent { await services.wallpaper.deleteEverywhere(video.id) }
     }
 }
 
-/// The current wallpaper, playing, with the main switch.
+/// The wallpaper on the desktop, playing, as the page's hero: what it is,
+/// and the switch and options for it.
 private struct WallpaperHero: View {
     let services: AppServices
+    var height: CGFloat
     /// Plays for a moment when the page opens, then whenever the pointer is on it.
     @State private var isIntroPlaying = true
     @State private var isHovering = false
@@ -79,175 +146,113 @@ private struct WallpaperHero: View {
     var body: some View {
         let store = services.wallpaper
         let config = store.config
-        HStack(alignment: .center, spacing: 22) {
-            // A small preview needn't run at the desktop's frame rate, nor all
-            // the time: animating it costs as much as the wallpaper itself.
+        let summary = summary(of: config.source)
+        HeroSection(eyebrow: config.isEnabled ? "On your desktop" : "Live wallpaper · Off",
+                    title: summary.title, metadata: summary.details, height: height) {
+            // A preview needn't run at the desktop's frame rate, nor all the
+            // time: animating it costs as much as the wallpaper itself.
             WallpaperView(config: { var preview = config; preview.frameRate = min(config.frameRate, 24); return preview }(),
                           services: services)
                 .environment(\.widgetIsVisible, isIntroPlaying || isHovering)
-                .frame(width: 300, height: 188)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.15)))
-                .shadow(color: .black.opacity(0.3), radius: 12, y: 6)
-                .overlay(alignment: .top) {
-                    // A hint of the menu bar and notch, so it reads as a screen.
-                    Capsule().fill(.black).frame(width: 44, height: 7).padding(.top, 3)
-                }
-                .onHover { isHovering = $0 }
-                .task {
-                    try? await Task.sleep(for: .seconds(6))
-                    isIntroPlaying = false
-                }
-                .help("Point at the preview to see it move")
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Live Wallpaper").font(.largeTitle.bold())
-                Text(description(of: config.source))
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                Toggle(isOn: Binding(get: { store.config.isEnabled }, set: { store.config.isEnabled = $0 })) {
-                    Text(config.isEnabled ? "On: playing on your desktop" : "Off")
-                        .font(.headline)
-                }
-                .toggleStyle(.switch)
-                .controlSize(.large)
-                if case .library(let id) = config.source, store.isFetching(id) {
-                    HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
-                        Text("Downloading from your server…").font(.callout).foregroundStyle(.secondary)
-                        Button("Cancel") { store.cancelFetch(id) }
-                            .controlSize(.small)
-                            .help("Stop downloading; the default art shows until you pick it again")
-                    }
-                }
-                HStack(spacing: 10) {
-                    Button("Options…") { services.openWindow(.wallpaperOptions) }
-                    if config.isEnabled, !services.ui.wallpaperPlaying {
-                        Label("Paused to save energy", systemImage: "pause.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+        } actions: {
+            Button {
+                withMotion(Motion.quick) { store.config.isEnabled.toggle() }
+            } label: {
+                Label(config.isEnabled ? "Turn Off" : "Turn On", systemImage: config.isEnabled ? "pause.fill" : "play.fill")
             }
-            Spacer(minLength: 0)
+            .buttonStyle(PillButtonStyle(prominent: !config.isEnabled))
+            Button("Options…") { services.openWindow(.wallpaperOptions) }
+                .buttonStyle(.pill)
+            if case .library(let id) = config.source, store.isFetching(id) {
+                HStack(spacing: DS.Space.xs) {
+                    ProgressView().controlSize(.small)
+                    Text("Downloading from your server…").dsText(.meta)
+                    Button("Cancel") { store.cancelFetch(id) }
+                        .buttonStyle(.pill)
+                        .help("Stop downloading; the default art shows until you pick it again")
+                }
+            } else if config.isEnabled, !services.ui.wallpaperPlaying {
+                Label("Paused to save energy", systemImage: "pause.circle.fill").dsText(.meta)
+            }
+        }
+        .onHover { isHovering = $0 }
+        .help("Point at the preview to see it move")
+        .task {
+            try? await Task.sleep(for: .seconds(6))
+            isIntroPlaying = false
         }
     }
 
-    private func description(of source: WallpaperSource) -> String {
+    /// What's on the desktop, in a title and a few facts.
+    private func summary(of source: WallpaperSource) -> (title: String, details: [String]) {
         switch source {
-        case .art(let piece): "\(piece.title), animated"
-        case .photo(.web(let photo)): "Photo by \(photo.author)"
-        case .photo(.file): "Your photo, with gentle motion"
-        case .photo(.art(let piece)): piece.title
+        case .art(let piece):
+            return (piece.style.title, ["Generative art", "\(piece.palette.title) palette", "Animated"])
+        case .photo(.web(let photo)):
+            return (photo.title ?? "Photo", ["Photo by \(photo.author)", photo.license ?? ""])
+        case .photo(.file):
+            return ("Your photo", ["With gentle motion"])
+        case .photo(.art(let piece)):
+            return (piece.style.title, ["Still art", "\(piece.palette.title) palette"])
         case .video(let name):
             if let aerial = services.aerials.aerials.first(where: { name.hasPrefix("aerial-\($0.id)") }) {
-                "\(aerial.name), an Apple aerial"
-            } else {
-                "Your video, looping silently"
+                return (aerial.name, ["Apple aerial", aerial.category.title])
             }
+            return ("Your video", ["Looping silently"])
         case .library(let id):
-            if let video = services.wallpaper.libraryVideo(id) {
-                "\(video.title), from your library"
-            } else {
-                "A video from your library"
-            }
+            guard let video = services.wallpaper.libraryVideo(id) else { return ("A video from your library", []) }
+            return (video.title, [video.category.title, video.kind == .image ? "Still" : "Live", video.resolutionLabel,
+                                  video.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? ""])
         }
     }
 }
 
-/// Imported videos, for video wallpapers.
-private struct VideosPage: View {
+/// Your own videos, then the imported wallpaper library: the My Videos source.
+private struct VideosSection: View {
     let services: AppServices
-    @State private var isDropTarget = false
-    @State private var detailVideo: LibraryVideo?
-    /// Owned tiles only offload on delete; everywhere else, permanent +
-    /// admin-gated. Lifted here (not just in LibrarySection) so the detail
-    /// sheet, which overlays the whole page, agrees with the grid.
-    @State private var ownedOnly = false
+    @Binding var detailVideo: LibraryVideo?
+    @Binding var ownedOnly: Bool
+
+    /// A video file by name, for the rail.
+    private struct VideoFile: Identifiable {
+        let id: String
+    }
 
     var body: some View {
         let store = services.wallpaper
-        ZStack(alignment: .bottom) {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .bottom) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Videos").font(.largeTitle.bold())
-                        Text("Any MP4 or MOV loops silently behind your desktop. Drop files here or import them.")
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
+        let videos = store.videos.filter { !$0.hasPrefix("aerial-") }
+        VStack(alignment: .leading, spacing: DS.Space.section) {
+            VStack(alignment: .leading, spacing: DS.Space.m) {
+                HStack(alignment: .bottom, spacing: DS.Space.m) {
+                    SectionHeader(title: "My Videos",
+                                  subtitle: "Any MP4 or MOV loops silently behind your desktop. Drop files on this page or import them.")
                     Button {
                         importVideos()
                     } label: {
                         Label("Import Videos…", systemImage: "square.and.arrow.down")
                     }
-                    .controlSize(.large)
+                    .buttonStyle(.pill)
                 }
-                let videos = store.videos.filter { !$0.hasPrefix("aerial-") }
-                if videos.isEmpty, !store.library.isEmpty {
-                    // The header already says how to add some; the library follows.
-                    EmptyView()
-                } else if videos.isEmpty {
-                    VStack(spacing: 10) {
-                        Image(systemName: "film.stack")
-                            .font(.system(size: 40))
-                            .foregroundStyle(.secondary)
-                        Text("Drop videos here").font(.headline)
-                        Text("Screen-sized loops look best. Videos are copied into All Set.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 240)
-                    .background(RoundedRectangle(cornerRadius: 16).strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
-                        .foregroundStyle(.quaternary))
-                } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 14)], spacing: 14) {
-                        ForEach(videos, id: \.self) { name in
-                            VideoTile(url: store.videoURL(name), isCurrent: store.config.source == .video(name)) {
-                                services.pickWallpaper(.video(name))
-                            } onDelete: {
-                                store.deleteVideo(name)
-                            }
+                if !videos.isEmpty {
+                    MediaRail(items: videos.map(VideoFile.init), cardWidth: 280) { file in
+                        VideoTile(url: store.videoURL(file.id), isCurrent: store.config.source == .video(file.id)) {
+                            services.pickWallpaper(.video(file.id))
+                        } onDelete: {
+                            store.deleteVideo(file.id)
                         }
                     }
+                } else if store.library.isEmpty {
+                    EmptyState(symbol: "film.stack", title: "Drop videos here",
+                               message: "Screen-sized loops look best. Videos are copied into All Set.",
+                               actionTitle: "Import Videos…", action: { importVideos() })
+                        .background {
+                            RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous)
+                                .strokeBorder(DS.Surface.hairline, style: StrokeStyle(lineWidth: 1.5, dash: [8, 6]))
+                        }
                 }
-                LibrarySection(services: services, detailVideo: $detailVideo, ownedOnly: $ownedOnly)
             }
-            .padding(28)
+            LibrarySection(services: services, detailVideo: $detailVideo, ownedOnly: $ownedOnly)
         }
-        // Picks up a fresh import without restarting.
-        .onAppear { store.reloadLibrary() }
-        .overlay {
-            if isDropTarget {
-                RoundedRectangle(cornerRadius: 16).strokeBorder(Color.accentColor, lineWidth: 3).padding(8)
-            }
-        }
-        .dropDestination(for: URL.self) { urls, _ in
-            !store.importVideos(from: urls).isEmpty
-        } isTargeted: { isDropTarget = $0 }
-        if let video = detailVideo {
-            // Dims the grid behind the preview; a click anywhere on it goes back.
-            Color.black.opacity(0.35)
-                .contentShape(Rectangle())
-                .onTapGesture { withMotion(Motion.standard) { detailVideo = nil } }
-                .transition(.opacity)
-                .accessibilityHidden(true)
-            LibraryDetailSheet(video: video, store: store, images: services.images, deleteKind: deleteKind(for: video)) {
-                services.pickWallpaper(.library(video.id))
-                detailVideo = nil
-            } onClose: {
-                withMotion(Motion.standard) { detailVideo = nil }
-            }
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
-        }
-    }
-
-    /// Owned tiles only offload; everywhere else, permanent + admin-gated.
-    private func deleteKind(for video: LibraryVideo) -> LibraryTile.DeleteKind {
-        ownedOnly ? .offloadOnly { await services.wallpaper.offloadAll(only: [video.id]) }
-                  : .permanent { await services.wallpaper.deleteEverywhere(video.id) }
     }
 
     private func importVideos() {
@@ -282,9 +287,9 @@ private struct VideoTile: View {
         }
         .aspectRatio(16 / 10, contentMode: .fill)
         .frame(minWidth: 0, maxWidth: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous)
                 .strokeBorder(Color.accentColor, lineWidth: isCurrent ? 3 : 0)
         }
         .overlay(alignment: .bottom) {
@@ -322,9 +327,9 @@ private struct VideoTile: View {
 /// rest the pointer on one.
 private struct LibrarySection: View {
     let services: AppServices
-    /// Both owned by `VideosPage`: its bottom detail sheet overlays the
-    /// whole page (this section alone scrolls with the grid), and needs to
-    /// agree with the grid on which delete behaviour applies.
+    /// Both owned by `LiveWallpaperPage`: its bottom detail sheet overlays
+    /// the whole page, and needs to agree with the grid on which delete
+    /// behaviour applies.
     @Binding var detailVideo: LibraryVideo?
     @Binding var ownedOnly: Bool
 
@@ -366,11 +371,10 @@ private struct LibrarySection: View {
             let waiting = all.filter { !store.canPlay($0) && !(hasServer && ($0.playback != nil || $0.still != nil)) }
             let offline = store.libraryRoots.values
                 .filter { root in waiting.contains { $0.root == root.id } }
-            VStack(alignment: .leading, spacing: 14) {
-                Divider().padding(.vertical, 6)
+            VStack(alignment: .leading, spacing: DS.Space.m) {
                 HStack(alignment: .bottom) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Library").font(.title.bold())
+                    VStack(alignment: .leading, spacing: DS.Space.xxs) {
+                        Text("Library").dsText(.section)
                         Text("\(all.count - stills) live, \(stills) stills, "
                              + (!waiting.isEmpty
                                 ? "from \(store.libraryRoots.values.compactMap(\.label).sorted().joined(separator: ", "))"
@@ -606,9 +610,9 @@ private struct LibraryTile: View {
                 }
                 .scaleEffect(isHovering ? 1.03 : 1)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous)
                     .strokeBorder(Color.accentColor, lineWidth: isCurrent ? 3 : 0)
             }
             .overlay(alignment: .topTrailing) {
@@ -694,7 +698,7 @@ private struct LibraryTile: View {
                 .padding(8)
                 .background(LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .top, endPoint: .bottom))
             }
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
             .contentShape(Rectangle())
             .onTapGesture(perform: onShowDetails)
             .onHover { hovering in
@@ -923,7 +927,8 @@ private struct LibraryDetailSheet: View {
 }
 
 /// Apple's aerial videos: pick one and it downloads once, then loops offline.
-private struct AerialsPage: View {
+/// A rail per kind of place; choosing a kind shows all of it as a grid.
+private struct AerialsSection: View {
     let services: AppServices
 
     @State private var category: Aerial.Category?
@@ -934,28 +939,29 @@ private struct AerialsPage: View {
         let catalog = services.aerials
         let store = services.wallpaper
         let downloaded = Set(store.videos.filter { $0.hasPrefix("aerial-") })
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .bottom) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Aerial Videos").font(.largeTitle.bold())
-                        Text("Apple's own drone and space footage, from the Apple TV screen savers. Rest the pointer on one to preview it; choosing it downloads it once, then it loops offline.")
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
+        // Only the kinds Apple's list has (the library adds others).
+        let kinds = Aerial.Category.allCases.filter { kind in catalog.aerials.contains { $0.category == kind } }
+        VStack(alignment: .leading, spacing: DS.Space.l) {
+            VStack(alignment: .leading, spacing: DS.Space.m) {
+                HStack(alignment: .bottom, spacing: DS.Space.m) {
+                    SectionHeader(title: "Aerial Videos",
+                                  subtitle: "Apple's own drone and space footage. Rest the pointer on one to preview it; choosing it downloads it once, then it loops offline.")
                     Picker("Quality", selection: $quality) {
                         ForEach(Aerial.Quality.allCases) { Text($0.title).tag($0) }
                     }
-                    .frame(width: 230)
+                    .labelsHidden()
+                    .fixedSize()
                 }
-
-                HStack(spacing: 8) {
-                    categoryChip(nil, title: "All", symbol: "sparkles")
-                    // Only the kinds Apple's list has (the library adds others).
-                    ForEach(Aerial.Category.allCases.filter { kind in catalog.aerials.contains { $0.category == kind } }) {
-                        categoryChip($0, title: $0.title, symbol: $0.symbol)
+                HStack(spacing: DS.Space.xs) {
+                    FilterPill(title: "All", symbol: "sparkles", isSelected: category == nil) {
+                        withMotion(Motion.quick) { category = nil }
                     }
-                    Spacer()
+                    ForEach(kinds) { kind in
+                        FilterPill(title: kind.title, symbol: kind.symbol, isSelected: category == kind) {
+                            withMotion(Motion.quick) { category = kind }
+                        }
+                    }
+                    Spacer(minLength: DS.Space.s)
                     if !downloaded.isEmpty {
                         Menu("\(downloaded.count) downloaded") {
                             Button("Delete Downloads Not in Use", role: .destructive) {
@@ -967,56 +973,53 @@ private struct AerialsPage: View {
                         .fixedSize()
                     }
                 }
+            }
 
-                if let problem {
-                    Label(problem, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                }
+            if let problem {
+                Label(problem, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
 
-                if catalog.aerials.isEmpty {
-                    VStack(spacing: 12) {
-                        if let error = catalog.errorMessage {
-                            Text(error).foregroundStyle(.secondary)
-                            Button("Try Again") { Task { await catalog.retry() } }
-                        } else {
-                            ProgressView()
-                            Text("Getting Apple's aerial list…").foregroundStyle(.secondary)
-                        }
+            if catalog.aerials.isEmpty {
+                if let error = catalog.errorMessage {
+                    EmptyState(symbol: "wifi.exclamationmark", title: "Couldn't get Apple's aerial list", message: error,
+                               actionTitle: "Try Again", action: { Task { await catalog.retry() } })
+                } else {
+                    VStack(spacing: DS.Space.s) {
+                        ProgressView()
+                        Text("Getting Apple's aerial list…").dsText(.meta)
                     }
                     .frame(maxWidth: .infinity, minHeight: 240)
-                } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 14)], spacing: 14) {
-                        ForEach(catalog.aerials.filter { category == nil || $0.category == category }) { aerial in
-                            let file = aerial.fileName(quality)
-                            AerialTile(aerial: aerial, catalog: catalog,
-                                       isDownloaded: downloaded.contains(file),
-                                       isCurrent: store.config.source == .video(file)) {
-                                use(aerial)
-                            }
+                }
+            } else if let category {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: DS.Space.m)], spacing: DS.Space.m) {
+                    ForEach(catalog.aerials.filter { $0.category == category }) { aerial in
+                        tile(aerial, downloaded: downloaded)
+                    }
+                }
+            } else {
+                ForEach(kinds) { kind in
+                    VStack(alignment: .leading, spacing: DS.Space.s) {
+                        SectionHeader(title: kind.title, actionTitle: "See All") {
+                            withMotion(Motion.quick) { category = kind }
+                        }
+                        MediaRail(items: catalog.aerials.filter { $0.category == kind }, cardWidth: 300) { aerial in
+                            tile(aerial, downloaded: downloaded)
                         }
                     }
-                    .motion(Motion.standard, value: category)
                 }
             }
-            .padding(28)
         }
         .task { await catalog.load() }
     }
 
-    private func categoryChip(_ value: Aerial.Category?, title: String, symbol: String) -> some View {
-        let selected = category == value
-        return Button {
-            withMotion(Motion.quick) { category = value }
-        } label: {
-            Label(title, systemImage: symbol)
-                .font(.callout.weight(.medium))
-                .foregroundStyle(selected ? Color.white : .primary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(selected ? Color.accentColor : Color.primary.opacity(0.07)))
-                .contentShape(Capsule())
+    private func tile(_ aerial: Aerial, downloaded: Set<String>) -> some View {
+        let file = aerial.fileName(quality)
+        return AerialTile(aerial: aerial, catalog: services.aerials,
+                          isDownloaded: downloaded.contains(file),
+                          isCurrent: services.wallpaper.config.source == .video(file)) {
+            use(aerial)
         }
-        .buttonStyle(PressableStyle())
     }
 
     private func use(_ aerial: Aerial) {
@@ -1069,9 +1072,9 @@ private struct AerialTile: View {
                 }
                 .scaleEffect(isHovering ? 1.03 : 1)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous)
                     .strokeBorder(Color.accentColor, lineWidth: isCurrent ? 3 : 0)
             }
             .overlay(alignment: .bottomLeading) {
@@ -1113,7 +1116,7 @@ private struct AerialTile: View {
                                 .controlSize(.small)
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
                 } else if isHovering {
                     Button(action: onUse) {
                         Label(isCurrent ? "Current Wallpaper" : isDownloaded ? "Set as Wallpaper" : "Download & Set",
@@ -1125,7 +1128,7 @@ private struct AerialTile: View {
                 }
             }
             .shadow(color: .black.opacity(isHovering ? 0.3 : 0.1), radius: isHovering ? 14 : 4, y: isHovering ? 6 : 2)
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
             .onHover { hovering in
                 withMotion(Motion.responsive) { isHovering = hovering }
                 if !hovering { withMotion(Motion.quick) { isPreviewing = false } }

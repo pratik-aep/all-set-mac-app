@@ -78,7 +78,7 @@ struct SectionHeader: View {
     let title: String
     var subtitle: String?
     var actionTitle: String?
-    var action: (() -> Void)?
+    var action: (@MainActor () -> Void)?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: DS.Space.s) {
@@ -359,7 +359,7 @@ struct EmptyState: View {
     let title: String
     var message: String?
     var actionTitle: String?
-    var action: (() -> Void)?
+    var action: (@MainActor () -> Void)?
 
     var body: some View {
         VStack(spacing: DS.Space.s) {
