@@ -46,6 +46,8 @@ jobs:
     # without sitting at the Mac.
     runs-on: macos-26
     timeout-minutes: 25
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
 
@@ -67,3 +69,21 @@ jobs:
           path: screenshots/*.png
           if-no-files-found: error
           retention-days: 14
+
+      # The same pictures as small JPEGs on a `ci-screenshots` branch that only
+      # ever holds the latest set (force-pushed, one commit), for reviewers who
+      # can reach github.com but not the artifact store.
+      - name: Publish to the ci-screenshots branch
+        if: github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/publish && cd /tmp/publish
+          for f in "$GITHUB_WORKSPACE"/screenshots/*.png; do
+            sips -s format jpeg -s formatOptions 72 "$f" --out "$(basename "${f%.png}").jpg" >/dev/null
+          done
+          printf 'Screenshots of %s (%s)\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > README.md
+          git init -q -b ci-screenshots
+          git add .
+          git -c user.name="All Set CI" -c user.email="ci@users.noreply.github.com" commit -qm "Screenshots of ${GITHUB_SHA::7} on $GITHUB_REF_NAME"
+          git push -qf "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-screenshots
