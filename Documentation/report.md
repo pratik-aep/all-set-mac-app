@@ -175,3 +175,13 @@ Result: no code changes needed; docs now agree with reality.
   row and server file, deleted, confirmed gone from all four places
   independently. Touch ID prompt itself not self-verified (physical
   limitation). 227 tests.
+- Synced local catalog.json from the server's ongoing repair (Postgres ->
+  local, raw JSON merge): 358 items repointed to the repair's live/<id>.mp4
+  paths, 14 left alone because they still had a local copy (would have
+  orphaned it and forced a pointless re-download), 632 already matched.
+  Verified for real: fetched one repointed item (557 MB) through the
+  actual store - landed byte-exact. It took 8 minutes (server busy
+  transcoding), which looked like a stuck retry at first; isolated the
+  retry logic outside the UI and confirmed it was never broken, just slow
+  - no code change needed. Repair job still running server-side (~1000/1164
+  done); re-sync again once it finishes.
