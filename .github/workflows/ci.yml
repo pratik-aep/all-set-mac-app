@@ -39,3 +39,31 @@ jobs:
 
       - name: Test
         run: swift test
+
+  screenshots:
+    # Every main-window page at three window sizes, from the real app
+    # (DEBUG `-renderPages`), uploaded as an artifact to review UI changes
+    # without sitting at the Mac.
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build
+        run: swift build
+
+      - name: Render pages
+        run: |
+          mkdir -p screenshots
+          # Watchdog: the harness quits by itself; this only guards a hang.
+          ( sleep 900; pkill -f ".build/debug/AllSet" ) &
+          .build/debug/AllSet -renderPages "$PWD/screenshots" -AppleLanguages '(en)'
+          ls screenshots | head -80
+          test "$(ls screenshots | wc -l)" -gt 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: page-screenshots
+          path: screenshots/*.png
+          if-no-files-found: error
+          retention-days: 14

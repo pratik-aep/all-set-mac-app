@@ -553,6 +553,65 @@ extension WidgetRenderHarness {
     }
 }
 
+extension WidgetRenderHarness {
+    /// Every page of the main window, by the name `-renderPages` files it under.
+    static let pages: [(name: String, page: AppPage)] = [
+        ("island", .island), ("activities", .activities), ("themes", .themes), ("theme-seven", .themeSet("setup.seven")),
+        ("gallery", .gallery(nil)), ("art", .art), ("look", .widgetAppearance), ("wallpaper", .wallpaper),
+        ("wallpaper-options", .wallpaperOptions), ("snapping", .snapping), ("workspaces", .workspaces),
+        ("clipboard", .clipboard), ("shelf", .shelf), ("mixer", .mixer), ("taptap", .knocks), ("notes", .notes),
+        ("screenshot", .screenshot), ("monitor", .monitor), ("general", .general), ("about", .about),
+    ]
+
+    /// `-renderPages folder [-pages wallpaper,themes] [-pageSizes 900x600,1280x800]`:
+    /// the real main window, sidebar and all, on each page at each size, as
+    /// PNGs named `<page>-<width>x<height>.png`. For checking the UI without
+    /// sitting at the Mac (CI uploads them).
+    static func renderPages(to folder: URL, services: AppServices) async {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let wanted = UserDefaults.standard.string(forKey: "pages").map { Set($0.split(separator: ",").map(String.init)) }
+        let sizes = (UserDefaults.standard.string(forKey: "pageSizes") ?? "900x600,1280x800,1728x1080")
+            .split(separator: ",")
+            .compactMap { pair -> CGSize? in
+                let parts = pair.split(separator: "x").compactMap { Double($0) }
+                return parts.count == 2 ? CGSize(width: parts[0], height: parts[1]) : nil
+            }
+        try? ArtGPU.compileNow()
+        let window = UnconstrainedWindow(contentRect: CGRect(origin: CGPoint(x: 80, y: 80), size: sizes.first ?? CGSize(width: 1280, height: 800)),
+                                         styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                                         backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        // Behind the desktop picture: captured, never seen.
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
+        window.ignoresMouseEvents = true
+        window.title = "All Set"
+        let controller = NSHostingController(rootView: MainView(services: services, ui: services.ui))
+        controller.sizingOptions = []
+        window.contentViewController = controller
+        window.orderFrontRegardless()
+        try? await Task.sleep(for: .seconds(2))
+        for size in sizes {
+            window.setContentSize(size)
+            for (name, page) in pages where wanted?.contains(name) ?? true {
+                services.ui.page = page
+                // Long enough for thumbnails, previews and first samples to land.
+                try? await Task.sleep(for: .milliseconds(1800))
+                if let image = captureOwnWindow(window),
+                   let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+                    try? png.write(to: folder.appendingPathComponent("\(name)-\(Int(size.width))x\(Int(size.height)).png"))
+                }
+            }
+        }
+        window.close()
+    }
+}
+
+/// A window AppKit doesn't pull back onto a small screen, so a CI machine's
+/// display doesn't crop the larger sizes.
+private final class UnconstrainedWindow: NSWindow {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
+}
+
 /// A picture of one of our own windows, as the window server shows it. The
 /// old call is looked up at run time: it's deprecated, but it needs no screen
 /// recording permission for the app's own windows, which is all this is for.

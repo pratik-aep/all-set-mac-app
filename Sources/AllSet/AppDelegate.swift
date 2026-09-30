@@ -100,6 +100,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
+        // `-renderPages /folder`: every main-window page at three sizes (see the harness).
+        if let folder = UserDefaults.standard.string(forKey: "renderPages") {
+            NSApp.setActivationPolicy(.accessory)
+            services.start()
+            Task {
+                await WidgetRenderHarness.renderPages(to: URL(fileURLWithPath: folder), services: services)
+                exit(0)
+            }
+            return
+        }
         if let folder = UserDefaults.standard.string(forKey: "renderGPUArt") {
             NSApp.setActivationPolicy(.accessory)
             Task {
