@@ -557,14 +557,14 @@ extension WidgetRenderHarness {
     /// Every page of the main window, by the name `-renderPages` files it under.
     static let pages: [(name: String, page: AppPage)] = [
         ("island", .island), ("activities", .activities), ("themes", .themes), ("theme-seven", .themeSet("setup.seven")),
-        ("gallery", .gallery(nil)), ("art", .art), ("look", .widgetAppearance), ("wallpaper", .wallpaper),
+        ("gallery", .gallery(nil)), ("art", .art), ("look", .widgetAppearance), ("desktop", .desktop), ("widget", .desktop), ("wallpaper", .wallpaper),
         ("wallpaper-art", .wallpaper), ("wallpaper-videos", .wallpaper), ("wallpaper-options", .wallpaperOptions), ("snapping", .snapping), ("workspaces", .workspaces),
         ("clipboard", .clipboard), ("shelf", .shelf), ("mixer", .mixer), ("taptap", .knocks), ("notes", .notes),
         ("screenshot", .screenshot), ("monitor", .monitor), ("general", .general), ("about", .about),
     ]
 
     /// `-renderPages folder [-pages wallpaper,themes] [-pageSizes 900x600,1280x800]`:
-    /// the real main window, sidebar and all, on each page at each size, as
+    /// the real main window, navigation and all, on each page at each size, as
     /// PNGs named `<page>-<width>x<height>.png`. For checking the UI without
     /// sitting at the Mac (CI uploads them).
     static func renderPages(to folder: URL, services: AppServices) async {
@@ -580,11 +580,11 @@ extension WidgetRenderHarness {
         let window = UnconstrainedWindow(contentRect: CGRect(origin: CGPoint(x: 80, y: 80), size: sizes.first ?? CGSize(width: 1280, height: 800)),
                                          styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                                          backing: .buffered, defer: false)
+        MainWindowController.dress(window)
         window.isReleasedWhenClosed = false
         // Behind the desktop picture: captured, never seen.
         window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
         window.ignoresMouseEvents = true
-        window.title = "All Set"
         let controller = NSHostingController(rootView: MainView(services: services, ui: services.ui))
         controller.sizingOptions = []
         window.contentViewController = controller
@@ -600,11 +600,14 @@ extension WidgetRenderHarness {
                     try? await Task.sleep(for: .milliseconds(200))
                     services.ui.wallpaperTab = tab
                 }
-                services.ui.page = page
+                // "widget" is the first desktop widget's settings, whichever that is.
+                services.ui.page = name == "widget" ? services.widgets.widgets.first.map { .widget($0.id) } ?? page : page
                 // Long enough for thumbnails, previews and first samples to
                 // land; pages of rendered previews need longer the first time.
-                let settle = ["themes", "theme-seven", "gallery", "art", "wallpaper", "wallpaper-art", "wallpaper-videos"]
-                    .contains(name) ? 6000 : 1800
+                // Theme previews are drawn one at a time, photos and cut-outs
+                // first, which takes a CI machine a while.
+                let settle = name == "themes" ? 20000
+                    : ["theme-seven", "gallery", "art", "wallpaper", "wallpaper-art", "wallpaper-videos"].contains(name) ? 6000 : 1800
                 try? await Task.sleep(for: .milliseconds(settle))
                 if let image = captureOwnWindow(window),
                    let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {

@@ -301,14 +301,37 @@ struct WidgetInspector: View {
             HStack(spacing: 0) {
                 ZStack {
                     StudioBackdrop()
-                    VStack(spacing: 14) {
-                        WidgetPreview(instance: instance, services: services, fit: CGSize(width: 380, height: 380))
+                    VStack(spacing: DS.Space.m) {
+                        WidgetPreview(instance: instance, services: services, fit: CGSize(width: 360, height: 360))
                             .motion(Motion.responsive, value: instance.size)
                         Text("Live preview").dsText(.eyebrow, color: .white.opacity(0.7))
                     }
                 }
-                .frame(width: 420)
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.panel, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: DS.Radius.panel, style: .continuous).strokeBorder(DS.Surface.hairline))
+                .overlay(alignment: .topLeading) {
+                    Button {
+                        services.ui.page = .desktop
+                    } label: {
+                        Label("On Your Desktop", systemImage: "chevron.left")
+                    }
+                    .buttonStyle(.pill)
+                    .padding(DS.Space.s)
+                }
+                .overlay(alignment: .topTrailing) {
+                    Button {
+                        withMotion(Motion.quick) { services.removeWidget(id) }
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.floating)
+                    .padding(DS.Space.s)
+                    .help("Remove from the desktop")
+                    .accessibilityLabel("Remove \(instance.kind.title) from the desktop")
+                }
+                .frame(width: 400)
                 .frame(maxHeight: .infinity)
+                .padding([.leading, .bottom], DS.Space.l)
 
                 Form {
                     WidgetOptionsEditor(id: id, services: services)
@@ -316,8 +339,110 @@ struct WidgetInspector: View {
                 .dsFormStyle()
             }
         } else {
-            ContentUnavailableView("Widget removed", systemImage: "square.dashed",
-                                   description: Text("Pick another widget, or add one from the gallery."))
+            EmptyState(symbol: "square.dashed", title: "Widget removed",
+                       message: "Pick another widget, or add one from the gallery.",
+                       actionTitle: "On Your Desktop", action: { services.ui.page = .desktop })
         }
     }
+}
+
+// MARK: On your desktop
+
+/// Every widget on the desktop now, to customize or remove (with Undo).
+struct DesktopWidgetsPage: View {
+    let services: AppServices
+
+    var body: some View {
+        let widgets = services.widgets.widgets
+        PageScaffold {
+            PageHeader(eyebrow: widgets.count == 1 ? "1 widget" : "\(widgets.count) widgets", title: "On Your Desktop",
+                       subtitle: "Click one to customize it. Removing is instant, and Undo brings it back.") {
+                HStack(spacing: DS.Space.xs) {
+                    Button {
+                        services.ui.isArrangingWidgets.toggle()
+                    } label: {
+                        Label(services.ui.isArrangingWidgets ? "Done Arranging" : "Arrange", systemImage: "hand.draw")
+                    }
+                    .buttonStyle(.pill)
+                    .disabled(widgets.isEmpty)
+                    Button {
+                        services.ui.page = .gallery(nil)
+                    } label: {
+                        Label("Add Widgets", systemImage: "plus")
+                    }
+                    .buttonStyle(.pillProminent)
+                }
+            }
+            if widgets.isEmpty {
+                EmptyState(symbol: "rectangle.dashed", title: "No widgets yet",
+                           message: "Pick a theme for a whole desktop at once, or add widgets one by one.",
+                           actionTitle: "Browse Themes", action: { services.ui.page = .themes })
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: DS.Space.l)], spacing: DS.Space.l) {
+                    ForEach(Array(widgets.enumerated()), id: \.element.id) { index, instance in
+                        DesktopWidgetCard(instance: instance, index: index, services: services)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct DesktopWidgetCard: View {
+    let instance: WidgetInstance
+    let index: Int
+    let services: AppServices
+
+    @State private var isHovering = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s) {
+            Button {
+                services.ui.page = .widget(instance.id)
+            } label: {
+                ZStack {
+                    StudioBackdrop(piece: ArtPiece(style: .blobs, palette: Self.palettes[index % Self.palettes.count]))
+                    WidgetPreview(instance: instance, services: services, fit: CGSize(width: 200, height: 140))
+                        // Still until pointed at, like the gallery.
+                        .environment(\.widgetIsVisible, isHovering)
+                        .allowsHitTesting(false)
+                }
+                .frame(height: 170)
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(DS.Surface.hairline))
+                .scaleEffect(isHovering ? 1.02 : 1)
+                .contentShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering in withMotion(Motion.responsive) { isHovering = hovering } }
+            .accessibilityLabel("Customize \(instance.kind.title)")
+
+            HStack(spacing: DS.Space.s) {
+                Image(systemName: instance.kind.symbol).foregroundStyle(DS.Ink.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(instance.kind.title).dsText(.headline).lineLimit(1)
+                    Text(instance.size.title).dsText(.meta)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    services.ui.page = .widget(instance.id)
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .buttonStyle(FloatingButtonStyle(diameter: 30))
+                .help("Customize")
+                .accessibilityLabel("Customize \(instance.kind.title)")
+                Button {
+                    withMotion(Motion.quick) { services.removeWidget(instance.id) }
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(FloatingButtonStyle(diameter: 30))
+                .help("Remove from the desktop")
+                .accessibilityLabel("Remove \(instance.kind.title) from the desktop")
+            }
+        }
+    }
+
+    private static let palettes: [ArtPalette] = [.midnight, .ocean, .lavender, .forest, .neon, .sunset, .aurora]
 }

@@ -222,7 +222,7 @@ final class AppServices {
             let pages: [String: AppPage] = [
                 "home": .island, "island": .island, "themes": .themes, "gallery": .gallery(nil), "monitor": .monitor,
                 "wallpaper": .wallpaper, "art": .art, "clipboard": .clipboard, "notes": .notes,
-                "workspaces": .workspaces, "mixer": .mixer, "settings": .general,
+                "workspaces": .workspaces, "mixer": .mixer, "settings": .general, "desktop": .desktop,
             ]
             openWindow(pages[name] ?? WidgetCategory(rawValue: name).map { .gallery($0) } ?? .island)
         case .widget(let id):
@@ -256,7 +256,7 @@ final class AppServices {
     func removeWidget(_ id: UUID) {
         guard let index = widgets.widgets.firstIndex(where: { $0.id == id }) else { return }
         let instance = widgets.widgets[index]
-        if ui.page == .widget(id) { ui.page = .gallery(nil) }
+        if ui.page == .widget(id) { ui.page = .desktop }
         widgets.remove(id)
         ui.removedWidget = RemovedWidget(instance: instance, index: index)
     }

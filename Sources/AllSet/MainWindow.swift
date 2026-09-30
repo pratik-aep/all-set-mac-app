@@ -18,6 +18,8 @@ enum AppPage: Hashable {
     /// Customizing a widget that's on the desktop.
     case widget(UUID)
     case widgetAppearance
+    /// The widgets on the desktop now.
+    case desktop
     // Wallpaper
     case wallpaper
     case wallpaperOptions
@@ -62,6 +64,16 @@ final class MainWindowController: NSObject, NSWindowDelegate {
 
     private weak var services: AppServices?
 
+    /// No title or bar: the page runs to the top, the navigation floats
+    /// beneath the window buttons, and each page names itself.
+    static func dress(_ window: NSWindow) {
+        window.title = "All Set"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.backgroundColor = NSColor(DS.Surface.canvasLift)
+    }
+
     func show(services: AppServices) {
         self.services = services
         if window == nil {
@@ -72,8 +84,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
             // AppKit gave up and ended the app.
             controller.sizingOptions = []
             let window = NSWindow(contentViewController: controller)
-            window.title = "All Set"
-            window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+            Self.dress(window)
             window.isReleasedWhenClosed = false
             window.contentMinSize = NSSize(width: 900, height: 600)
             window.setContentSize(NSSize(width: 1120, height: 760))
@@ -92,128 +103,39 @@ struct MainView: View {
     @Bindable var ui: UIState
 
     var body: some View {
-        NavigationSplitView {
-            List(selection: $ui.page) {
-                Section("Dynamic Island") {
-                    Label("Dynamic Island", systemImage: "capsule.fill").tag(AppPage.island)
-                    Label("Live Activities", systemImage: "waveform").tag(AppPage.activities)
-                }
-                Section("Widgets") {
-                    Label("Themes", systemImage: "wand.and.stars").tag(AppPage.themes)
-                    Label("Gallery", systemImage: "square.grid.2x2.fill").tag(AppPage.gallery(nil))
-                    ForEach(WidgetCategory.allCases) { category in
-                        Label(category.title, systemImage: category.symbol)
-                            .padding(.leading, 12)
-                            .tag(AppPage.gallery(category))
-                    }
-                    Label("Art", systemImage: "paintpalette.fill")
-                        .badge(ArtPiece.all.count)
-                        .tag(AppPage.art)
-                    Label("Look & Layout", systemImage: "paintbrush.fill").tag(AppPage.widgetAppearance)
-                }
-                Section("Wallpaper") {
-                    Label("Live Wallpaper", systemImage: "photo.artframe").tag(AppPage.wallpaper)
-                    Label("Wallpaper Options", systemImage: "slider.horizontal.3").tag(AppPage.wallpaperOptions)
-                }
-                Section("Workspace") {
-                    Label("Window Snapping", systemImage: "rectangle.split.2x1.fill").tag(AppPage.snapping)
-                    Label("Workspaces", systemImage: "square.stack.3d.down.right.fill").tag(AppPage.workspaces)
-                }
-                Section("Tools") {
-                    Label("Clipboard", systemImage: "doc.on.clipboard.fill")
-                        .badge(services.clipboard.items.count)
-                        .tag(AppPage.clipboard)
-                    Label("Shelf", systemImage: "tray.full.fill")
-                        .badge(services.shelf.items.count)
-                        .tag(AppPage.shelf)
-                    Label("Sound Mixer", systemImage: "slider.vertical.3").tag(AppPage.mixer)
-                    Label("TapTap", systemImage: "hand.tap.fill").tag(AppPage.knocks)
-                    Label("AI Screenshot", systemImage: "camera.viewfinder").tag(AppPage.screenshot)
-                    Label("Notes", systemImage: "note.text")
-                        .badge(services.notes.notes.filter { !$0.isDone }.count)
-                        .tag(AppPage.notes)
-                }
-                Section("On Your Desktop") {
-                    if services.widgets.widgets.isEmpty {
-                        Text("No widgets yet").foregroundStyle(.secondary)
-                    }
-                    ForEach(services.widgets.widgets) { instance in
-                        HStack(spacing: 6) {
-                            Label {
-                                Text(instance.kind.title) + Text("  \(instance.size.title)").foregroundStyle(.secondary)
-                            } icon: {
-                                Image(systemName: instance.kind.symbol)
-                            }
-                            Spacer(minLength: 4)
-                            Button {
-                                removeWidget(instance.id)
-                            } label: {
-                                Image(systemName: "trash")
-                            }
-                            .buttonStyle(.borderless)
-                            .foregroundStyle(.secondary)
-                            .help("Remove from the desktop")
-                            .accessibilityLabel("Remove \(instance.kind.title) from the desktop")
-                        }
-                        .tag(AppPage.widget(instance.id))
-                    }
-                }
-                Section("System") {
-                    Label("Monitor", systemImage: "gauge.with.dots.needle.50percent").tag(AppPage.monitor)
-                    Label("General", systemImage: "gearshape.fill").tag(AppPage.general)
-                    Label("About", systemImage: "info.circle.fill").tag(AppPage.about)
-                }
-            }
-            .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 280)
-        } detail: {
+        GeometryReader { geometry in
+            let margin = DS.Space.pageMargin(for: geometry.size.width)
             detail(ui.page ?? .island)
-                .frame(minWidth: 660, minHeight: 540)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    if let error = services.widgets.saveError {
-                        Label("Your widget layout couldn't be saved: \(error)", systemImage: "exclamationmark.triangle.fill")
-                            .font(.callout)
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(Color.orange.opacity(0.18))
-                            .accessibilityAddTraits(.isStaticText)
+                    VStack(spacing: 0) {
+                        FloatingNav(services: services, ui: ui, margin: margin)
+                        if let error = services.widgets.saveError {
+                            Label("Your widget layout couldn't be saved: \(error)", systemImage: "exclamationmark.triangle.fill")
+                                .dsText(.body)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, DS.Space.m)
+                                .padding(.vertical, DS.Space.xs)
+                                .background(RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous).fill(Color.orange.opacity(0.22)))
+                                .padding(.horizontal, margin)
+                                .padding(.bottom, DS.Space.xs)
+                                .accessibilityAddTraits(.isStaticText)
+                        }
                     }
                 }
-                .safeAreaInset(edge: .bottom, spacing: 0) {
+                .overlay(alignment: .bottom) {
                     if let removed = ui.removedWidget {
                         RemovedWidgetBar(removed: removed, services: services)
+                            .padding(.bottom, DS.Space.l)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-                .navigationTitle(title(for: ui.page ?? .island))
-                .background(AppBackground())
         }
+        .background(AppBackground())
         // The main window is always dark: the content (art, wallpapers,
         // themes) leads, and a dark canvas is what lets it. Desktop widgets
         // and the notch keep their own appearance.
         .preferredColorScheme(.dark)
-        .toolbar {
-            ToolbarItemGroup {
-                Toggle(isOn: Binding(get: { services.settings.showWidgets },
-                                     set: { services.settings.showWidgets = $0 })) {
-                    Label("Show Widgets", systemImage: services.settings.showWidgets ? "eye" : "eye.slash")
-                }
-                .help("Show widgets on the desktop")
-                Button {
-                    ui.isArrangingWidgets.toggle()
-                } label: {
-                    Label(ui.isArrangingWidgets ? "Done Arranging" : "Arrange Widgets", systemImage: "hand.draw")
-                }
-                .help("Drag widgets around the desktop")
-            }
-        }
-    }
-
-    /// One click, no confirmation: the widget leaves the desktop (Undo
-    /// brings it back), and if its settings were open the window moves to
-    /// the gallery.
-    private func removeWidget(_ id: UUID) {
-        withMotion(Motion.quick) { services.removeWidget(id) }
     }
 
     @ViewBuilder
@@ -222,7 +144,9 @@ struct MainView: View {
         case .island:
             IslandPage(services: services)
         case .activities:
-            FormPage { ActivitySettings(settings: services.settings, media: services.media) }
+            FormPage(eyebrow: "Island", title: "Live Activities", subtitle: "What the notch shows around itself while things happen.") {
+                ActivitySettings(settings: services.settings, media: services.media)
+            }
         case .themes:
             ThemesPage(services: services)
         case .themeSet(let id):
@@ -235,7 +159,11 @@ struct MainView: View {
         case .widget(let id):
             WidgetInspector(id: id, services: services)
         case .widgetAppearance:
-            FormPage { WidgetSettings(settings: services.settings, services: services) }
+            FormPage(eyebrow: "Desktop", title: "Look & Layout", subtitle: "How every widget looks and lines up, all at once.") {
+                WidgetSettings(settings: services.settings, services: services)
+            }
+        case .desktop:
+            DesktopWidgetsPage(services: services)
         case .wallpaper:
             LiveWallpaperPage(services: services, tab: services.ui.wallpaperTab)
         case .wallpaperOptions:
@@ -259,55 +187,34 @@ struct MainView: View {
         case .monitor:
             MonitorPage(services: services)
         case .general:
-            FormPage { GeneralSettings(settings: services.settings) }
+            FormPage(eyebrow: "System", title: "General", subtitle: "Startup, the Dock and the menu bar.") {
+                GeneralSettings(settings: services.settings)
+            }
         case .about:
-            FormPage { AboutSettings() }
-        }
-    }
-
-    private func title(for page: AppPage) -> String {
-        switch page {
-        case .island: "Dynamic Island"
-        case .activities: "Live Activities"
-        case .themes: "Themes"
-        case .themeSet(let id): ThemeLibrary.set(id)?.name ?? "Theme"
-        case .gallery(let category): category?.title ?? "Widget Gallery"
-        case .art: "Art"
-        case .widget(let id): services.widgets.instance(id).map { "Customize \($0.kind.title)" } ?? "Widget"
-        case .widgetAppearance: "Look & Layout"
-        case .wallpaper: "Live Wallpaper"
-        case .wallpaperOptions: "Wallpaper Options"
-        case .snapping: "Window Snapping"
-        case .workspaces: "Workspaces"
-        case .clipboard: "Clipboard"
-        case .shelf: "Shelf"
-        case .mixer: "Sound Mixer"
-        case .knocks: "TapTap"
-        case .notes: "Notes"
-        case .screenshot: "AI Screenshot"
-        case .monitor: "Monitor"
-        case .general: "General"
-        case .about: "About"
+            FormPage(eyebrow: "System", title: "About") { AboutSettings() }
         }
     }
 }
 
-/// "Removed Clock. Undo" for a few seconds after a widget leaves the desktop.
+/// "Removed Clock. Undo" for a few seconds after a widget leaves the desktop:
+/// a floating capsule at the bottom of the window.
 private struct RemovedWidgetBar: View {
     let removed: RemovedWidget
     let services: AppServices
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: removed.instance.kind.symbol).foregroundStyle(.secondary)
-            Text("Removed \(removed.instance.kind.title) from the desktop.")
-            Spacer()
-            Button("Undo") { withMotion(Motion.quick) { services.undoRemoveWidget() } }
+        GlassPanel(cornerRadius: 22, padding: 0) {
+            HStack(spacing: DS.Space.s) {
+                Image(systemName: removed.instance.kind.symbol).foregroundStyle(DS.Ink.secondary)
+                Text("Removed \(removed.instance.kind.title) from the desktop.").dsText(.body)
+                Button("Undo") { withMotion(Motion.quick) { services.undoRemoveWidget() } }
+                    .buttonStyle(.pillProminent)
+            }
+            .padding(.leading, DS.Space.m)
+            .padding(.trailing, DS.Space.xxs + 1)
+            .frame(height: 44)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.bar)
-        .overlay(alignment: .top) { Divider() }
+        .dsElevated()
         .task(id: removed.id) {
             try? await Task.sleep(for: .seconds(8))
             if services.ui.removedWidget?.id == removed.id {
@@ -317,12 +224,36 @@ private struct RemovedWidgetBar: View {
     }
 }
 
-/// A settings page: grouped form sections.
-struct FormPage<Content: View>: View {
+/// A settings page: its header and any lead content (a preview, a stage) on
+/// the canvas, then grouped form sections.
+struct FormPage<Lead: View, Content: View>: View {
+    var eyebrow: String?
+    var title: String?
+    var subtitle: String?
+    @ViewBuilder var lead: Lead
     @ViewBuilder var content: Content
 
     var body: some View {
-        Form { content }
-            .dsFormStyle()
+        Form {
+            if title != nil || Lead.self != EmptyView.self {
+                Section {
+                    VStack(alignment: .leading, spacing: DS.Space.l) {
+                        if let title { PageHeader(eyebrow: eyebrow, title: title, subtitle: subtitle) }
+                        lead
+                    }
+                    .padding(.bottom, DS.Space.xs)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                }
+            }
+            content
+        }
+        .dsFormStyle()
+    }
+}
+
+extension FormPage where Lead == EmptyView {
+    init(eyebrow: String? = nil, title: String? = nil, subtitle: String? = nil, @ViewBuilder content: () -> Content) {
+        self.init(eyebrow: eyebrow, title: title, subtitle: subtitle, lead: { EmptyView() }, content: content)
     }
 }
