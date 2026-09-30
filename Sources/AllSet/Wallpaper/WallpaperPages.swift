@@ -8,7 +8,7 @@ struct LiveWallpaperPage: View {
     let services: AppServices
 
     enum Tab: String, CaseIterable, Identifiable {
-        case aerials, art, photos, myPhotos, videos
+        case aerials, art, videos
 
         var id: String { rawValue }
 
@@ -16,8 +16,6 @@ struct LiveWallpaperPage: View {
             switch self {
             case .aerials: "Aerial Videos"
             case .art: "Art"
-            case .photos: "Photos"
-            case .myPhotos: "My Photos"
             case .videos: "My Videos"
             }
         }
@@ -34,9 +32,9 @@ struct LiveWallpaperPage: View {
         let store = services.wallpaper
         let setWallpaper = LibraryContext(action: .init(title: "Set as Wallpaper", symbol: "photo.artframe") { source in
             if case .art(let piece) = source {
-                store.set(.art(piece))
+                services.pickWallpaper(.art(piece))
             } else {
-                store.set(.photo(source))
+                services.pickWallpaper(.photo(source))
             }
         })
 
@@ -44,6 +42,11 @@ struct LiveWallpaperPage: View {
             WallpaperHero(services: services)
                 .padding([.horizontal, .top], 24)
                 .padding(.bottom, 16)
+            if services.ui.desktopUndo != nil {
+                DesktopUndoBanner(services: services)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 12)
+            }
             Picker("Source", selection: $tab) {
                 ForEach(Tab.allCases) { tab in
                     Text(tab.title).tag(tab)
@@ -59,8 +62,6 @@ struct LiveWallpaperPage: View {
                 switch tab {
                 case .aerials: AerialsPage(services: services)
                 case .art: ArtLibraryPage(services: services, context: setWallpaper)
-                case .photos: WebPhotosPage(services: services, context: setWallpaper)
-                case .myPhotos: MyPhotosPage(services: services, context: setWallpaper)
                 case .videos: VideosPage(services: services)
                 }
             }
@@ -196,7 +197,7 @@ private struct VideosPage: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 14)], spacing: 14) {
                         ForEach(videos, id: \.self) { name in
                             VideoTile(url: store.videoURL(name), isCurrent: store.config.source == .video(name)) {
-                                store.set(.video(name))
+                                services.pickWallpaper(.video(name))
                             } onDelete: {
                                 store.deleteVideo(name)
                             }
@@ -218,8 +219,14 @@ private struct VideosPage: View {
             !store.importVideos(from: urls).isEmpty
         } isTargeted: { isDropTarget = $0 }
         if let video = detailVideo {
+            // Dims the grid behind the preview; a click anywhere on it goes back.
+            Color.black.opacity(0.35)
+                .contentShape(Rectangle())
+                .onTapGesture { withMotion(Motion.standard) { detailVideo = nil } }
+                .transition(.opacity)
+                .accessibilityHidden(true)
             LibraryDetailSheet(video: video, store: store, images: services.images, deleteKind: deleteKind(for: video)) {
-                store.set(.library(video.id))
+                services.pickWallpaper(.library(video.id))
                 detailVideo = nil
             } onClose: {
                 withMotion(Motion.standard) { detailVideo = nil }
@@ -411,7 +418,7 @@ private struct LibrarySection: View {
                         ForEach(shown) { video in
                             LibraryTile(video: video, store: store, images: services.images,
                                         isCurrent: store.config.source == .library(video.id), deleteKind: deleteKind(for: video)) {
-                                store.set(.library(video.id))
+                                services.pickWallpaper(.library(video.id))
                             } onShowDetails: {
                                 detailVideo = video
                             }
@@ -746,6 +753,10 @@ private struct LibraryDetailSheet: View {
     let onClose: () -> Void
 
     @State private var thumbnail: NSImage?
+    /// A local still, decoded off the main thread at a size the sheet can
+    /// use: the original is 3840 px, and drawing it straight from the file
+    /// decoded all of it on the main thread as the sheet slid in.
+    @State private var still: NSImage?
     @State private var confirmingDelete = false
     @State private var deleteProblem: String?
 
@@ -758,7 +769,7 @@ private struct LibraryDetailSheet: View {
                 if let thumbnail { Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fill) }
                 if let url {
                     if video.kind == .image {
-                        Image(nsImage: NSImage(byReferencing: url)).resizable().aspectRatio(contentMode: .fill)
+                        if let still { Image(nsImage: still).resizable().aspectRatio(contentMode: .fill) }
                     } else {
                         LoopingVideo(url: url, isPlaying: true)
                     }
@@ -768,6 +779,27 @@ private struct LibraryDetailSheet: View {
             }
             .frame(height: 320)
             .clipped()
+            .overlay(alignment: .topTrailing) {
+                // Always in view, over the preview, and Esc does the same.
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 32, height: 32)
+                        .background(.black.opacity(0.55), in: Circle())
+                        .overlay(Circle().strokeBorder(.white.opacity(0.25)))
+                }
+                .buttonStyle(PressableStyle())
+                .keyboardShortcut(.cancelAction)
+                .help("Close the preview (Esc)")
+                .accessibilityLabel("Close preview")
+                .padding(12)
+            }
+            .task(id: url) {
+                guard video.kind == .image, let url else { return }
+                still = images.cachedThumbnail(at: url, maxPixels: 1600)
+                if still == nil { still = await images.thumbnail(at: url, maxPixels: 1600) }
+            }
             .task(id: video.id) {
                 guard url == nil, let file = store.libraryThumbnailURL(video) else { return }
                 if let cached = images.cachedThumbnail(at: file, maxPixels: 1024) {
@@ -788,9 +820,6 @@ private struct LibraryDetailSheet: View {
                         Text(video.category.title).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button(action: onClose) { Image(systemName: "xmark.circle.fill").font(.title2) }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
                 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 140))], alignment: .leading, spacing: 8) {
                     detail("Resolution", video.resolutionLabel)
@@ -971,7 +1000,7 @@ private struct AerialsPage: View {
             do {
                 let name = try await services.aerials.download(aerial, quality: quality, into: store.videosFolder)
                 store.reloadVideos()
-                store.set(.video(name))
+                services.pickWallpaper(.video(name))
             } catch is CancellationError {
             } catch let error as URLError where error.code == .cancelled {
             } catch {

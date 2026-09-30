@@ -7,10 +7,20 @@ struct ThemePreview: Equatable {
     let before: DesktopSnapshot
 }
 
-/// A theme set just put on the desktop, and the desktop from before it.
-struct ThemeUndo: Equatable {
-    let name: String
+/// A change to the whole desktop that can be taken back, and the desktop
+/// from before it.
+struct DesktopUndo: Equatable {
+    enum Change: Equatable {
+        /// A theme set, by name, went on.
+        case theme(String)
+        /// The widgets were cleared because a wallpaper was picked. Taking
+        /// it back keeps the new wallpaper.
+        case clearedForWallpaper
+    }
+
+    let change: Change
     let before: DesktopSnapshot
+    let id = UUID()
 }
 
 /// How a theme set goes onto the desktop. Every mode can be undone.
@@ -50,7 +60,7 @@ extension AppServices {
         }
         if setsWallpaper, let source = set.wallpaper { wallpaper.set(source) }
         settings.adopt(set)
-        ui.themeUndo = ThemeUndo(name: set.name, before: before)
+        ui.desktopUndo = DesktopUndo(change: .theme(set.name), before: before)
     }
 
     /// Tries a set on the desktop until Keep or Go Back. It's put there
@@ -70,7 +80,7 @@ extension AppServices {
         if keep {
             // Undo goes back to the desktop from before the preview.
             if let set = ThemeLibrary.set(preview.setID) {
-                ui.themeUndo = ThemeUndo(name: set.name, before: preview.before)
+                ui.desktopUndo = DesktopUndo(change: .theme(set.name), before: preview.before)
                 themeStats.record(.install, for: set.id)
             }
         } else {
@@ -78,14 +88,31 @@ extension AppServices {
         }
     }
 
-    /// Puts back the desktop from before the last theme: widgets, size,
-    /// font, corners, theme and wallpaper.
-    func undoTheme() {
-        guard let undo = ui.themeUndo else { return }
+    /// Puts back the desktop from before the last theme (widgets, size,
+    /// font, corners, theme and wallpaper), or the widgets a wallpaper
+    /// cleared away.
+    func undoDesktopChange() {
+        guard let undo = ui.desktopUndo else { return }
         // The undo reaches further back than any preview on top of it.
         ui.themePreview = nil
-        undo.before.restore(settings: settings, widgets: widgets, wallpaper: wallpaper)
-        ui.themeUndo = nil
+        var before = undo.before
+        if undo.change == .clearedForWallpaper { before.wallpaper = wallpaper.config }
+        before.restore(settings: settings, widgets: widgets, wallpaper: wallpaper)
+        ui.desktopUndo = nil
+    }
+
+    /// A wallpaper the person picked, as opposed to one a theme brought: the
+    /// desktop starts clean, with no widgets and no theme's look, and Undo
+    /// brings the widgets back for a slip.
+    func pickWallpaper(_ source: WallpaperSource) {
+        if ui.themePreview != nil { endThemePreview(keep: false) }
+        let before = desktopSnapshot
+        wallpaper.set(source)
+        guard !widgets.widgets.isEmpty || settings.widgetTheme != nil || settings.widgetDesignTheme != nil else { return }
+        widgets.replaceAll(with: [])
+        settings.resetWidgetLook()
+        ui.isArrangingWidgets = false
+        ui.desktopUndo = DesktopUndo(change: .clearedForWallpaper, before: before)
     }
 
     private var desktopSnapshot: DesktopSnapshot {

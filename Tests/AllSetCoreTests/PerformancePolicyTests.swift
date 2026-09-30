@@ -35,14 +35,13 @@ import Testing
         #expect(!PerformancePolicy(thermal: .fair).pausesDecorativeMotion)
     }
 
-    @Test func matchesTheOldBatteryAndLowPowerBehavior() {
-        // What EnergyMode did before the policy existed.
+    @Test func batteryAndLowPowerValues() {
+        // Off the charger idle sampling slows to one reading every ten seconds.
         #expect(PerformancePolicy().clipboardInterval == 0.5)
         #expect(PerformancePolicy(isOnBattery: true).clipboardInterval == 1)
         #expect(PerformancePolicy().artFrameRate == 24 && PerformancePolicy(isOnBattery: true).artFrameRate == 15)
         #expect(PerformancePolicy().monitorIdleInterval == 3)
-        #expect(PerformancePolicy(isOnBattery: true).monitorIdleInterval == 5)
-        #expect(PerformancePolicy(isLowPower: true).monitorIdleInterval == 10)
-        #expect(PerformancePolicy(isOnBattery: true).videoFrameRateLimit == 30)
+        #expect(PerformancePolicy(isOnBattery: true).monitorIdleInterval == 10)
+        #expect(PerformancePolicy(isLowPower: true).monitorIdleInterval == 20)
     }
 }

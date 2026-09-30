@@ -25,6 +25,32 @@ import Testing
         #expect(settings.showWidgets)
     }
 
+    /// Picking a wallpaper leaves no theme behind.
+    @Test func resettingTheLookForgetsTheTheme() throws {
+        let suite = "AllSetTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let freshSuite = suite + ".fresh"
+        let freshDefaults = try #require(UserDefaults(suiteName: freshSuite))
+        defer { freshDefaults.removePersistentDomain(forName: freshSuite) }
+        let set = try #require(ThemeLibrary.set("setup.seven"))
+        let settings = AppSettings(defaults: defaults)
+        settings.adopt(set)
+        settings.widgetScale = 1.3
+        settings.widgetDesignTheme = "terminal"
+
+        settings.resetWidgetLook()
+
+        #expect(settings.widgetFont == AppSettings.defaultWidgetFont)
+        #expect(settings.widgetCornerRadius == AppSettings.defaultWidgetCornerRadius)
+        #expect(settings.widgetScale == 1)
+        #expect(settings.widgetTheme == nil)
+        #expect(settings.widgetDesignTheme == nil)
+        // Matches a fresh install's look.
+        let fresh = AppSettings(defaults: freshDefaults)
+        #expect(fresh.widgetFont == settings.widgetFont && fresh.widgetCornerRadius == settings.widgetCornerRadius)
+    }
+
     /// What Undo and a preview's Go Back rely on: everything a theme touches
     /// comes back, not just the widgets.
     @Test func restoringPutsBackEverythingAThemeChanged() throws {

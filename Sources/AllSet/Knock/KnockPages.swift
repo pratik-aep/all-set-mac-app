@@ -44,6 +44,9 @@ struct KnockPage: View {
                             }
                         }
                         Toggle("Ignore knocks while typing", isOn: binding(\.ignoreWhileTyping))
+                        Toggle("Rest on battery (saves power)", isOn: binding(\.restOnBattery))
+                            .help("Listening reads the motion sensor about 800 times a second. Off, knocks also work away from the charger.")
+                        Toggle("Rest in Low Power Mode", isOn: binding(\.restInLowPowerMode))
                         Toggle("Show knocks in the Dynamic Island", isOn: binding(\.showInIsland))
                         Toggle("Click when a knock is heard", isOn: binding(\.playSound))
                     }
@@ -106,7 +109,7 @@ private struct KnockHeader: View {
         switch knocks.listener.status {
         case .off: "Off"
         case .listening: "Listening for knocks"
-        case .resting: "Resting while the display is off, the Mac is locked or in Low Power Mode"
+        case .resting: "Resting on battery, in Low Power Mode, or while the display is off or the Mac is locked"
         case .noSensor: "This Mac has no motion sensor"
         case .retrying: "The motion sensor stopped; trying again"
         }

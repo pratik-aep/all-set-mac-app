@@ -152,7 +152,7 @@ struct ArtLibraryPage: View {
                                             services.addWidget(scene)
                                         }
                                         TileButton(title: "Wallpaper", symbol: "photo.artframe") {
-                                            services.wallpaper.set(.art(piece))
+                                            services.pickWallpaper(.art(piece))
                                         }
                                     }
                                 }
@@ -311,7 +311,7 @@ struct WebPhotosPage: View {
                                     services.addWidget(scene)
                                 }
                                 TileButton(title: "Wallpaper", symbol: "photo.artframe") {
-                                    services.wallpaper.set(.art(piece))
+                                    services.pickWallpaper(.art(piece))
                                 }
                             }
                         }
@@ -340,7 +340,7 @@ struct WebPhotosPage: View {
                         }
                         TileButton(title: "Wallpaper", symbol: "photo.artframe") {
                             services.search.remember()
-                            services.wallpaper.set(.photo(.web(photo)))
+                            services.pickWallpaper(.photo(.web(photo)))
                         }
                     }
                 }
@@ -623,7 +623,7 @@ struct MyPhotosPage: View {
                                 }
                             }
                             .contextMenu {
-                                Button("Set as Wallpaper") { services.wallpaper.set(.photo(.file(name))) }
+                                Button("Set as Wallpaper") { services.pickWallpaper(.photo(.file(name))) }
                                 Button("New Photo Widget") {
                                     var widget = WidgetInstance(kind: .photo)
                                     widget.options.images = [.file(name)]

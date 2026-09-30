@@ -61,6 +61,10 @@ public final class AppSettings {
     /// theme sets it so the theme's grid fills the screen.
     public var widgetScale: Double { didSet { save(widgetScale, Key.widgetScale) } }
     public nonisolated static let widgetScaleRange: ClosedRange<Double> = 0.7...1.6
+    /// The widget look before any theme: a fresh install's, and what a
+    /// cleared desktop goes back to.
+    public nonisolated static let defaultWidgetFont = WidgetFont.rounded
+    public nonisolated static let defaultWidgetCornerRadius = 22.0
     /// The theme last applied, by id; nil once widgets have been styled by hand.
     public var widgetTheme: String? { didSet { defaults.set(widgetTheme, forKey: Key.widgetTheme) } }
     /// The design theme new widgets start in; nil for their own looks.
@@ -113,8 +117,8 @@ public final class AppSettings {
         showMenuBarIcon = defaults.object(forKey: Key.showMenuBarIcon) as? Bool ?? true
         showCPUInMenuBar = defaults.object(forKey: Key.showCPUInMenuBar) as? Bool ?? false
         showWidgets = defaults.object(forKey: Key.showWidgets) as? Bool ?? true
-        widgetFont = defaults.string(forKey: Key.widgetFont).flatMap(WidgetFont.init) ?? .rounded
-        widgetCornerRadius = defaults.object(forKey: Key.widgetCornerRadius) as? Double ?? 22
+        widgetFont = defaults.string(forKey: Key.widgetFont).flatMap(WidgetFont.init) ?? Self.defaultWidgetFont
+        widgetCornerRadius = defaults.object(forKey: Key.widgetCornerRadius) as? Double ?? Self.defaultWidgetCornerRadius
         widgetScale = min(max(defaults.object(forKey: Key.widgetScale) as? Double ?? 1, Self.widgetScaleRange.lowerBound),
                           Self.widgetScaleRange.upperBound)
         widgetTheme = defaults.string(forKey: Key.widgetTheme)

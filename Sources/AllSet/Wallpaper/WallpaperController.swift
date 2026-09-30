@@ -336,10 +336,13 @@ private struct WallpaperRoot: View {
     let services: AppServices
     let state: WallpaperScreenState
 
-    /// On battery, drawn art runs at no more than 30 frames a second.
+    /// Off the charger (or when warm) drawn art runs at the policy's art rate,
+    /// the same 15 frames a second widgets' art already keeps to: soft,
+    /// slow-moving art looks the same and the GPU does half the work.
     private var config: WallpaperConfig {
         var config = services.wallpaper.config
-        if let limit = services.ui.performance.videoFrameRateLimit { config.frameRate = min(config.frameRate, limit) }
+        let policy = services.ui.performance
+        if policy.tier >= .balanced { config.frameRate = min(config.frameRate, policy.artFrameRate) }
         return config
     }
 

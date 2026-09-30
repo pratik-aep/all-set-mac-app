@@ -7,9 +7,12 @@ import Foundation
 /// | Tier | When | Decorative motion | Art | Stats (idle) | Clipboard | Network |
 /// |---|---|---|---|---|---|---|
 /// | full | plugged in, cool | on | 24 fps | 3 s | 0.5 s | as set |
-/// | balanced | on battery, or warm ("fair") | on | 15 fps | 5 s | 1 s | as set |
-/// | saver | Low Power Mode, or hot ("serious") | paused | still | 10 s | 1.5 s | 2× slower |
-/// | minimal | very hot ("critical") | paused | still | 30 s | 2 s | 4× slower |
+/// | balanced | on battery, or warm ("fair") | on | 15 fps | 10 s | 1 s | as set |
+/// | saver | Low Power Mode, or hot ("serious") | paused | still | 20 s | 1.5 s | 2× slower |
+/// | minimal | very hot ("critical") | paused | still | 60 s | 2 s | 4× slower |
+///
+/// Art here covers the live wallpaper's too: off the charger it's drawn at
+/// the tier's rate, whatever the wallpaper's own frame-rate setting.
 ///
 /// Reduce Motion pauses decorative motion in every tier. Nothing a person
 /// asked to see is turned off: live stats, clocks and data keep updating,
@@ -49,11 +52,9 @@ public struct PerformancePolicy: Equatable, Sendable {
     /// Frames a second for moving art.
     public var artFrameRate: Int { tier == .full ? 24 : 15 }
 
-    /// Frames a second at most for a looping wallpaper video; nil for its own rate.
-    public var videoFrameRateLimit: Int? { tier == .full ? nil : 30 }
-
-    /// Seconds between system samples while nothing shows them.
-    public var monitorIdleInterval: Double { [3, 5, 10, 30][tier.rawValue] }
+    /// Seconds between system samples while nothing shows them (they only
+    /// keep the sparklines and the optional menu-bar CPU figure going).
+    public var monitorIdleInterval: Double { [3, 10, 20, 60][tier.rawValue] }
 
     /// The fastest live stats may update, whatever the setting.
     public var monitorMinimumInterval: Double { [0, 1, 2, 3][tier.rawValue] }

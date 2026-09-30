@@ -68,6 +68,9 @@ public struct KnockSettings: Codable, Equatable, Sendable {
     public var tapWindow = 0.4
     public var ignoreWhileTyping = true
     public var restInLowPowerMode = true
+    /// The sensor reports about 800 times a second while listening, so off
+    /// the charger it rests unless asked not to.
+    public var restOnBattery = true
     public var showInIsland = true
     public var playSound = false
     public var rules: [KnockRule] = []
@@ -118,7 +121,7 @@ public struct KnockSettings: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case isEnabled, single, double, triple, sensitivity, signal, tapWindow, ignoreWhileTyping,
-             restInLowPowerMode, showInIsland, playSound, rules
+             restInLowPowerMode, restOnBattery, showInIsland, playSound, rules
     }
 
     // Written by hand so a missing or unreadable value falls back to its
@@ -141,6 +144,7 @@ public struct KnockSettings: Codable, Equatable, Sendable {
         tapWindow = value(.tapWindow, defaults.tapWindow).clamped(to: DetectorConfiguration.tapWindowRange)
         ignoreWhileTyping = value(.ignoreWhileTyping, defaults.ignoreWhileTyping)
         restInLowPowerMode = value(.restInLowPowerMode, defaults.restInLowPowerMode)
+        restOnBattery = value(.restOnBattery, defaults.restOnBattery)
         showInIsland = value(.showInIsland, defaults.showInIsland)
         playSound = value(.playSound, defaults.playSound)
         rules = value(.rules, defaults.rules)
@@ -157,6 +161,7 @@ public struct KnockSettings: Codable, Equatable, Sendable {
         try container.encode(tapWindow, forKey: .tapWindow)
         try container.encode(ignoreWhileTyping, forKey: .ignoreWhileTyping)
         try container.encode(restInLowPowerMode, forKey: .restInLowPowerMode)
+        try container.encode(restOnBattery, forKey: .restOnBattery)
         try container.encode(showInIsland, forKey: .showInIsland)
         try container.encode(playSound, forKey: .playSound)
         try container.encode(rules, forKey: .rules)

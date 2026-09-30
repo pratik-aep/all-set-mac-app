@@ -30,6 +30,10 @@ final class KnockController {
         listener.onKnock = { [weak self] event in self?.handle(event) }
         apply(store.settings)
         observe({ [store] in store.settings }) { [weak self] settings in self?.apply(settings) }
+        listener.isOnBattery = services.power.state?.isPluggedIn == false
+        observe({ [services] in services.power.state?.isPluggedIn }) { [weak self] pluggedIn in
+            self?.listener.isOnBattery = pluggedIn == false
+        }
     }
 
     func stop() {
@@ -51,6 +55,8 @@ final class KnockController {
     private func apply(_ settings: KnockSettings) {
         listener.configuration = settings.detectorConfiguration
         listener.restsInLowPowerMode = settings.restInLowPowerMode
+        // The settings page's meter works either way.
+        listener.restsOnBattery = settings.restOnBattery && !isTuning
         // Nothing to run means nothing to listen for: the sensor stays off,
         // unless the settings page is open to try knocking.
         listener.isEnabled = settings.isEnabled && (!settings.assignedCounts.isEmpty || isTuning)

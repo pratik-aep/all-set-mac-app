@@ -55,4 +55,14 @@ extension AppSettings {
         widgetTheme = set.setup?.id
         showWidgets = true
     }
+
+    /// Forgets any theme: the widget font, corners and size go back to a
+    /// fresh install's, and no theme is on.
+    public func resetWidgetLook() {
+        widgetFont = Self.defaultWidgetFont
+        widgetCornerRadius = Self.defaultWidgetCornerRadius
+        widgetScale = 1
+        widgetTheme = nil
+        widgetDesignTheme = nil
+    }
 }

@@ -15,8 +15,6 @@ enum AppPage: Hashable {
     /// The widget gallery, for one category or (nil) all of them.
     case gallery(WidgetCategory?)
     case art
-    case photos
-    case myPhotos
     /// Customizing a widget that's on the desktop.
     case widget(UUID)
     case widgetAppearance
@@ -57,7 +55,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         closing.delegate = nil
         closing.contentViewController = nil
         window = nil
-        // Theme previews and the Photos page's pictures were only for this
+        // Theme previews and the pictures pages showed were only for this
         // window; desktop widgets keep the recent ones they use.
         services?.releaseCachedPictures(keeping: 0.25)
     }
@@ -111,10 +109,6 @@ struct MainView: View {
                     Label("Art", systemImage: "paintpalette.fill")
                         .badge(ArtPiece.all.count)
                         .tag(AppPage.art)
-                    Label("Photos", systemImage: "photo.stack.fill").tag(AppPage.photos)
-                    Label("My Photos", systemImage: "folder.fill")
-                        .badge(services.images.userImages.count)
-                        .tag(AppPage.myPhotos)
                     Label("Look & Layout", systemImage: "paintbrush.fill").tag(AppPage.widgetAppearance)
                 }
                 Section("Wallpaper") {
@@ -144,10 +138,22 @@ struct MainView: View {
                         Text("No widgets yet").foregroundStyle(.secondary)
                     }
                     ForEach(services.widgets.widgets) { instance in
-                        Label {
-                            Text(instance.kind.title) + Text("  \(instance.size.title)").foregroundStyle(.secondary)
-                        } icon: {
-                            Image(systemName: instance.kind.symbol)
+                        HStack(spacing: 6) {
+                            Label {
+                                Text(instance.kind.title) + Text("  \(instance.size.title)").foregroundStyle(.secondary)
+                            } icon: {
+                                Image(systemName: instance.kind.symbol)
+                            }
+                            Spacer(minLength: 4)
+                            Button {
+                                removeWidget(instance.id)
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(.secondary)
+                            .help("Remove from the desktop")
+                            .accessibilityLabel("Remove \(instance.kind.title) from the desktop")
                         }
                         .tag(AppPage.widget(instance.id))
                     }
@@ -193,6 +199,13 @@ struct MainView: View {
         }
     }
 
+    /// One click, no confirmation: the widget leaves the desktop, and if its
+    /// settings were open the window moves to the gallery.
+    private func removeWidget(_ id: UUID) {
+        if ui.page == .widget(id) { ui.page = .gallery(nil) }
+        withMotion(Motion.quick) { services.widgets.remove(id) }
+    }
+
     @ViewBuilder
     private func detail(_ page: AppPage) -> some View {
         switch page {
@@ -209,10 +222,6 @@ struct MainView: View {
             GalleryPage(category: category, services: services)
         case .art:
             ArtLibraryPage(services: services)
-        case .photos:
-            WebPhotosPage(services: services)
-        case .myPhotos:
-            MyPhotosPage(services: services)
         case .widget(let id):
             WidgetInspector(id: id, services: services)
         case .widgetAppearance:
@@ -254,8 +263,6 @@ struct MainView: View {
         case .themeSet(let id): ThemeLibrary.set(id)?.name ?? "Theme"
         case .gallery(let category): category?.title ?? "Widget Gallery"
         case .art: "Art"
-        case .photos: "Photos"
-        case .myPhotos: "My Photos"
         case .widget(let id): services.widgets.instance(id).map { "Customize \($0.kind.title)" } ?? "Widget"
         case .widgetAppearance: "Look & Layout"
         case .wallpaper: "Live Wallpaper"

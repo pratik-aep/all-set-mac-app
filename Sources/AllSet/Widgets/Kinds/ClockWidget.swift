@@ -368,7 +368,15 @@ private struct TimeLabel: View {
         }
         .lineLimit(1)
         .minimumScaleFactor(0.6)
-        .motion(Motion.standard, value: parts.time)
+        // Rolls when the minute changes; seconds just change. Rolling every
+        // second measured 9-12% CPU for a visible seconds clock.
+        .motion(Motion.standard, value: Self.minute(of: parts.time))
+    }
+
+    /// "10:42:17" → "10:42"; a time without seconds stays as it is.
+    static func minute(of time: String) -> Substring {
+        let colons = time.indices.filter { time[$0] == ":" }
+        return colons.count > 1 ? time[..<colons[1]] : time[...]
     }
 }
 
@@ -474,7 +482,10 @@ struct AnalogFace: View {
             }
             .frame(width: side, height: side)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .motion(Motion.bouncy, value: seconds)
+            // The hands ease into each new minute; the seconds hand steps
+            // like a quartz watch instead of springing (a spring every second
+            // redraws the whole face at animation rate, all day).
+            .motion(Motion.bouncy, value: Int(seconds) / 60)
         }
     }
 

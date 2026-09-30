@@ -155,17 +155,7 @@ struct ThemesPage: View {
 
     @ViewBuilder
     private var banners: some View {
-        if let undo = services.ui.themeUndo {
-            HStack(spacing: 12) {
-                Image(systemName: "arrow.uturn.backward.circle.fill").font(.title2).foregroundStyle(.tint)
-                Text("\(undo.name) is on your desktop. Undo puts back your widgets, their look and your wallpaper.")
-                Spacer()
-                Button("Undo") { withMotion(Motion.standard) { services.undoTheme() } }
-                Button("Keep It") { withMotion(Motion.standard) { services.ui.themeUndo = nil } }
-            }
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.tint.opacity(0.12)))
-        }
+        DesktopUndoBanner(services: services)
     }
 
     private var chips: some View {
@@ -272,6 +262,43 @@ struct ThemesPage: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 18)], spacing: 22) {
                 ForEach(sets) { set in ThemeSetCard(set: set, services: services) }
             }
+        }
+    }
+}
+
+/// Offers to take back the last whole-desktop change: a theme going on, or
+/// the widgets a newly picked wallpaper cleared away.
+struct DesktopUndoBanner: View {
+    let services: AppServices
+
+    var body: some View {
+        if let undo = services.ui.desktopUndo {
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.uturn.backward.circle.fill").font(.title2).foregroundStyle(.tint)
+                Text(message(for: undo.change))
+                Spacer()
+                Button(undo.change == .clearedForWallpaper ? "Bring Widgets Back" : "Undo") {
+                    withMotion(Motion.standard) { services.undoDesktopChange() }
+                }
+                Button("Keep It") { withMotion(Motion.standard) { services.ui.desktopUndo = nil } }
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.tint.opacity(0.12)))
+            .task(id: undo.id) {
+                // Clearing for a wallpaper is expected; the offer doesn't linger.
+                guard undo.change == .clearedForWallpaper else { return }
+                try? await Task.sleep(for: .seconds(12))
+                if services.ui.desktopUndo?.id == undo.id {
+                    withMotion(Motion.standard) { services.ui.desktopUndo = nil }
+                }
+            }
+        }
+    }
+
+    private func message(for change: DesktopUndo.Change) -> String {
+        switch change {
+        case .theme(let name): "\(name) is on your desktop. Undo puts back your widgets, their look and your wallpaper."
+        case .clearedForWallpaper: "Your widgets were cleared for the new wallpaper."
         }
     }
 }

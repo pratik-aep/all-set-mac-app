@@ -16,8 +16,9 @@ final class UIState {
     /// another app already owns.
     var shortcutConflicts = Set<String>()
     var applyingWorkspace: UUID?
-    /// The last theme put on the desktop and the desktop from before it, for Undo.
-    var themeUndo: ThemeUndo?
+    /// The last whole-desktop change (a theme, or widgets cleared for a
+    /// wallpaper) and the desktop from before it, for Undo.
+    var desktopUndo: DesktopUndo?
     /// A theme set being tried on the desktop, with what to go back to.
     var themePreview: ThemePreview?
     /// How hard All Set may work: from Low Power Mode, the Mac's temperature,
@@ -210,7 +211,7 @@ final class AppServices {
         case .page(let name):
             let pages: [String: AppPage] = [
                 "home": .island, "island": .island, "themes": .themes, "gallery": .gallery(nil), "monitor": .monitor,
-                "wallpaper": .wallpaper, "photos": .photos, "art": .art, "clipboard": .clipboard, "notes": .notes,
+                "wallpaper": .wallpaper, "art": .art, "clipboard": .clipboard, "notes": .notes,
                 "workspaces": .workspaces, "mixer": .mixer, "settings": .general,
             ]
             openWindow(pages[name] ?? WidgetCategory(rawValue: name).map { .gallery($0) } ?? .island)

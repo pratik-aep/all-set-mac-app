@@ -163,7 +163,7 @@ public final class ClipboardStore {
     @ObservationIgnored private var pendingSave: Task<Void, Never>?
     @ObservationIgnored private let log = Logger(subsystem: "com.pratik.allset", category: "clipboard")
 
-    private struct Saved: Codable {
+    private struct Saved: Codable, Sendable {
         var settings: ClipboardSettings
         var items: [ClipboardItem]
     }
@@ -253,19 +253,35 @@ public final class ClipboardStore {
         try? FileManager.default.removeItem(at: imageDirectory.appendingPathComponent(name))
     }
 
+    /// Every copy saves the history, which can run to megabytes of text:
+    /// encoding and writing it happen on a background queue, off the main
+    /// thread, so copying never stutters the notch or widgets.
     private func scheduleSave() {
         pendingSave?.cancel()
         pendingSave = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(500))
-            guard !Task.isCancelled else { return }
-            self?.save()
+            guard !Task.isCancelled, let self else { return }
+            let saved = Saved(settings: settings, items: items)
+            let url = fileURL, log = log
+            Self.writer.async { Self.write(saved, to: url, log: log) }
         }
     }
 
+    /// Writes now, and returns once it's on disk (after any background write
+    /// still queued, so an older one can't land on top), e.g. before quitting.
     public func save() {
         pendingSave?.cancel()
+        let saved = Saved(settings: settings, items: items)
+        let url = fileURL, log = log
+        Self.writer.sync { Self.write(saved, to: url, log: log) }
+    }
+
+    /// One queue, so writes land in the order they were made.
+    private nonisolated static let writer = DispatchQueue(label: "com.pratik.allset.clipboard.save", qos: .utility)
+
+    private nonisolated static func write(_ saved: Saved, to url: URL, log: Logger) {
         do {
-            try JSONEncoder().encode(Saved(settings: settings, items: items)).write(to: fileURL, options: .atomic)
+            try JSONEncoder().encode(saved).write(to: url, options: .atomic)
         } catch {
             log.error("Couldn't save clipboard history: \(error.localizedDescription, privacy: .public)")
         }

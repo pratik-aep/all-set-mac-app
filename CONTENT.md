@@ -19,7 +19,7 @@ All Set is a macOS menu-bar/Dock utility built from these pieces:
 - **System monitor** — CPU, GPU, memory, disk, network, battery, thermal, top apps.
 - **Settings** — general, widgets, notch, wallpaper.
 
-Main window pages (`AppPage`): Dynamic Island, Activities, Themes, one Theme Set's detail page, Widget Gallery (per category or all), Art library, Photos search, My Photos, per-widget customization, widget appearance, Wallpaper, Wallpaper Options, Window Snapping, Workspaces, Clipboard, Shelf, Mixer, Knocks (TapTap), Notes, AI Screenshot, System Monitor, General settings, About.
+Main window pages (`AppPage`): Dynamic Island, Activities, Themes, one Theme Set's detail page, Widget Gallery (per category or all), Art library, per-widget customization, widget appearance, Wallpaper, Wallpaper Options, Window Snapping, Workspaces, Clipboard, Shelf, Mixer, Knocks (TapTap), Notes, AI Screenshot, System Monitor, General settings, About.
 
 ---
 
@@ -115,6 +115,8 @@ Art renders on GPU (Metal shader) for moving pieces and via Canvas for still one
 ---
 
 ## 7. Photos & Wallpaper Search
+
+Photo search and My Photos no longer have their own pages or Live Wallpaper tabs; they live in the picture picker of Photo, Polaroid and VHS widgets.
 
 - **Two sources searched together:** Wallhaven (≈1M wallpapers — films, games, anime, cars, space; SFW-only) and Openverse (free-licensed photos: WordPress Photo Directory, Rawpixel, Flickr).
 - **Understands nicknames:** "jjk" → Jujutsu Kaisen, "lambo" → Lamborghini, "gta 6" → Grand Theft Auto VI, and ~120 more.

@@ -115,6 +115,14 @@ public final class KnockListener {
     public var restsInLowPowerMode = true {
         didSet { if restsInLowPowerMode != oldValue { update() } }
     }
+    /// Rests while the Mac runs on its battery. `isOnBattery` is told by the
+    /// app, which already watches the power source.
+    public var restsOnBattery = true {
+        didSet { if restsOnBattery != oldValue { update() } }
+    }
+    public var isOnBattery = false {
+        didSet { if isOnBattery != oldValue { update() } }
+    }
     public var configuration = DetectorConfiguration() {
         didSet { engine.configuration = configuration }
     }
@@ -173,6 +181,7 @@ public final class KnockListener {
     private var shouldListen: Bool {
         isEnabled && !isAsleep && !isDisplayAsleep && !isLocked
             && !(restsInLowPowerMode && ProcessInfo.processInfo.isLowPowerModeEnabled)
+            && !(restsOnBattery && isOnBattery)
     }
 
     private func update() {
