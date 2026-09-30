@@ -471,7 +471,7 @@ struct ScreenshotPage: View {
 
             VStack(alignment: .leading, spacing: DS.Space.m) {
                 SectionHeader(title: "Ask for anything", subtitle: "Also in the Dynamic Island (the camera button) and as a TapTap action.")
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: DS.Space.m)], spacing: DS.Space.m) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: DS.Space.m, alignment: .top)], alignment: .leading, spacing: DS.Space.m) {
                     idea("eye.slash.fill", "Blur personal details", "Names, emails, faces and numbers.")
                     idea("highlighter", "Highlight", "Point out what matters with a box or a glow.")
                     idea("crop", "Crop and annotate", "Arrows, labels and a tighter frame.")

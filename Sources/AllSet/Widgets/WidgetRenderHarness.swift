@@ -588,6 +588,17 @@ extension WidgetRenderHarness {
             }
         }
         defer { for id in borrowed { services.widgets.remove(id) } }
+        // Draw the Themes page's first previews up front, timing each: a CI
+        // machine is slow at this, and the times show where it goes.
+        let cache = services.themePreviews
+        for set in ThemeDiscovery.featured.sets(stats: services.themeStats).prefix(4) {
+            let started = Date.now
+            cache.request(set, dark: set.isDark, services: services)
+            for _ in 0..<300 where cache.image(for: set, dark: set.isDark) == nil { try? await Task.sleep(for: .milliseconds(100)) }
+            let seconds = Date.now.timeIntervalSince(started)
+            print("theme preview \(set.id): \(cache.image(for: set, dark: set.isDark) == nil ? "not drawn after" : "drawn in") \(String(format: "%.1f", seconds)) s")
+            cache.cancel(set, dark: set.isDark)
+        }
         let window = UnconstrainedWindow(contentRect: CGRect(origin: CGPoint(x: 80, y: 80), size: sizes.first ?? CGSize(width: 1280, height: 800)),
                                          styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                                          backing: .buffered, defer: false)
@@ -617,7 +628,7 @@ extension WidgetRenderHarness {
                 // land; pages of rendered previews need longer the first time.
                 // Theme previews are drawn one at a time, photos and cut-outs
                 // first, which takes a CI machine a while.
-                let settle = name == "themes" ? 20000
+                let settle = name == "themes" ? 8000
                     : ["theme-seven", "gallery", "art", "wallpaper", "wallpaper-art", "wallpaper-videos"].contains(name) ? 6000 : 1800
                 try? await Task.sleep(for: .milliseconds(settle))
                 if let image = captureOwnWindow(window),
