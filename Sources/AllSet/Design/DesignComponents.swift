@@ -149,7 +149,9 @@ struct HeroSection<Media: View, Actions: View>: View {
             ZStack {
                 Color.clear.overlay { media }.clipped()
                 // The navigation floats over the top; the words sit bottom left.
-                LinearGradient(colors: [.black.opacity(0.55), .clear], startPoint: .top,
+                // Just enough for the navigation's words; more and its glass
+                // has only darkness to show.
+                LinearGradient(colors: [.black.opacity(0.32), .clear], startPoint: .top,
                                endPoint: .init(x: 0.5, y: min(layout.topInset * 1.8 / layout.height, 0.5)))
                 LinearGradient(colors: [.black.opacity(0.55), .clear], startPoint: .leading, endPoint: .center)
             }
