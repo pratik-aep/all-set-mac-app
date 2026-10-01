@@ -42,6 +42,12 @@ heroes and probe work after it is on the branch.
   `ci-screenshots` branch), `-probe scroll` and `-probe galleryparts`, and a
   CI `probe` job; CI fails on any compiler warning.
 
+- **Balanced light and Apple's glass** (follow-up): the lens glow no longer
+  reads as a hot spot (all glows alpha 0.09–0.13, bell-curve falloff). Liquid
+  Glass on the floating navigation: the five places and one capsule of page
+  pills, like a segmented control. Tried on every pill and button first; the
+  probe showed scrolling CPU tripling, so in-page controls stay solid.
+
 ## Numbers (debug build, GPU-less CI VM)
 | | Before | After |
 |---|---|---|
