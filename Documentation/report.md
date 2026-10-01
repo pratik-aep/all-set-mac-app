@@ -176,3 +176,7 @@ Result: no code changes needed; docs now agree with reality.
   done); re-sync again once it finishes.
 - Main-window redesign merged (floating navigation; Library now Desktop → Wallpaper → My Videos); Library features checked present, 239 tests, docs synced — docs only
 - Backdrop with drifting blue light, full-bleed heroes (Wallpaper, Themes, Art), theme previews wait while scrolling; scroll/galleryparts probes in CI — `3dc4479`, `928c3fd`
+- Widgets (not the library): snap grid, tidy on any layout change, drag to the nearest
+  slot with a live preview, gallery drag-to-desktop, right-click menu. 246 tests (7 new,
+  all 57 themes keep their shape on the grid). Real app: tidy and Arrange drag landed on
+  the predicted slots, menu and Remove work; gallery drop and direct drag await the user.

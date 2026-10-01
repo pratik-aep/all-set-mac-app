@@ -26,6 +26,8 @@ final class UIState {
     var themePreview: ThemePreview?
     /// The widget removed last, and where it was, for Undo.
     var removedWidget: RemovedWidget?
+    /// A gallery widget being dragged toward the desktop.
+    var widgetDrop: WidgetInstance?
     /// How hard All Set may work: from Low Power Mode, the Mac's temperature,
     /// Reduce Motion and the charger. Every subsystem reads its limits here.
     var performance = PerformancePolicy()
@@ -271,28 +273,86 @@ final class AppServices {
         widgets.insert(removed.instance, at: removed.index)
     }
 
-    /// Puts a widget in the first free spot on the primary screen.
+    /// Puts a widget in the first free slot on the primary screen, or in the
+    /// slot given (a drop from the gallery).
     @discardableResult
-    func addWidget(_ instance: WidgetInstance) -> WidgetInstance {
+    func addWidget(_ instance: WidgetInstance, at slot: (screen: NSScreen, offset: CGPoint)? = nil) -> WidgetInstance {
         var instance = instance
         // New widgets join the chosen design theme.
         if let theme = settings.widgetDesignTheme, instance.options.designTheme == nil,
            !instance.kind.isFreeform, !instance.kind.paintsOwnBackground, instance.material != .clear {
             instance.options.designTheme = theme
         }
-        if let screen = NSScreen.screens.first {
-            // Offsets are in layout points: the screen, divided by the widget size.
-            let occupied = widgets.widgets
-                .filter { $0.screenName == screen.localizedName || $0.screenName == nil }
-                .map { CGRect(origin: $0.offset, size: $0.size.dimensions) }
-            let scale = settings.widgetScale
+        if let slot {
+            instance.screenName = slot.screen.localizedName
+            instance.offset = slot.offset
+        } else if let screen = NSScreen.screens.first {
+            let occupied = occupiedRects(on: screen)
+            let bounds = layoutBounds(of: screen)
             instance.screenName = screen.localizedName
-            instance.offset = WidgetLayout.freeOffset(for: instance.size.dimensions, avoiding: occupied,
-                                                      within: CGSize(width: screen.visibleFrame.width / scale,
-                                                                     height: screen.visibleFrame.height / scale))
+            instance.offset = widgetGrid(on: screen).firstFree(instance.size, avoiding: occupied)
+                ?? WidgetLayout.freeOffset(for: instance.size.dimensions, avoiding: occupied, within: bounds)
         }
         settings.showWidgets = true
         return widgets.add(instance)
+    }
+}
+
+// MARK: The widget grid
+
+extension AppServices {
+    /// A screen's visible area in layout points: divided by the widget size.
+    func layoutBounds(of screen: NSScreen) -> CGSize {
+        let scale = settings.widgetScale
+        return CGSize(width: screen.visibleFrame.width / scale, height: screen.visibleFrame.height / scale)
+    }
+
+    func widgetGrid(on screen: NSScreen) -> WidgetGrid {
+        WidgetGrid(bounds: layoutBounds(of: screen), margin: WidgetLayout.margin / settings.widgetScale)
+    }
+
+    /// Where a widget shows: the screen it names, else the first.
+    func screen(for instance: WidgetInstance) -> NSScreen? {
+        NSScreen.screens.first { $0.localizedName == instance.screenName } ?? NSScreen.screens.first
+    }
+
+    /// Whether a widget shows on `screen`. Compared by display, since
+    /// `NSScreen.screens` can hand back new objects each time it's asked.
+    func shows(_ instance: WidgetInstance, on screen: NSScreen) -> Bool {
+        self.screen(for: instance)?.displayID == screen.displayID
+    }
+
+    /// The layout rects of the widgets on a screen, but one.
+    func occupiedRects(on screen: NSScreen, except id: UUID? = nil) -> [CGRect] {
+        widgets.widgets
+            .filter { $0.id != id && shows($0, on: screen) }
+            .map { CGRect(origin: $0.offset, size: $0.size.dimensions) }
+    }
+
+    /// The widgets tidied onto each screen's grid (`WidgetGrid.arranged`).
+    func gridArranged(_ instances: [WidgetInstance]) -> [WidgetInstance] {
+        var result = instances
+        for screen in NSScreen.screens {
+            let indices = result.indices.filter { shows(result[$0], on: screen) }
+            guard !indices.isEmpty else { continue }
+            let arranged = widgetGrid(on: screen).arranged(indices.map { result[$0] })
+            for (index, widget) in zip(indices, arranged) { result[index] = widget }
+        }
+        return result
+    }
+
+    /// Lines every widget up on its screen's grid, with no overlaps. Changes
+    /// nothing when they already are.
+    func cleanUpWidgets() {
+        for widget in gridArranged(widgets.widgets) where widgets.instance(widget.id)?.offset != widget.offset {
+            widgets.update(widget.id) { $0.offset = widget.offset }
+        }
+    }
+
+    /// A new size for a widget; the grid makes room for it.
+    func resizeWidget(_ id: UUID, to size: WidgetSize) {
+        widgets.update(id) { $0.size = size }
+        cleanUpWidgets()
     }
 }
 

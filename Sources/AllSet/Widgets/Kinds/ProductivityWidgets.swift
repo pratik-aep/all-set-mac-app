@@ -342,6 +342,8 @@ struct GoalsWidget: View {
         Button("Take One Back") { add(goal, by: -step(goal)) }
         Button("Mark Done") { add(goal, by: goal.target) }
         Button("Reset Today") { add(goal, by: -goal.target) }
+        Divider()
+        WidgetMenuItems()
     }
 
     /// Small targets count one at a time; big ones in sixths.
@@ -525,6 +527,8 @@ struct ReadingWidget: View {
         .contextMenu {
             Button("Back a Page") { turn(-1) }
             Button("Finished!") { turn(book.pages) }
+            Divider()
+            WidgetMenuItems()
         }
     }
 

@@ -13,6 +13,44 @@ extension EnvironmentValues {
     /// Theme previews draw in the theme's font and corners, not the current ones.
     @Entry var widgetFontOverride: WidgetFont?
     @Entry var widgetCornerOverride: Double?
+    /// What right-clicking a desktop widget offers; nil in previews.
+    @Entry var widgetMenu: WidgetMenuActions?
+}
+
+/// A desktop widget's right-click menu actions.
+struct WidgetMenuActions {
+    let sizes: [WidgetSize]
+    let size: WidgetSize
+    let isArranging: Bool
+    let edit: @MainActor () -> Void
+    let resize: @MainActor (WidgetSize) -> Void
+    let cleanUp: @MainActor () -> Void
+    let toggleArranging: @MainActor () -> Void
+    let remove: @MainActor () -> Void
+}
+
+/// The widget's own right-click items. Widgets with menus of their own add
+/// these after a divider, so Remove is always one right-click away.
+struct WidgetMenuItems: View {
+    @Environment(\.widgetMenu) private var actions
+
+    var body: some View {
+        if let actions {
+            Button("Edit Widget…", action: actions.edit)
+            if actions.sizes.count > 1 {
+                Picker("Size", selection: Binding(get: { actions.size }, set: { actions.resize($0) })) {
+                    ForEach(actions.sizes) { size in
+                        Text(size.title).tag(size)
+                    }
+                }
+            }
+            Divider()
+            Button("Clean Up Widgets", action: actions.cleanUp)
+            Button(actions.isArranging ? "Done Arranging" : "Arrange Widgets", action: actions.toggleArranging)
+            Divider()
+            Button("Remove Widget", role: .destructive, action: actions.remove)
+        }
+    }
 }
 
 extension Color {
@@ -117,6 +155,9 @@ struct WidgetHostView: View {
             // Slow, drifting art looks the same at fewer frames; fewer still on battery.
             .environment(\.artFrameLimit, services.ui.performance.artFrameRate)
             .environment(\.widgetRefreshScale, services.ui.performance.networkRefreshScale)
+            // Drag a widget straight from the desktop; it settles into the
+            // nearest free slot. Clicks still reach its buttons.
+            .simultaneousGesture(moveGesture, including: arranging ? .subviews : .all)
             .overlay {
                 if arranging {
                     // Covers the widget so its controls don't react while arranging.
@@ -124,17 +165,7 @@ struct WidgetHostView: View {
                         .strokeBorder(.white.opacity(0.75), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
                         .background(shape.fill(Color.white.opacity(0.001)))
                         .contentShape(shape)
-                        .gesture(
-                            DragGesture(minimumDistance: 2)
-                                .onChanged { _ in
-                                    isDragging = true
-                                    onDrag(.changed)
-                                }
-                                .onEnded { _ in
-                                    isDragging = false
-                                    onDrag(.ended)
-                                }
-                        )
+                        .gesture(moveGesture)
                         .transition(.opacity)
                 }
             }
@@ -155,10 +186,37 @@ struct WidgetHostView: View {
             .scaleEffect(isDragging ? 1.03 : 1)
             // Freeform widgets cast their own shadows.
             .modifier(ThemedShadow(instance: instance, isDragging: isDragging))
+            .contextMenu { WidgetMenuItems() }
+            .environment(\.widgetMenu, menuActions(for: instance, arranging: arranging))
             .motion(Motion.responsive, value: isDragging)
             .motion(Motion.quick, value: arranging)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private var moveGesture: some Gesture {
+        DragGesture(minimumDistance: 3)
+            .onChanged { _ in
+                if !isDragging { isDragging = true }
+                onDrag(.changed)
+            }
+            .onEnded { _ in
+                isDragging = false
+                onDrag(.ended)
+            }
+    }
+
+    private func menuActions(for instance: WidgetInstance, arranging: Bool) -> WidgetMenuActions {
+        WidgetMenuActions(
+            sizes: instance.kind.supportedSizes,
+            size: instance.size,
+            isArranging: arranging,
+            edit: onConfigure,
+            resize: { [services, id] size in withMotion(Motion.responsive) { services.resizeWidget(id, to: size) } },
+            cleanUp: { [services] in services.cleanUpWidgets() },
+            toggleArranging: { [services] in services.ui.isArrangingWidgets.toggle() },
+            remove: onRemove
+        )
     }
 }
 

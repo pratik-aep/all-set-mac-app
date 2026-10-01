@@ -28,6 +28,19 @@ final class DesktopWidgetController {
     private var hasStarted = false
     /// The widget being dragged, where the pointer started and where its window was.
     private var drag: (id: UUID, startPointer: CGPoint, startOrigin: CGPoint)?
+    /// The slots, shown while a widget is dragged or dropped from the gallery.
+    private let gridOverlay = WidgetGridOverlay()
+    /// What the grid layout last depended on; a change tidies the widgets.
+    private var gridShape: GridShape?
+    /// Watches for a gallery drag ending without a drop.
+    private var dropWatch: Timer?
+    private var dropReleasedAt: Date?
+
+    private struct GridShape: Equatable {
+        var sizes: [UUID: WidgetSize]
+        var screens: [CGRect]
+        var scale: Double
+    }
 
     init(services: AppServices) {
         self.services = services
@@ -48,6 +61,9 @@ final class DesktopWidgetController {
         observe({ [services] in services.ui.themePreview?.setID }) { [weak self] setID in
             self?.showPreviewBar(for: setID)
         }
+        observe({ [services] in services.ui.widgetDrop?.id }) { [weak self] _ in
+            self?.updateDropping()
+        }
         hasStarted = true
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
@@ -59,6 +75,7 @@ final class DesktopWidgetController {
     // MARK: Windows
 
     private func sync(animated: Bool = true) {
+        tidyIfShapeChanged()
         let wanted = services.settings.showWidgets ? services.widgets.widgets : []
         let wantedIDs = Set(wanted.map(\.id))
         for id in windows.keys where !wantedIDs.contains(id) {
@@ -83,6 +100,21 @@ final class DesktopWidgetController {
         }
         startArrivals()
         updateStatsViewer()
+    }
+
+    /// Lines the widgets up on the grid whenever what the layout depends on
+    /// changed: a widget came, went or changed size, or the widget size or the
+    /// screens did (another Mac, a new display). Moves nothing that's already
+    /// in place, so it's free the rest of the time.
+    private func tidyIfShapeChanged() {
+        let shape = GridShape(
+            sizes: Dictionary(services.widgets.widgets.map { ($0.id, $0.size) }, uniquingKeysWith: { first, _ in first }),
+            screens: NSScreen.screens.map(\.visibleFrame),
+            scale: services.settings.widgetScale
+        )
+        guard shape != gridShape, drag == nil else { return }
+        gridShape = shape
+        services.cleanUpWidgets()
     }
 
     /// How many new widgets appear per frame.
@@ -273,7 +305,7 @@ final class DesktopWidgetController {
     // MARK: Arranging
 
     private func handleDrag(_ id: UUID, _ phase: WidgetDragPhase) {
-        guard let window = windows[id] else { return }
+        guard let window = windows[id], let instance = services.widgets.instance(id) else { return }
         // Global pointer position, since the view under the pointer moves with the window.
         let pointer = NSEvent.mouseLocation
         switch phase {
@@ -284,23 +316,126 @@ final class DesktopWidgetController {
             guard let drag else { return }
             window.setFrameOrigin(CGPoint(x: drag.startOrigin.x + pointer.x - drag.startPointer.x,
                                           y: drag.startOrigin.y + pointer.y - drag.startPointer.y))
+            showSlot(for: instance, in: window)
         case .ended:
             guard drag?.id == id else { return }
             drag = nil
-            let scale = services.settings.widgetScale
-            let content = window.frame.insetBy(dx: WidgetWindow.margin * scale, dy: WidgetWindow.margin * scale)
-            let center = CGPoint(x: content.midX, y: content.midY)
-            guard let screen = NSScreen.screens.first(where: { $0.frame.contains(center) }) ?? screen(named: nil) else { return }
-            let visible = screen.visibleFrame
-            let offset = WidgetLayout.snap(CGPoint(x: content.minX - visible.minX, y: visible.maxY - content.maxY),
-                                           size: content.size, within: visible.size)
-            services.widgets.update(id) {
-                $0.offset = CGPoint(x: offset.x / scale, y: offset.y / scale)
-                $0.screenName = screen.localizedName
+            gridOverlay.hide()
+            // No free slot: it goes back where it was.
+            if let slot = slot(for: instance, in: window) {
+                services.widgets.update(id) {
+                    $0.offset = slot.offset
+                    $0.screenName = slot.screen.localizedName
+                }
             }
-            // Settle onto the grid even if the saved spot didn't change.
+            // Settle into the slot even if the saved spot didn't change.
             sync()
         }
+    }
+
+    /// Where a dragged widget would land: the free slot nearest it, on the
+    /// screen under its middle.
+    private func slot(for instance: WidgetInstance, in window: NSWindow) -> (screen: NSScreen, offset: CGPoint, grid: WidgetGrid)? {
+        let scale = services.settings.widgetScale
+        let content = window.frame.insetBy(dx: WidgetWindow.margin * scale, dy: WidgetWindow.margin * scale)
+        let center = CGPoint(x: content.midX, y: content.midY)
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(center) }) ?? screen(named: nil) else { return nil }
+        let visible = screen.visibleFrame
+        let offset = CGPoint(x: (content.minX - visible.minX) / scale, y: (visible.maxY - content.maxY) / scale)
+        let grid = services.widgetGrid(on: screen)
+        guard let spot = grid.place(instance.size, near: offset, avoiding: services.occupiedRects(on: screen, except: instance.id)) else {
+            return nil
+        }
+        return (screen, spot, grid)
+    }
+
+    private func showSlot(for instance: WidgetInstance, in window: NSWindow) {
+        guard let slot = slot(for: instance, in: window) else {
+            gridOverlay.highlight(nil)
+            return
+        }
+        if !gridOverlay.isShowing || gridOverlay.screen?.displayID != slot.screen.displayID {
+            gridOverlay.show(on: slot.screen, grid: slot.grid, scale: services.settings.widgetScale,
+                             occupied: services.occupiedRects(on: slot.screen, except: instance.id),
+                             level: window.level, below: window)
+        }
+        gridOverlay.highlight(CGRect(origin: slot.offset, size: instance.size.dimensions))
+    }
+
+    // MARK: Dropping from the gallery
+
+    /// While a gallery widget is dragged, the grid covers the screen and the
+    /// widgets rise above the windows, so it can be dropped into any free slot.
+    private func updateDropping() {
+        guard let instance = services.ui.widgetDrop else {
+            endDropping()
+            return
+        }
+        for window in windows.values { window.level = WidgetWindow.arrangingLevel }
+        gridOverlay.onDragUpdate = { [weak self] point in self?.dropMoved(to: point, instance: instance) }
+        gridOverlay.onDrop = { [weak self] point in self?.drop(instance, at: point) ?? false }
+        showDropGrid(at: NSEvent.mouseLocation, for: instance)
+        dropReleasedAt = nil
+        dropWatch?.invalidate()
+        let watch = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.watchDrop(instance) }
+        }
+        // Runs during the drag's own event loop too.
+        RunLoop.main.add(watch, forMode: .common)
+        dropWatch = watch
+    }
+
+    /// Follows the pointer to other screens, and ends the drag once the
+    /// button is up (the drop itself, if any, arrives first).
+    private func watchDrop(_ instance: WidgetInstance) {
+        let pointer = NSEvent.mouseLocation
+        if NSEvent.pressedMouseButtons & 1 == 0 {
+            let released = dropReleasedAt ?? .now
+            dropReleasedAt = released
+            if Date.now.timeIntervalSince(released) > 0.4 { services.ui.widgetDrop = nil }
+            return
+        }
+        if let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }), screen.displayID != gridOverlay.screen?.displayID {
+            showDropGrid(at: pointer, for: instance)
+        }
+    }
+
+    private func showDropGrid(at point: CGPoint, for instance: WidgetInstance) {
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }) ?? NSScreen.screens.first else { return }
+        gridOverlay.show(on: screen, grid: services.widgetGrid(on: screen), scale: services.settings.widgetScale,
+                         occupied: services.occupiedRects(on: screen),
+                         level: NSWindow.Level(rawValue: WidgetWindow.arrangingLevel.rawValue - 1), acceptsDrops: true)
+    }
+
+    /// The slot for a widget centered on `point`.
+    private func dropSlot(at point: CGPoint, for instance: WidgetInstance) -> (screen: NSScreen, offset: CGPoint)? {
+        guard let screen = gridOverlay.screen, let layout = gridOverlay.layoutPoint(point) else { return nil }
+        let size = instance.size.dimensions
+        let wanted = CGPoint(x: layout.x - size.width / 2, y: layout.y - size.height / 2)
+        guard let spot = services.widgetGrid(on: screen).place(instance.size, near: wanted,
+                                                               avoiding: services.occupiedRects(on: screen)) else { return nil }
+        return (screen, spot)
+    }
+
+    private func dropMoved(to point: CGPoint, instance: WidgetInstance) {
+        gridOverlay.highlight(dropSlot(at: point, for: instance).map { CGRect(origin: $0.offset, size: instance.size.dimensions) })
+    }
+
+    private func drop(_ instance: WidgetInstance, at point: CGPoint) -> Bool {
+        guard let slot = dropSlot(at: point, for: instance) else { return false }
+        services.addWidget(instance, at: slot)
+        services.ui.widgetDrop = nil
+        return true
+    }
+
+    private func endDropping() {
+        dropWatch?.invalidate()
+        dropWatch = nil
+        gridOverlay.onDragUpdate = nil
+        gridOverlay.onDrop = nil
+        gridOverlay.hide()
+        let level = services.ui.isArrangingWidgets ? WidgetWindow.arrangingLevel : WidgetWindow.desktopLevel
+        for window in windows.values { window.level = level }
     }
 
     private func setArranging(_ arranging: Bool) {

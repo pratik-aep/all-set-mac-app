@@ -209,6 +209,12 @@ struct GalleryCard: View {
                 }
             }
             .onHover { hovering in withMotion(Motion.responsive) { isHovering = hovering } }
+            // Drag the preview out onto the desktop: the grid shows where it can go.
+            .onDrag {
+                services.ui.widgetDrop = sample
+                return NSItemProvider(object: "All Set widget: \(entry.title)" as NSString)
+            }
+            .help("Drag onto the desktop, or use Add to Desktop")
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Preview of \(entry.title)")
 

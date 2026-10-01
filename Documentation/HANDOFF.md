@@ -2,7 +2,7 @@
 
 **Read this first at the start of every session, instead of reviewing the codebase.** It's rewritten at the end of every session. Dated session logs are in `Documentation/Reports/` (newest last). For what the app contains (widgets, themes, pages), see `CONTENT.md`. Only open the source files that the task at hand needs.
 
-_Last updated: 2026-10-01 (main-window redesign merged; navy backdrop with drifting light, full-bleed heroes, scroll probes in CI). For the wallpaper library, read Documentation/spec.md, architecture.md and report.md's CURRENT STATE first._
+_Last updated: 2026-10-02 (widget snap grid, drag from the gallery, right-click menu). For the wallpaper library, read Documentation/spec.md, architecture.md and report.md's CURRENT STATE first._
 
 ---
 
@@ -32,7 +32,7 @@ _Last updated: 2026-10-01 (main-window redesign merged; navy backdrop with drift
 | What | Command |
 |---|---|
 | Debug build (expect 0 warnings) | `swift build 2>&1 \| grep -c warning:` |
-| Tests (currently 239 in 71 suites) | `swift test` |
+| Tests (currently 246 in 72 suites) | `swift test` |
 | Optimised build with DEBUG tools | `swift build -c release -Xswiftc -DDEBUG --build-path .build-probe` |
 | Everything, on GitHub | CI (`.github/workflows/ci.yml`, `macos-26`) on every push: `build-and-test` (fails on any warning), `screenshots` (`-renderPages`, published to the `ci-screenshots` branch) and `probe` (`-probe scroll`, `pages`, `galleryparts`, in the run summary). Cloud sessions without a Swift toolchain verify through CI only |
 
@@ -111,6 +111,7 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
   - `WidgetCatalog.swift`: 91 gallery entries.
   - `FanModels.swift` and `MysticModels.swift`: the zodiac, tarot, aura, charm and magic-ball data.
   - Themes: `WidgetTheme*.swift` (57 looks: 14 moodboards, 22 fandom, 13 core, 8 Colour & Light in `WidgetTheme+Colour.swift`) and `DesignTheme.swift` (15 skins). `ThemeLibrary` holds the 57 complete desktops the Themes page shows.
+- **Placement is a snap grid** (`AllSetCore/Widgets/WidgetGrid.swift`, tested in `WidgetGridTests`): slots the size of a small widget, `spacing` apart, centered in each screen's visible area, margin kept in *screen* points (`WidgetLayout.margin / widgetScale`, as `fitted` does, or themes lose a column). `place(near:)` for drops, `firstFree` for adds (columns from the left), `arranged` for Clean Up (group shifted onto the lattice first, so every theme keeps its exact shape; larger widgets choose first). `DesktopWidgetController.tidyIfShapeChanged` runs Clean Up whenever sizes, membership, screens or the widget scale change, so a new Mac or display reflows. Compare screens by `displayID`, never `NSScreen ==` (new objects each call). `WidgetGridOverlay` (Core Animation, shown only during drags) draws free slots and the target; gallery cards `.onDrag` set `ui.widgetDrop`, which lifts the widgets, dims the screen and makes the overlay a drop target. Right-click menu: `WidgetMenuItems` from the `widgetMenu` environment; widgets with their own `.contextMenu` append it after a divider.
 - Views live in `AllSet/Widgets/Kinds/*.swift`. `WidgetHostView.swift` has the kind → view switch and `WidgetSurface`. `DesktopWidgetController` manages the desktop windows, scaled by `settings.widgetScale` (0.7–1.6).
 - Motion goes through `Components/LiveLayers.swift`. `LiveLayerView` subclasses run Core Animation loops at capped frame rates and stop when covered or when Reduce Motion is on. Each one also draws a still SwiftUI version for snapshots (`widgetSnapshot` environment value). Building blocks:
   - `LiveArtwork`: float, shine and glow, cached in `ArtworkCache`.
@@ -184,7 +185,11 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 - **Size heroes by their frame, not their media**: `Color.clear.overlay { media }`. A filling picture otherwise grows the stack and pushes the words out of view.
 - **Measuring on CI:** a nearly invisible probe window gets App Nap (hold it off with `ProcessInfo.beginActivity`), and a GPU-less VM's window server caps frame gaps near 80 ms on every page; compare CPU and the worst stall, not average frame time.
 
-## Current state (2026-10-01)
+## Current state (2026-10-02)
+- **In progress: a 7-step request** (in order): 1 widget snap grid, drag, right-click menu ✅; 2 every theme's widgets in the gallery + editable labels inside widgets and an optional caption below; 3 AI Screenshot on ⌘⇧5 (replace the system shortcut, reversible); 4 analyse this Mac (hardware, sensors, permissions) and adapt; 5 measure and fix choppiness everywhere; 6 window UI toward the user's "Wallspace" reference (big featured hero, filmstrip, curated rows); 7 Island Notes tab: alarms, stopwatch, daily routines with notifications.
+- Step 1 verified in the real app (seeded layout tidied to the predicted slots, Arrange-mode drag landed in the predicted slot with the overlay showing, right-click menu, Remove). **Not yet seen working by a person:** dragging a gallery card onto the desktop, and dragging a widget straight off the desktop outside Arrange mode (the desktop was covered by the user's windows; synthetic clicks pass through the island panel, so don't drive the pointer near the notch).
+
+## Earlier state (2026-10-01)
 - `main` is at `e92ba9e`: the main-window redesign (design system, floating navigation, every page rebuilt), merged.
 - Branch **`claude/festive-brown-ks0f3c`** is 7+ commits ahead of `main`, not yet merged: the navy backdrop with drifting blue light, full-bleed heroes on Wallpaper/Themes/Art, theme previews waiting while scrolling, and the `scroll`/`galleryparts` probes with the CI `probe` job. CI green: 0 warnings, 239 tests.
 - Session logs: `Documentation/Reports/2026-10-01-ui-redesign.md` (this redesign), earlier ones beside it. The September performance audit is in `docs/perf-audit.md`.

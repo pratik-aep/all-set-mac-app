@@ -49,6 +49,8 @@ struct GitHubWidget: View {
         .contextMenu {
             Button("Refresh Now") { github.refreshIfNeeded(config, maxAge: 0) }
             Button("Open on GitHub") { openOnGitHub() }
+            Divider()
+            WidgetMenuItems()
         }
         .widgetRefresh(every: interval, id: GitHubService.key(config)) {
             github.refreshIfNeeded(config, maxAge: interval ?? .infinity)
@@ -352,6 +354,8 @@ struct StatusWidget: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .contextMenu {
             Button("Check Now") { for endpoint in instance.options.endpoints { status.checkIfNeeded(endpoint, maxAge: 0) } }
+            Divider()
+            WidgetMenuItems()
         }
         .widgetRefresh(every: interval, id: instance.options.endpoints.map(\.url)) {
             for endpoint in instance.options.endpoints { status.checkIfNeeded(endpoint, maxAge: interval ?? .infinity) }

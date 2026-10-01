@@ -10,6 +10,7 @@ All Set is a macOS menu-bar/Dock utility built from these pieces:
 
 - **Dynamic Island / notch hub** — a fake island under the camera notch (screens without a notch get a virtual one in the middle of the menu bar), with five tabs.
 - **Desktop widgets** — draggable live cards and freeform pieces on your desktop, from a gallery of 91 catalog entries across 9 categories, arranged individually or applied as a whole-desktop **theme** (57 of them).
+  - **Snap grid:** widgets live in slots the size of a small widget (medium 2×1, large 2×2, extra large 4×2), never overlap, and tidy themselves when widgets come, go or change size, or the screen changes. Drag a widget straight off the desktop (or in Arrange mode) and it settles into the nearest free slot, previewed while dragging; drag a card out of the Widget Gallery onto the desktop to drop it into a slot. Right-click a widget for Edit Widget…, Size, Clean Up Widgets, Arrange Widgets and Remove Widget.
 - **Live wallpaper** — generative art, a photo, Apple's aerial videos, your own videos, or your imported wallpaper library, matched to the system wallpaper.
 - **Workspace manager** — hotkey window snapping and saved workspaces.
 - **Clipboard & Shelf** — clipboard history, a picker, OCR, and a drag-and-drop shelf.

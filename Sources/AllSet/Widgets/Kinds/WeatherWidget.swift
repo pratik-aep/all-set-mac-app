@@ -32,6 +32,8 @@ struct WeatherWidget: View {
             }
             .contextMenu {
                 Button("Refresh Now") { weather.refreshIfNeeded(location, maxAge: 0) }
+                Divider()
+                WidgetMenuItems()
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(report.map { "\(location.name), \(temperature($0.current.temperature)), \(WeatherCondition.description(code: $0.current.code))" } ?? location.name)

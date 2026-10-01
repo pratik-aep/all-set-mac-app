@@ -120,10 +120,10 @@ extension AppServices {
     }
 
     /// A set's widgets with the person's photos, sized and centered to fill
-    /// the primary screen, whatever its size.
+    /// the primary screen, whatever its size, and lined up on its grid.
     private func themeWidgets(_ set: ThemeSet) -> [WidgetInstance] {
         let layout = set.widgets(screenName: NSScreen.screens.first?.localizedName, bounds: Self.unbounded)
-        return prepared(fittedToScreen(ThemeSet.personalized(layout, with: themePhotos.sources(for: set.id))))
+        return prepared(gridArranged(fittedToScreen(ThemeSet.personalized(layout, with: themePhotos.sources(for: set.id)))))
     }
 
     /// Gives location-based widgets a city: one already used, else a guess
