@@ -100,25 +100,29 @@ struct ThemesPage: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(alignment: .leading, spacing: DS.Space.section) {
-                    VStack(alignment: .leading, spacing: DS.Space.l) {
-                        header
-                        banners
-                        chips
-                    }
-                    if filter == .all && SearchMatch.normalize(query).isEmpty {
-                        shelves(heroHeight: min(max(geometry.size.height * 0.5, 280), 460))
-                    } else {
-                        grid(results)
-                    }
+        let sections = self.sections
+        // The lead featured theme fills the top of the window; the rest of
+        // the featured row climbs onto its faded bottom. Always shown, so a
+        // search or a filter never moves the search field.
+        BleedScrollPage(showsHero: sections.featured.first != nil) { layout in
+            if let lead = sections.featured.first {
+                FeaturedThemeHero(set: lead, services: services, layout: layout)
+            }
+        } content: { _ in
+            shelf("Featured", sets: Array(sections.featured.dropFirst()), more: .featured)
+            VStack(alignment: .leading, spacing: DS.Space.l) {
+                header
+                banners
+                chips
+            }
+            if filter == .all && SearchMatch.normalize(query).isEmpty {
+                ForEach(sections.shelves, id: \.title) { shelf in
+                    self.shelf(shelf.title, sets: shelf.sets, more: shelf.more)
                 }
-                .padding(.horizontal, DS.Space.pageMargin(for: geometry.size.width))
-                .padding(.vertical, DS.Space.xl)
+            } else {
+                grid(results)
             }
         }
-        .background(AppBackground())
     }
 
     private var header: some View {
@@ -150,20 +154,6 @@ struct ThemesPage: View {
                 }
             }
             .padding(.vertical, 2)
-        }
-    }
-
-    /// The lead featured theme as a hero, then a rail per shelf.
-    private func shelves(heroHeight: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: DS.Space.section) {
-            let sections = sections
-            if let lead = sections.featured.first {
-                FeaturedThemeHero(set: lead, services: services, height: heroHeight)
-            }
-            shelf("Featured", sets: Array(sections.featured.dropFirst()), more: .featured)
-            ForEach(sections.shelves, id: \.title) { shelf in
-                self.shelf(shelf.title, sets: shelf.sets, more: shelf.more)
-            }
         }
     }
 
@@ -324,19 +314,20 @@ private struct ThemeSetCard: View {
 private struct FeaturedThemeHero: View {
     let set: ThemeSet
     let services: AppServices
-    var height: CGFloat
+    let layout: BleedLayout
 
     var body: some View {
         let favorite = services.themeStats.isFavorite(set.id)
         HeroSection(eyebrow: "Featured theme", title: set.name,
-                    metadata: [set.inspiration ?? set.tagline, "\(set.includedWidgets.count) widgets"], height: height) {
-            // Wide heroes show the desktop whole, as a card on the right over
-            // its own colors; narrow ones crop it to fill, which crops little.
+                    metadata: [set.inspiration ?? set.tagline, "\(set.includedWidgets.count) widgets"], bleed: layout) {
+            // Wide windows show the desktop whole, as a card on the right
+            // between the navigation and the row below, over its own colors;
+            // narrow ones crop it to fill.
             GeometryReader { geometry in
-                let cardHeight = geometry.size.height - DS.Space.l * 2
+                let cardHeight = layout.visibleHeight - layout.overlap - DS.Space.xl * 2
                 let ratio = ThemeComposition.canvas.width / ThemeComposition.canvas.height
-                let showsCard = geometry.size.width - cardHeight * ratio > 560
-                ZStack(alignment: .trailing) {
+                let showsCard = geometry.size.width - cardHeight * ratio - layout.margin > 620
+                ZStack(alignment: .bottomTrailing) {
                     ThemeSnapshot(set: set, dark: set.isDark, services: services, fills: true)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()
@@ -349,7 +340,8 @@ private struct FeaturedThemeHero: View {
                             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
                             .overlay(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous).strokeBorder(DS.Surface.hairline))
                             .dsElevated()
-                            .padding(.trailing, DS.Space.l)
+                            .padding(.trailing, layout.margin)
+                            .padding(.bottom, layout.overlap + DS.Space.xl)
                     }
                 }
             }

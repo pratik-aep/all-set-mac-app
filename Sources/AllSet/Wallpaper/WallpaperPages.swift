@@ -54,28 +54,23 @@ struct LiveWallpaperPage: View {
         })
 
         ZStack(alignment: .bottom) {
-            GeometryReader { geometry in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: DS.Space.section) {
-                        VStack(alignment: .leading, spacing: DS.Space.m) {
-                            WallpaperHero(services: services, height: Self.heroHeight(for: geometry.size))
-                            if services.ui.desktopUndo != nil {
-                                DesktopUndoBanner(services: services)
-                            }
-                        }
-                        sourceBar
-                        switch tab {
-                        case .aerials: AerialsSection(services: services)
-                        case .art: ArtLibraryPage(services: services, context: setWallpaper, embedded: true)
-                        case .videos: VideosSection(services: services, detailVideo: $detailVideo, ownedOnly: $ownedOnly)
-                        }
+            // What's on the desktop fills the top of the window, under the
+            // navigation; the sources climb onto its faded bottom.
+            BleedScrollPage { layout in
+                WallpaperHero(services: services, layout: layout)
+            } content: { _ in
+                VStack(alignment: .leading, spacing: DS.Space.m) {
+                    sourceBar
+                    if services.ui.desktopUndo != nil {
+                        DesktopUndoBanner(services: services)
                     }
-                    .padding(.horizontal, DS.Space.pageMargin(for: geometry.size.width))
-                    .padding(.top, DS.Space.l)
-                    .padding(.bottom, DS.Space.xxl)
+                }
+                switch tab {
+                case .aerials: AerialsSection(services: services)
+                case .art: ArtLibraryPage(services: services, context: setWallpaper, embedded: true)
+                case .videos: VideosSection(services: services, detailVideo: $detailVideo, ownedOnly: $ownedOnly)
                 }
             }
-            .background(AppBackground())
             .overlay {
                 if isDropTarget {
                     RoundedRectangle(cornerRadius: DS.Radius.hero, style: .continuous)
@@ -122,11 +117,6 @@ struct LiveWallpaperPage: View {
         }
     }
 
-    /// Big enough to feel like a screen, never so big it hides what's below.
-    static func heroHeight(for size: CGSize) -> CGFloat {
-        min(max(size.height * 0.52, 280), 480)
-    }
-
     /// Owned tiles only offload; everywhere else, permanent and admin-gated.
     private func deleteKind(for video: LibraryVideo) -> LibraryTile.DeleteKind {
         ownedOnly ? .offloadOnly { await services.wallpaper.offloadAll(only: [video.id]) }
@@ -138,7 +128,7 @@ struct LiveWallpaperPage: View {
 /// and the switch and options for it.
 private struct WallpaperHero: View {
     let services: AppServices
-    var height: CGFloat
+    let layout: BleedLayout
     /// Plays for a moment when the page opens, then whenever the pointer is on it.
     @State private var isIntroPlaying = true
     @State private var isHovering = false
@@ -148,7 +138,7 @@ private struct WallpaperHero: View {
         let config = store.config
         let summary = summary(of: config.source)
         HeroSection(eyebrow: config.isEnabled ? "On your desktop" : "Live wallpaper · Off",
-                    title: summary.title, metadata: summary.details, height: height) {
+                    title: summary.title, metadata: summary.details, bleed: layout) {
             // A preview needn't run at the desktop's frame rate, nor all the
             // time: animating it costs as much as the wallpaper itself.
             WallpaperView(config: { var preview = config; preview.frameRate = min(config.frameRate, 24); return preview }(),

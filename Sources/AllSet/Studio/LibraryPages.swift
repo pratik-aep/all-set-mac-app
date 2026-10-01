@@ -124,31 +124,26 @@ struct ArtLibraryPage: View {
 
     var body: some View {
         if embedded {
-            content(width: 0)
+            content
         } else {
-            GeometryReader { geometry in
-                ScrollView {
-                    content(width: geometry.size.width)
-                        .padding(.horizontal, DS.Space.pageMargin(for: geometry.size.width))
-                        .padding(.vertical, DS.Space.xl)
-                }
+            // Today's piece fills the top of the window, under the navigation.
+            BleedScrollPage(showsHero: !context.isPicking) { layout in
+                ArtHero(piece: featured, services: services, layout: layout)
+            } content: { _ in
+                content
             }
-            .background(AppBackground())
         }
     }
 
     private var pieceCount: Int { ArtStyle.allCases.count * ArtPalette.allCases.count }
 
-    private func content(width: CGFloat) -> some View {
+    private var content: some View {
         VStack(alignment: .leading, spacing: embedded ? DS.Space.l : DS.Space.section) {
             if embedded {
                 SectionHeader(title: "Art", subtitle: "\(pieceCount) generative artworks. Hover to see them move.")
             } else {
                 PageHeader(eyebrow: "\(pieceCount) generative artworks", title: "Art",
                            subtitle: "Hover to see them move. Any of them can be a wallpaper, a live scene or a widget background.")
-                if !context.isPicking {
-                    ArtHero(piece: featured, services: services, height: min(max(width * 0.3, 260), 400))
-                }
             }
             PaletteFilter(selection: $palette)
             if let palette {
@@ -216,13 +211,13 @@ struct ArtLibraryPage: View {
 private struct ArtHero: View {
     let piece: ArtPiece
     let services: AppServices
-    let height: CGFloat
+    let layout: BleedLayout
 
     @State private var isHovering = false
 
     var body: some View {
         HeroSection(eyebrow: "Today\u{2019}s piece", title: piece.style.title,
-                    metadata: [piece.palette.title, "Generative", "Moves on hover"], height: height) {
+                    metadata: [piece.palette.title, "Generative", "Moves on hover"], bleed: layout) {
             ArtView(piece: piece, animated: isHovering)
         } actions: {
             Button {

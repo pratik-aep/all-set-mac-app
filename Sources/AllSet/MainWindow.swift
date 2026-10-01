@@ -131,7 +131,8 @@ struct MainView: View {
                     }
                 }
         }
-        .background(AppBackground())
+        .background(WindowBackdrop(paused: ui.performance.pausesDecorativeMotion))
+        .environment(ui)
         // The main window is always dark: the content (art, wallpapers,
         // themes) leads, and a dark canvas is what lets it. Desktop widgets
         // and the notch keep their own appearance.

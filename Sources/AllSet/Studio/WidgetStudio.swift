@@ -71,7 +71,6 @@ struct GalleryPage: View {
                 .padding(.vertical, DS.Space.xl)
             }
         }
-        .background(AppBackground())
     }
 
     /// Every category a click away, so a category page never strands you.

@@ -137,10 +137,14 @@ struct FloatingNav: View {
         .padding(.bottom, DS.Space.s)
         .background {
             // Content scrolls away beneath the navigation: a fade, not a blur.
+            // Over a full-bleed hero there's no fade: the picture runs to the
+            // top, and the hero darkens its own top edge.
             LinearGradient(stops: [.init(color: DS.Surface.canvasLift, location: 0),
                                    .init(color: DS.Surface.canvasLift.opacity(0.94), location: 0.7),
                                    .init(color: DS.Surface.canvasLift.opacity(0), location: 1)],
                            startPoint: .top, endPoint: .bottom)
+                .opacity(ui.mediaUnderNavigation == nil ? 1 : 0)
+                .motion(Motion.quick, value: ui.mediaUnderNavigation == nil)
                 .ignoresSafeArea(edges: .top)
         }
         .onChange(of: ui.page) { _, new in

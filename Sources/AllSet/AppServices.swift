@@ -10,6 +10,9 @@ final class UIState {
     /// Which source the Live Wallpaper page opens on.
     var wallpaperTab = LiveWallpaperPage.Tab.aerials
     var isArrangingWidgets = false
+    /// The full-bleed hero under the navigation right now, if one is: the
+    /// navigation drops its fade so the picture runs to the top.
+    var mediaUnderNavigation: UUID?
     /// False while the live wallpaper is paused to save energy.
     var wallpaperPlaying = true
     /// Window actions (by raw value) and workspaces (by id) whose shortcut

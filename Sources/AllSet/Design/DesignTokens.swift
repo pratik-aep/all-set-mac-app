@@ -49,10 +49,11 @@ enum DS {
 
     /// What content sits on. Depth comes from light, not from boxes.
     enum Surface {
-        /// The canvas: graphite, never pure black.
-        static let canvas = Color(red: 0.047, green: 0.047, blue: 0.059)
+        /// The canvas: a deep navy, never pure black, so the backdrop's blue
+        /// light has something to glow in.
+        static let canvas = Color(red: 0.027, green: 0.035, blue: 0.059)
         /// The top of the canvas, faintly lifted.
-        static let canvasLift = Color(red: 0.086, green: 0.086, blue: 0.106)
+        static let canvasLift = Color(red: 0.051, green: 0.067, blue: 0.106)
         /// A quiet raised area (a grouped setting, an idle card).
         static let raised = Color.white.opacity(0.05)
         static let hover = Color.white.opacity(0.08)

@@ -5,19 +5,18 @@ import SwiftUI
 
 // MARK: Canvas
 
-/// The dark canvas behind every page: graphite with a faint lift at the top,
-/// optionally warmed by the page's own accent. Static, so it costs nothing.
+/// A page's own touch on the window's backdrop (`WindowBackdrop`, drawn
+/// once by the main window): its accent as a glow at the top, or nothing.
+/// Never a fill, so the backdrop's light shows through every page.
 struct AppBackground: View {
     var accent: Color?
 
     var body: some View {
-        ZStack {
-            LinearGradient(colors: [DS.Surface.canvasLift, DS.Surface.canvas], startPoint: .top, endPoint: .center)
-            if let accent {
-                RadialGradient(colors: [accent.opacity(0.18), .clear], center: .top, startRadius: 0, endRadius: 520)
-            }
+        if let accent {
+            RadialGradient(colors: [accent.opacity(0.18), .clear], center: .top, startRadius: 0, endRadius: 520)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
         }
-        .ignoresSafeArea()
     }
 }
 
@@ -117,10 +116,73 @@ struct HeroSection<Media: View, Actions: View>: View {
     let title: String
     var metadata: [String] = []
     var height: CGFloat = 420
+    /// Edge to edge and under the navigation, fading into the window's
+    /// backdrop, instead of a rounded card.
+    var bleed: BleedLayout?
     @ViewBuilder var media: Media
     @ViewBuilder var actions: Actions
 
+    @Environment(UIState.self) private var ui: UIState?
+    @State private var token = UUID()
+
     var body: some View {
+        if let bleed {
+            bleeding(bleed)
+        } else {
+            card
+        }
+    }
+
+    private var words: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s) {
+            if let eyebrow { Text(eyebrow).dsText(.eyebrow, color: DS.Ink.secondary) }
+            Text(title).dsText(.hero).lineLimit(2).minimumScaleFactor(0.7)
+            if !metadata.isEmpty { MetadataRow(items: metadata) }
+            HStack(spacing: DS.Space.s) { actions }
+                .padding(.top, DS.Space.xs)
+        }
+        .frame(maxWidth: 620, alignment: .leading)
+    }
+
+    private func bleeding(_ layout: BleedLayout) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            ZStack {
+                Color.clear.overlay { media }.clipped()
+                // The navigation floats over the top; the words sit bottom left.
+                LinearGradient(colors: [.black.opacity(0.55), .clear], startPoint: .top,
+                               endPoint: .init(x: 0.5, y: min(layout.topInset * 1.8 / layout.height, 0.5)))
+                LinearGradient(colors: [.black.opacity(0.55), .clear], startPoint: .leading, endPoint: .center)
+            }
+            // Fades into the backdrop rather than onto a colour, so its light
+            // runs on under the picture without a seam.
+            .mask(LinearGradient(stops: [.init(color: .black, location: 0),
+                                         .init(color: .black, location: 0.5),
+                                         .init(color: .black.opacity(0.6), location: 0.75),
+                                         .init(color: .clear, location: 1)],
+                                 startPoint: .top, endPoint: .bottom))
+            words
+                .padding(.leading, layout.margin)
+                .padding(.bottom, layout.overlap + DS.Space.xl)
+        }
+        .frame(height: layout.height)
+        .frame(maxWidth: .infinity)
+        // Tells the navigation whether the picture is still under it; only
+        // flips twice per scroll past, never per frame.
+        .onGeometryChange(for: Bool.self) { proxy in
+            proxy.frame(in: .global).maxY > layout.topInset + layout.overlap * 2
+        } action: { under in
+            if under {
+                ui?.mediaUnderNavigation = token
+            } else if ui?.mediaUnderNavigation == token {
+                ui?.mediaUnderNavigation = nil
+            }
+        }
+        .onDisappear {
+            if ui?.mediaUnderNavigation == token { ui?.mediaUnderNavigation = nil }
+        }
+    }
+
+    private var card: some View {
         ZStack(alignment: .bottomLeading) {
             // The hero decides its size; media only fills it. Sized by the
             // media, a filling picture grew the stack and pushed the words out.
@@ -131,15 +193,8 @@ struct HeroSection<Media: View, Actions: View>: View {
             LinearGradient(colors: [.black.opacity(0.78), .black.opacity(0.25), .clear],
                            startPoint: .bottom, endPoint: .center)
             LinearGradient(colors: [.black.opacity(0.45), .clear], startPoint: .leading, endPoint: .center)
-            VStack(alignment: .leading, spacing: DS.Space.s) {
-                if let eyebrow { Text(eyebrow).dsText(.eyebrow, color: DS.Ink.secondary) }
-                Text(title).dsText(.hero).lineLimit(2).minimumScaleFactor(0.7)
-                if !metadata.isEmpty { MetadataRow(items: metadata) }
-                HStack(spacing: DS.Space.s) { actions }
-                    .padding(.top, DS.Space.xs)
-            }
-            .padding(DS.Space.xl)
-            .frame(maxWidth: 620, alignment: .leading)
+            words
+                .padding(DS.Space.xl)
         }
         .frame(height: height)
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.hero, style: .continuous))
