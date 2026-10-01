@@ -686,6 +686,11 @@ enum PageCPUProbe {
     /// step every frame, and reports how often the main thread missed a
     /// frame: the smoothness a person feels, as numbers CI can compare.
     static func runScroll(services: AppServices) async {
+        // A nearly invisible accessory app gets App Nap: its timers coalesce
+        // and every "frame" looks late though nothing is busy. Hold it off.
+        let activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .latencyCritical],
+                                                             reason: "Measuring scroll smoothness")
+        defer { ProcessInfo.processInfo.endActivity(activity) }
         let window = NSWindow(contentRect: NSRect(x: 40, y: 40, width: 1280, height: 800),
                               styleMask: [.titled, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         MainWindowController.dress(window)
@@ -698,9 +703,14 @@ enum PageCPUProbe {
         window.contentViewController = controller
         window.setContentSize(NSSize(width: 1280, height: 800))
         window.orderFrontRegardless()
-        for (name, page) in [("themes", AppPage.themes), ("gallery", .gallery(nil)), ("art", .art), ("wallpaper", .wallpaper)] {
-            services.ui.page = page
-            try? await Task.sleep(for: .seconds(5))
+        // Each page twice: the first pass pays for first sight (previews
+        // drawn, tiles made); the second is what scrolling feels like after.
+        for (name, page) in [("themes", AppPage.themes), ("gallery", .gallery(nil)), ("art", .art), ("wallpaper", .wallpaper)]
+            .flatMap({ [($0.0 + " 1st", $0.1), ($0.0 + " 2nd", $0.1)] }) {
+            if services.ui.page != page {
+                services.ui.page = page
+                try? await Task.sleep(for: .seconds(5))
+            }
             guard let scroll = tallestScrollView(in: window.contentView), let document = scroll.documentView else {
                 print(String(format: "scroll %-10@ no scroll view", name as NSString))
                 continue
