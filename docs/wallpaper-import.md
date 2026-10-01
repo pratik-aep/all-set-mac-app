@@ -2,6 +2,8 @@
 
 Working log and final report. Numbers are labelled **[measured]** or **[reasoned]**, following `docs/perf-audit.md`.
 
+> **UI since then (2026-10-01):** the Live Wallpaper page is now **Desktop → Wallpaper**: a full-bleed hero, then source pills (Aerial Videos, Art, My Videos). The Photos and My Photos tabs are gone. The Library section still follows your own videos under My Videos. This log describes the page as it was when the import was built.
+
 ## Phase 0: the existing architecture
 
 What's already there, and what this import will reuse.

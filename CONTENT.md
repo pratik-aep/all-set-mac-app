@@ -9,8 +9,8 @@ A complete inventory of what All Set contains: every feature, page, widget, them
 All Set is a macOS menu-bar/Dock utility built from these pieces:
 
 - **Dynamic Island / notch hub** — a fake island under the camera notch (screens without a notch get a virtual one in the middle of the menu bar), with five tabs.
-- **Desktop widgets** — draggable live cards and freeform pieces on your desktop, from a gallery of 91 catalog entries across 9 categories, arranged individually or applied as a whole-desktop **theme** (49 of them).
-- **Live wallpaper** — art, photo, or video, matched to the system wallpaper.
+- **Desktop widgets** — draggable live cards and freeform pieces on your desktop, from a gallery of 91 catalog entries across 9 categories, arranged individually or applied as a whole-desktop **theme** (57 of them).
+- **Live wallpaper** — generative art, a photo, Apple's aerial videos, your own videos, or your imported wallpaper library, matched to the system wallpaper.
 - **Workspace manager** — hotkey window snapping and saved workspaces.
 - **Clipboard & Shelf** — clipboard history, a picker, OCR, and a drag-and-drop shelf.
 - **Per-app volume mixer** — Core Audio taps, per-app volume, output switching.
@@ -20,6 +20,8 @@ All Set is a macOS menu-bar/Dock utility built from these pieces:
 - **Settings** — general, widgets, notch, wallpaper.
 
 Main window pages (`AppPage`), reached from a floating navigation of five places (Island, Desktop, Workspace, Tools, System; ⌘1–⌘5) with each place's pages as pills: Dynamic Island, Activities, Themes, one Theme Set's detail page, Widget Gallery (per category or all), Art library, On Your Desktop (the widgets placed now), per-widget customization, widget appearance, Wallpaper, Wallpaper Options, Window Snapping, Workspaces, Clipboard, Shelf, Mixer, Knocks (TapTap), Notes, AI Screenshot, System Monitor, General settings, About.
+
+**The window's look:** always dark, on a deep navy backdrop with soft blue light drifting across it (frozen under Reduce Motion, Low Power Mode, a hot Mac, or while the window is hidden). Wallpaper, Themes and Art open on a full-bleed hero (what's on the desktop, the featured theme, today's art piece) that runs under the navigation and fades into the backdrop; the rest of each page uses the same headers, pills, rails and cards.
 
 ---
 
@@ -76,7 +78,7 @@ Analog clock hands, flip clock, stat rings/bars, cassette reels, VHS tracking ba
 
 ---
 
-## 4. Whole-Desktop Themes — 49 total
+## 4. Whole-Desktop Themes — 57 total
 
 Applying a theme replaces every widget on the desktop and matches the wallpaper. All are **original designs** — inspired by an era/genre/mood, never reproducing a real logo, celebrity photo, or trademark. Real names (when referenced) only ever appear in hidden search tags, never in visible UI text.
 
@@ -91,6 +93,9 @@ Leopard Noir · City Noir · Angelic · Hypnotic · After Dark · Streetwear · 
 
 ### Gen Z / dark aesthetic themes (13) — original "worlds" with full kits
 Cloud Nine · Good Things · Pink Latte · Coquette · Grunge · Diva · Luxe Noir · Sepia Swag · Vigilante (Batman-vibe, no DC branding) · Neon Nights · Dark Academia · Midnight Lo-fi · Goth
+
+### Colour & Light themes (8) — bright, pastel and daylight desktops
+Matcha Morning · Peach Fizz · Lavender Haze · Candy Pop · Ocean Glass · Sunset Drive · Forest Cabin · Desert Bloom
 
 Each theme carries a name, tagline, description, philosophy, an inspiration line (shown on its card and page; football and music worlds describe their inspiration without naming anyone), its own wallpaper and a starter layout. Motion languages belong to the 15 design skins below, not to these themes.
 
@@ -132,8 +137,12 @@ Photo search and My Photos no longer have their own pages or Live Wallpaper tabs
 ## 8. Live Wallpaper
 
 - **Art** (generative, any style×palette combo, animated or still)
-- **Photo** (from search or My Photos, with slideshow interval)
-- **Video** (Apple's aerial/scenic catalogue via sylvan.apple.com)
+- **Photo** (a theme's wallpaper photo, with slow drift or other motion, and optional dimming)
+- **Aerial videos** (Apple's aerial/scenic catalogue via sylvan.apple.com, by category, 4K or HD): downloaded once with progress and **Cancel**, then loop offline
+- **My Videos**: any MP4 or MOV, imported or dropped on the page
+- **Wallpaper Library**: the user's own collection imported from a Wallpaper Engine folder (live loops and stills, self-contained on this Mac, optionally fetched from a personal server); see `Documentation/spec.md`
+- Picking a wallpaper clears the desktop's widgets, with **Undo**.
+- **Pauses** while windows cover the desktop, in full screen, when locked or asleep, in Low Power Mode, and on battery (on by default).
 - Runs at desktop-window level, paused unless a real amount of desktop is visible (`ScreenCoverage`), matched to system wallpaper, shared player instances across screens for efficiency.
 - **Fit to Screen:** themes/widget layouts scale and center to fill any screen size (0.7×–1.6× range), with a dedicated Settings control and `allset://fit` deep link.
 
@@ -149,7 +158,8 @@ Photo search and My Photos no longer have their own pages or Live Wallpaper tabs
 
 ## 10. Clipboard & Shelf
 
-- Clipboard **history** with search.
+- Clipboard **history** with search and filters (Text, Links, Images, Files), pins, and an option to **clear history when the app quits** (pinned items stay).
+- Password managers and anything apps mark as private are never recorded; more apps can be added to the ignore list.
 - **⌃⌥V picker** overlay, auto-paste via synthetic ⌘V.
 - **Vision OCR** — extract text from copied images.
 - **Shelf** — drop files on the island to hold them in the Tray tab, then drag them out wherever they're needed.
@@ -185,7 +195,7 @@ Photo search and My Photos no longer have their own pages or Live Wallpaper tabs
 
 ## 14. System Monitor
 
-Live readings, each with history sparklines where relevant:
+The Monitor page shows a tile per resource with its recent history, the heaviest apps, and refresh-rate and °C/°F switches. Live readings, each with history sparklines where relevant:
 - **CPU** — total %, per-core (efficiency vs. performance), temperature, thermal state.
 - **GPU** — utilization, memory in use.
 - **Memory** — used/total, app/wired/compressed breakdown, pressure, swap.
@@ -202,7 +212,7 @@ Live readings, each with history sparklines where relevant:
 - **General** — show in Dock, show menu-bar icon, CPU % in the menu bar, launch at login, temperature unit (°C/°F), refresh interval.
 - **Dynamic Island** — on/off, which display it's on, start tab (Home/System/Last), expand on hover + hover delay, haptic feedback; live-activity toggles for Now Playing, volume, battery and audio device.
 - **Widgets** — show on desktop, Arrange mode, Size slider (0.7×–1.6×) + Fit to Screen, font (Default/Rounded/Serif/Mono/Tall/Wide), corner roundness, the desktop's theme and design theme.
-- **Wallpaper Options** — per-source settings (art/photo/video) and pause rules.
+- **Wallpaper Options** — on/off, dimming, art speed/quality/frame rate, photo motion, and pause rules (covered, on battery).
 - **Motion** — follows the system's Reduce Motion (springs become short dissolves) and pauses animation in Low Power Mode.
 
 Text styles available on aesthetic widgets: Classic, Modern, Bold, Elegant, Script, Handwritten, Typewriter, Poster, Chunky, Editorial, Gothic, Luxe (12 styles, each with matched typography/tracking/case).
@@ -215,7 +225,7 @@ For Shortcuts, scripts and automation (used instead of App Intents, which SwiftP
 
 | Link | Does |
 |---|---|
-| `allset://open/<page>` | Opens a page of the main window |
+| `allset://open/<page>` | Opens a page of the main window: `home`, `island`, `themes`, `gallery` (or a widget category), `art`, `wallpaper`, `desktop`, `monitor`, `clipboard`, `notes`, `workspaces`, `mixer`, `settings` |
 | `allset://widget/<id>` | Opens one desktop widget's settings |
 | `allset://arrange` | Turns on Arrange mode |
 | `allset://fit` | Fits the widgets to the screen |

@@ -2,7 +2,7 @@
 
 **Read this first at the start of every session, instead of reviewing the codebase.** It's rewritten at the end of every session. Dated session logs are in `Documentation/Reports/` (newest last). For what the app contains (widgets, themes, pages), see `CONTENT.md`. Only open the source files that the task at hand needs.
 
-_Last updated: 2026-09-27 (wallpaper library: self-contained). Read Documentation/spec.md, architecture.md and report.md's CURRENT STATE first._
+_Last updated: 2026-10-01 (main-window redesign merged; navy backdrop with drifting light, full-bleed heroes, scroll probes in CI). For the wallpaper library, read Documentation/spec.md, architecture.md and report.md's CURRENT STATE first._
 
 ---
 
@@ -16,7 +16,7 @@ _Last updated: 2026-09-27 (wallpaper library: self-contained). Read Documentatio
 2. **Optimise at the core level** with every change: CPU, GPU and WindowServer cost. Measure it; don't assume.
 3. **Copyright:** themes are *original*, inspired by an era, genre or mood. No logos, album art, promo photos or trademarks. Real people's names may appear only in hidden search tags, never in UI text (a test enforces this). The user's player photos stay on their Mac, never in the repo.
 4. **Save tokens:** read this file and the latest report instead of re-reviewing the project. End every session by updating this file and writing a report.
-5. Commit or push only when asked. The remote is `origin` → github.com/pratik-aep/all_set-dynamic-island-.
+5. Commit or push only when asked. The remote is `origin` → github.com/pratik-aep/all-set-mac-app.
 
 ## Machine quirks
 - The first `python3` on PATH is an empty file that prints nothing: use `/opt/homebrew/bin/python3`, or awk, grep or perl.
@@ -32,8 +32,9 @@ _Last updated: 2026-09-27 (wallpaper library: self-contained). Read Documentatio
 | What | Command |
 |---|---|
 | Debug build (expect 0 warnings) | `swift build 2>&1 \| grep -c warning:` |
-| Tests (currently 205 in 64 suites) | `swift test` |
+| Tests (currently 239 in 71 suites) | `swift test` |
 | Optimised build with DEBUG tools | `swift build -c release -Xswiftc -DDEBUG --build-path .build-probe` |
+| Everything, on GitHub | CI (`.github/workflows/ci.yml`, `macos-26`) on every push: `build-and-test` (fails on any warning), `screenshots` (`-renderPages`, published to the `ci-screenshots` branch) and `probe` (`-probe scroll`, `pages`, `galleryparts`, in the run summary). Cloud sessions without a Swift toolchain verify through CI only |
 
 Run DEBUG tools as `.build-probe/release/AllSet <flag> -skip window,wallpaper,widgets,notch`.
 
@@ -67,7 +68,7 @@ CI's `probe` job runs `scroll`, `pages` and `galleryparts` on every push (debug 
 | Flag | Shows |
 |---|---|
 | `-renderIsland` | Island states and mid-spring frames |
-| `-renderPhotos` | The Photos page after real searches |
+| `-renderPhotos` | Photo search (the picture picker's Photos view) after real searches |
 | `-renderEntries dir -entryCategories a,b -entryIDs x,y` | Gallery widgets, live and still |
 | `-renderThemeSets` | Theme set previews and pages |
 | `-renderScaling` | Widget scaling |
@@ -109,7 +110,7 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
   - `WidgetModels.swift`: `WidgetKind` (54 kinds), `WidgetCategory` (9), `WidgetOptions` (decoded per key, tolerant) and per-kind defaults.
   - `WidgetCatalog.swift`: 91 gallery entries.
   - `FanModels.swift` and `MysticModels.swift`: the zodiac, tarot, aura, charm and magic-ball data.
-  - Themes: `WidgetTheme*.swift` (49 themes: moodboards, fandom, core) and `DesignTheme.swift` (15 skins).
+  - Themes: `WidgetTheme*.swift` (57 looks: 14 moodboards, 22 fandom, 13 core, 8 Colour & Light in `WidgetTheme+Colour.swift`) and `DesignTheme.swift` (15 skins). `ThemeLibrary` holds the 57 complete desktops the Themes page shows.
 - Views live in `AllSet/Widgets/Kinds/*.swift`. `WidgetHostView.swift` has the kind → view switch and `WidgetSurface`. `DesktopWidgetController` manages the desktop windows, scaled by `settings.widgetScale` (0.7–1.6).
 - Motion goes through `Components/LiveLayers.swift`. `LiveLayerView` subclasses run Core Animation loops at capped frame rates and stop when covered or when Reduce Motion is on. Each one also draws a still SwiftUI version for snapshots (`widgetSnapshot` environment value). Building blocks:
   - `LiveArtwork`: float, shine and glow, cached in `ArtworkCache`.
@@ -129,7 +130,7 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 - `Search/WallpaperQuery.swift`: aliases, exclusions, pop-culture detection, and aesthetic → Wallhaven tag or Openverse only.
 - `Search/AestheticSearch.swift`: aesthetic vocabulary and spelling.
 - Openverse allows at most `page_size` 20 for anonymous requests; more returns a 401.
-- The UI is `Studio/LibraryPages.swift` (`WebPhotosPage`, `SearchFilters`, `RecentSearches`), shared by the Wallpaper page and the Library.
+- The UI is `Studio/LibraryPages.swift` (`WebPhotosPage`, `SearchFilters`, `RecentSearches`), reached only through `LibraryPicker`, the picture picker of Photo, Polaroid and VHS widgets. The Photos and My Photos pages are gone; the Wallpaper page embeds only `ArtLibraryPage`.
 
 **Wallpaper library** (docs/wallpaper-import.md)
 - `WallpaperSource.library(id)`:
@@ -148,10 +149,8 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
   3.4 GB in total.
 - `WallpaperStore.library`, `libraryURL(id)` (disk check, for playback only) and `canPlay(video)` (no disk access, for cards).
 - UI: the `LibrarySection` in My Videos.
-- The user's library is a Wallpaper Engine folder on `/Volumes/KALI LINUX/Steam Wallpapers`:
-  - **181 imported** (138 live, 43 stills), from 48 video items, 7 web loops and 126 of 138 scenes;
-  - 63 scene stills are rendered as seamless loops from their own parallax depths and effect settings; a loop is kept only if `frame_movement()` measures real movement (threshold 0.8 of 255), else the sharp still wins;
-  - all **QUARANTINED** (Workshop, no license). Personal use only; never bundle or commit them.
+- The user's library: **1164 wallpapers** (1006 live, 158 stills) from four Wallpaper Engine folders, self-contained on the Mac, optionally fetched from (and offloaded to) a personal server. Current numbers and rules are in `Documentation/spec.md`; how it works is in `architecture.md`.
+  - All **QUARANTINED** (Workshop, no license). Personal use only; never bundle or commit them.
 - Scenes left out after review are listed by Workshop id in `SCENE_REVIEWED_SKIP`, each with its reason. To check new scenes, lay the thumbnails out on a contact sheet and look: the preview hash can't tell.
 
 **Other areas**
@@ -175,13 +174,21 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 - No animated blur or shadows; set `shadowPath`. Rasterize layers that only rotate.
 - Per-second text changes use `CATextLayer` (`TickingText`), not a SwiftUI `Text` with `.contentTransition`.
 - Theme preview cache keys use a content fingerprint and `drawingVersion`: bump `drawingVersion` when preview drawing changes.
+- **Drawing a theme preview holds the main thread** (2 s for a busy desktop in a debug build on CI). `ThemePreviewCache` therefore waits while any scroll view is live-scrolled (`NSScrollView.willStartLiveScrollNotification`) and 0.35 s after. A purge (memory pressure) bumps the observed `generation`, which is part of each card's `.task` id, so cards still on screen ask again instead of spinning forever.
+- **Decorative motion in the main window is Core Animation** (`LensGlowView`): the probe showed no idle CPU change with the backdrop moving. Freeze it with `PerformancePolicy.pausesDecorativeMotion` and on window occlusion.
+- **AppKit-backed containers ignore SwiftUI safe-area insets**: an `HSplitView` slid under the floating navigation. Use plain stacks under the navigation.
+- **Size heroes by their frame, not their media**: `Color.clear.overlay { media }`. A filling picture otherwise grows the stack and pushes the words out of view.
+- **Measuring on CI:** a nearly invisible probe window gets App Nap (hold it off with `ProcessInfo.beginActivity`), and a GPU-less VM's window server caps frame gaps near 80 ms on every page; compare CPU and the worst stall, not average frame time.
 
-## Current state (2026-09-26, evening)
-- Branch **`perf-audit`** (not merged, not pushed): baseline commit `6022ee5` (the island, search and widget work), the audit commits, then the wallpaper-library commits (`5b54296`, `7608ad4`, and the scenes/web import after `1e633b1`). `main` is still at `e8dc7bc`.
-- The audit log and final report are in **`docs/perf-audit.md`**. 200 tests pass, 0 warnings, and the Dock app is rebuilt from the branch.
-- For A/B: `git worktree add ../allset-baseline <commit>`, then build the probe there (removed after the audit).
+## Current state (2026-10-01)
+- `main` is at `e92ba9e`: the main-window redesign (design system, floating navigation, every page rebuilt), merged.
+- Branch **`claude/festive-brown-ks0f3c`** is 7+ commits ahead of `main`, not yet merged: the navy backdrop with drifting blue light, full-bleed heroes on Wallpaper/Themes/Art, theme previews waiting while scrolling, and the `scroll`/`galleryparts` probes with the CI `probe` job. CI green: 0 warnings, 239 tests.
+- Session logs: `Documentation/Reports/2026-10-01-ui-redesign.md` (this redesign), earlier ones beside it. The September performance audit is in `docs/perf-audit.md`.
+- **Not yet seen by a person on a real Mac:** the backdrop's motion (CI only captures stills), the Island page's interactive header (pills and try-it buttons inside a form section header), and the redesigned Library with real wallpapers (CI has no catalog).
 
 ## Backlog (not started unless the user asks)
+- Gallery cards take about 70 ms each to build in a debug build on CI, spread evenly over the widget preview, size picker, chips and button (`-probe galleryparts`): no single fix; a lighter card would be a design change.
+- The first visit to Themes after an install or update can still stall once, on a preview already being drawn when scrolling starts.
 - **Needs the user's decision:** a seconds clock costs 9–12 % CPU while visible (F15 in the audit). Either move the rolling digits to Core Animation, or let the digits change without rolling.
 - Wallpaper library: fast-scroll hitches (33–43 ms) over 1,000 cards; GPU-drawn cards break the hover preview. See docs/wallpaper-import.md.
 - Audit recommendations not done: align decorative frame rates to {10, 15, 30}; lazy calendar store; see `docs/perf-audit.md`, Phase 5.
