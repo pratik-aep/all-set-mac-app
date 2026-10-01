@@ -40,9 +40,11 @@ struct IslandPage: View {
             VStack(alignment: .leading, spacing: DS.Space.m) {
                 VStack(spacing: 0) {
                     IslandStage(model: preview, services: services)
-                    HStack(spacing: DS.Space.xs) {
-                        ForEach(PreviewState.allCases) { state in
-                            FilterPill(title: state.title, isSelected: previewState == state) { previewState = state }
+                    GlassGroup {
+                        HStack(spacing: DS.Space.xs) {
+                            ForEach(PreviewState.allCases) { state in
+                                FilterPill(title: state.title, isSelected: previewState == state) { previewState = state }
+                            }
                         }
                     }
                     .padding(DS.Space.s)

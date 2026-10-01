@@ -23,10 +23,12 @@ struct ClipboardPage: View {
                                subtitle: "Everything you copy, searchable. Double-click to copy again.")
                     SearchField(text: $query, prompt: "Search your clipboard")
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: DS.Space.xs) {
-                            FilterPill(title: "All", symbol: "square.grid.2x2", isSelected: kind == nil) { kind = nil }
-                            ForEach(ClipboardItem.Kind.allCases, id: \.self) { item in
-                                FilterPill(title: item.title, symbol: item.symbol, isSelected: kind == item) { kind = item }
+                        GlassGroup {
+                            HStack(spacing: DS.Space.xs) {
+                                FilterPill(title: "All", symbol: "square.grid.2x2", isSelected: kind == nil) { kind = nil }
+                                ForEach(ClipboardItem.Kind.allCases, id: \.self) { item in
+                                    FilterPill(title: item.title, symbol: item.symbol, isSelected: kind == item) { kind = item }
+                                }
                             }
                         }
                         .padding(.vertical, 1)

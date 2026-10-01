@@ -225,10 +225,12 @@ struct FloatingNav: View {
     /// The section's pages, centred when they fit and scrolling when not.
     private var pages: some View {
         let items = NavItem.items(in: section, services: services)
-        let row = HStack(spacing: DS.Space.xs) {
-            ForEach(items) { item in
-                PagePill(item: item, isSelected: item.matches(page)) {
-                    withMotion(Motion.quick) { ui.page = item.page }
+        let row = GlassGroup {
+            HStack(spacing: DS.Space.xs) {
+                ForEach(items) { item in
+                    PagePill(item: item, isSelected: item.matches(page)) {
+                        withMotion(Motion.quick) { ui.page = item.page }
+                    }
                 }
             }
         }
@@ -277,7 +279,8 @@ private struct PagePill: View {
             .foregroundStyle(isSelected ? Color.black.opacity(0.88) : DS.Ink.secondary)
             .padding(.horizontal, DS.Space.s)
             .frame(height: 28)
-            .background(Capsule().fill(isSelected ? Color.white.opacity(0.92) : DS.Surface.raised))
+            .dsGlass(Capsule(), tint: isSelected ? .white.opacity(0.9) : nil,
+                     fallback: isSelected ? Color.white.opacity(0.92) : DS.Surface.raised)
             .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())

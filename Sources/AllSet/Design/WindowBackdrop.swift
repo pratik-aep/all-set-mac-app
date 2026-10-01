@@ -129,25 +129,26 @@ final class LensGlowView: NSView {
     private func addGlows() {
         let glows = [
             // A wide, quiet blue across the top.
-            Glow(color: NSColor(red: 0.18, green: 0.42, blue: 1.0, alpha: 1), alpha: 0.20, size: 900,
+            Glow(color: NSColor(red: 0.18, green: 0.42, blue: 1.0, alpha: 1), alpha: 0.13, size: 900,
                  center: CGPoint(x: 360, y: 120), radii: CGSize(width: 220, height: 70), seconds: 46, clockwise: true),
             // Cyan, lower right.
-            Glow(color: NSColor(red: 0.10, green: 0.72, blue: 0.95, alpha: 1), alpha: 0.11, size: 760,
+            Glow(color: NSColor(red: 0.10, green: 0.72, blue: 0.95, alpha: 1), alpha: 0.10, size: 760,
                  center: CGPoint(x: 760, y: 420), radii: CGSize(width: 180, height: 120), seconds: 58, clockwise: false),
             // Indigo, lower left.
-            Glow(color: NSColor(red: 0.42, green: 0.34, blue: 1.0, alpha: 1), alpha: 0.12, size: 820,
+            Glow(color: NSColor(red: 0.42, green: 0.34, blue: 1.0, alpha: 1), alpha: 0.11, size: 820,
                  center: CGPoint(x: 220, y: 560), radii: CGSize(width: 160, height: 90), seconds: 52, clockwise: true),
-            // The lens: small, brighter, quicker, catching the light.
-            Glow(color: NSColor(red: 0.45, green: 0.70, blue: 1.0, alpha: 1), alpha: 0.24, size: 300,
+            // The lens: a little quicker than the rest, but no brighter and
+            // no smaller, so it reads as light moving, not a spot.
+            Glow(color: NSColor(red: 0.45, green: 0.70, blue: 1.0, alpha: 1), alpha: 0.09, size: 680,
                  center: CGPoint(x: 640, y: 170), radii: CGSize(width: 260, height: 60), seconds: 28, clockwise: false),
         ]
         for glow in glows {
             let layer = CAGradientLayer()
             layer.type = .radial
-            layer.colors = [glow.color.withAlphaComponent(glow.alpha).cgColor,
-                            glow.color.withAlphaComponent(glow.alpha * 0.35).cgColor,
-                            glow.color.withAlphaComponent(0).cgColor]
-            layer.locations = [0, 0.45, 1]
+            // A bell-shaped falloff: no bright core, no visible rim.
+            let falloff: [(location: Double, strength: CGFloat)] = [(0, 1), (0.2, 0.82), (0.4, 0.55), (0.6, 0.28), (0.8, 0.09), (1, 0)]
+            layer.colors = falloff.map { glow.color.withAlphaComponent(glow.alpha * $0.strength).cgColor }
+            layer.locations = falloff.map { NSNumber(value: $0.location) }
             layer.startPoint = CGPoint(x: 0.5, y: 0.5)
             layer.endPoint = CGPoint(x: 1, y: 1)
             layer.bounds = CGRect(x: 0, y: 0, width: glow.size, height: glow.size * 0.72)
@@ -168,7 +169,7 @@ final class LensGlowView: NSView {
 
             // A slow breath, out of step with the drift.
             let breath = CABasicAnimation(keyPath: "opacity")
-            breath.fromValue = 0.65
+            breath.fromValue = 0.75
             breath.toValue = 1
             breath.duration = glow.seconds / 4
             breath.autoreverses = true

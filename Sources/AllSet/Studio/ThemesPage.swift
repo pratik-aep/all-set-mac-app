@@ -146,10 +146,12 @@ struct ThemesPage: View {
 
     private var chips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: DS.Space.xs) {
-                ForEach(ThemeDiscovery.allCases) { item in
-                    FilterPill(title: item.title, symbol: item.symbol, isSelected: filter == item) {
-                        withMotion(Motion.quick) { discovery = item.rawValue }
+            GlassGroup {
+                HStack(spacing: DS.Space.xs) {
+                    ForEach(ThemeDiscovery.allCases) { item in
+                        FilterPill(title: item.title, symbol: item.symbol, isSelected: filter == item) {
+                            withMotion(Motion.quick) { discovery = item.rawValue }
+                        }
                     }
                 }
             }
