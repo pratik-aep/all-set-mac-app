@@ -99,7 +99,7 @@ struct GalleryPage: View {
     }
 }
 
-private struct GalleryCard: View {
+struct GalleryCard: View {
     let entry: CatalogEntry
     let services: AppServices
 

@@ -95,6 +95,22 @@ final class ThemePreviewCache {
 
     init(photos: ThemePhotos) {
         self.photos = photos
+        // Drawing a preview holds the main thread for a moment (a long one
+        // for a busy desktop); during a scroll that's a stall you can feel.
+        // So drawing waits while any scroll view is being scrolled.
+        let center = NotificationCenter.default
+        scrollObservers = [
+            center.addObserver(forName: NSScrollView.willStartLiveScrollNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.scrollsUnderWay += 1 }
+            },
+            center.addObserver(forName: NSScrollView.didEndLiveScrollNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.scrollsUnderWay = max(self.scrollsUnderWay - 1, 0)
+                    self.lastScrollEnd = CACurrentMediaTime()
+                }
+            },
+        ]
         // Pictures from older ways of drawing (or naming) previews never match again.
         let folder = folder, current = "-d\(Self.drawingVersion)-"
         Task.detached(priority: .background) {
@@ -234,6 +250,15 @@ final class ThemePreviewCache {
         inFlight.remove(name)
     }
 
+    @ObservationIgnored private var scrollObservers: [NSObjectProtocol] = []
+    @ObservationIgnored private var scrollsUnderWay = 0
+    @ObservationIgnored private var lastScrollEnd: CFTimeInterval = 0
+    /// Scrolling now, or stopped too recently for a stall to go unnoticed
+    /// (a flick keeps moving for a moment after the fingers lift).
+    private var isScrolling: Bool {
+        scrollsUnderWay > 0 || CACurrentMediaTime() - lastScrollEnd < 0.35
+    }
+
     @ObservationIgnored private var queue: [(name: String, set: ThemeSet, dark: Bool)] = []
     @ObservationIgnored private var drawing: Task<Void, Never>?
 
@@ -241,6 +266,8 @@ final class ThemePreviewCache {
         guard drawing == nil else { return }
         drawing = Task {
             while !queue.isEmpty {
+                while isScrolling { try? await Task.sleep(for: .milliseconds(120)) }
+                guard !queue.isEmpty else { break }
                 let (name, set, dark) = queue.removeFirst()
                 let asked = generation
                 if let image = await render(set, dark: dark, services: services) {
@@ -293,6 +320,8 @@ final class ThemePreviewCache {
         }) {
             try? await Task.sleep(for: .milliseconds(150))
         }
+        // Its pictures may have arrived mid-scroll; the drawing itself waits.
+        while isScrolling { try? await Task.sleep(for: .milliseconds(120)) }
         let size = CGSize(width: 568, height: 384)
         let view = ThemeComposition(set: set, widgets: widgets, services: services, dark: dark)
             .frame(width: size.width, height: size.height)

@@ -719,6 +719,9 @@ enum PageCPUProbe {
             let range = max(document.frame.height - clip.bounds.height, 0)
             var y: CGFloat = 0, step: CGFloat = 24
             var gaps: [Double] = []
+            // What a trackpad scroll announces, so work that waits for
+            // scrolling to stop sees this one.
+            NotificationCenter.default.post(name: NSScrollView.willStartLiveScrollNotification, object: scroll)
             let cpu = cpuSeconds(), begin = CACurrentMediaTime()
             var last = begin
             while CACurrentMediaTime() - begin < 6 {
@@ -732,6 +735,7 @@ enum PageCPUProbe {
                 last = now
             }
             let seconds = CACurrentMediaTime() - begin
+            NotificationCenter.default.post(name: NSScrollView.didEndLiveScrollNotification, object: scroll)
             gaps.sort()
             let p95 = gaps[min(gaps.count - 1, Int(Double(gaps.count) * 0.95))] * 1000
             print(String(format: "scroll %-10@ %5.1f%% CPU  frames %3d  p50 %4.1f ms  p95 %5.1f ms  max %5.1f ms  hitches(>33ms) %d  range %.0f pt",
@@ -739,6 +743,60 @@ enum PageCPUProbe {
                          gaps[gaps.count / 2] * 1000, p95, (gaps.last ?? 0) * 1000,
                          gaps.filter { $0 > 0.033 }.count, range))
             clip.scroll(to: .zero)
+        }
+        window.close()
+    }
+
+    /// How long a Gallery card takes to appear, whole and part by part:
+    /// what scrolling the Gallery pays for each new card.
+    static func runGalleryParts(services: AppServices) async {
+        try? await Task.sleep(for: .seconds(2))
+        let entries = Array(WidgetCatalog.entries.prefix(12))
+        let chipTitles = ["Photo", "Solid", "Frosted", "Outline", "Mesh", "Glass", "Art", "No Card", "Color", "Dark"]
+        func chips() -> some View {
+            HStack(spacing: 6) {
+                ForEach(chipTitles, id: \.self) { title in
+                    Text(title).font(.system(size: 11, weight: .semibold)).padding(.horizontal, 9).frame(height: 22)
+                        .background(Capsule().fill(.white.opacity(0.08)))
+                }
+            }
+        }
+        let parts: [(String, CGSize, (CatalogEntry) -> AnyView)] = [
+            ("card", CGSize(width: 320, height: 380), { AnyView(GalleryCard(entry: $0, services: services)) }),
+            ("backdrop", CGSize(width: 300, height: 220), { _ in AnyView(StudioBackdrop()) }),
+            ("widget", CGSize(width: 300, height: 220), {
+                AnyView(WidgetPreview(instance: $0.make(), services: services, fit: CGSize(width: 250, height: 190)))
+            }),
+            ("size picker", CGSize(width: 120, height: 30), { entry in
+                AnyView(Picker("Size", selection: .constant(entry.defaultSize)) {
+                    ForEach(entry.sizes) { Text($0.shortTitle).tag($0) }
+                }.pickerStyle(.segmented).labelsHidden().fixedSize())
+            }),
+            ("chips in scroll", CGSize(width: 300, height: 30), { _ in AnyView(ScrollView(.horizontal, showsIndicators: false) { chips() }) }),
+            ("chips plain", CGSize(width: 300, height: 30), { _ in AnyView(chips().frame(width: 300, alignment: .leading).clipped()) }),
+            ("add button", CGSize(width: 300, height: 40), { _ in
+                AnyView(Button {} label: { Label("Add to Desktop", systemImage: "plus").frame(maxWidth: .infinity) }.buttonStyle(.pillProminent))
+            }),
+        ]
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 400), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.alphaValue = 0.01
+        window.orderFrontRegardless()
+        for (name, size, make) in parts {
+            var times: [Double] = []
+            for entry in entries {
+                let start = CACurrentMediaTime()
+                let host = NSHostingView(rootView: make(entry).environment(\.colorScheme, .dark))
+                host.frame = CGRect(origin: .zero, size: size)
+                window.contentView = host
+                host.layoutSubtreeIfNeeded()
+                host.displayIfNeeded()
+                CATransaction.flush()
+                times.append(CACurrentMediaTime() - start)
+                try? await Task.sleep(for: .milliseconds(30))
+            }
+            times.sort()
+            print(String(format: "gallery part %-16@ median %6.1f ms  worst %6.1f ms", name as NSString,
+                         times[times.count / 2] * 1000, (times.last ?? 0) * 1000))
         }
         window.close()
     }

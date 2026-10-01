@@ -163,6 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case "wallpapers": await PageCPUProbe.runWallpapers(services: services)
                 case "island": await PageCPUProbe.runIslandViews(services: services)
                 case "scroll": await PageCPUProbe.runScroll(services: services)
+                case "galleryparts": await PageCPUProbe.runGalleryParts(services: services)
                 default:
                     await PageCPUProbe.run(pages: [("blank", .about), ("island", .island), ("activities", .activities),
                                                    ("gallery", .gallery(nil)), ("themes", .themes), ("wallpaper", .wallpaper), ("mixer", .mixer),
