@@ -289,13 +289,68 @@ struct GlassPanel<Content: View>: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         let padded = content.padding(padding)
+        // Regular glass over a dark picture in dark mode comes out as a near
+        // solid dark capsule. The clear kind lets the picture through, and the
+        // lit rim and faint sheen are what make it read as glass.
         if #available(macOS 26, *) {
-            padded.glassEffect(.regular, in: shape)
+            padded
+                .glassEffect(.clear, in: shape)
+                .overlay(GlassRim(shape: shape))
         } else {
             padded
                 .background(.ultraThinMaterial, in: shape)
-                .overlay(shape.strokeBorder(DS.Surface.hairline))
+                .background(shape.fill(Color.white.opacity(0.04)))
+                .overlay(GlassRim(shape: shape))
         }
+    }
+}
+
+/// Light catching a glass edge: bright at the top left, fading round the
+/// sides, a softer catch at the bottom right, over a faint sheen on the
+/// upper half. Static, so it costs nothing to draw.
+private struct GlassRim<S: InsettableShape>: View {
+    let shape: S
+
+    var body: some View {
+        ZStack {
+            shape.fill(LinearGradient(colors: [.white.opacity(0.07), .clear],
+                                      startPoint: .top, endPoint: .center))
+            shape.strokeBorder(LinearGradient(stops: [.init(color: .white.opacity(0.42), location: 0),
+                                                      .init(color: .white.opacity(0.10), location: 0.35),
+                                                      .init(color: .white.opacity(0.04), location: 0.65),
+                                                      .init(color: .white.opacity(0.18), location: 1)],
+                                              startPoint: .topLeading, endPoint: .bottomTrailing),
+                               lineWidth: 1)
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+// MARK: Motion
+
+extension View {
+    /// Comes in when it first appears: rises a little and fades up, after
+    /// `delay`. Opacity and offset only, so it's cheap; just a fade with
+    /// Reduce Motion on.
+    func entrance(delay: Double = 0, rise: CGFloat = 18) -> some View {
+        modifier(Entrance(delay: delay, rise: rise))
+    }
+}
+
+private struct Entrance: ViewModifier {
+    let delay: Double
+    let rise: CGFloat
+    @State private var shown = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown || Motion.reducesMotion ? 0 : rise)
+            .scaleEffect(shown || Motion.reducesMotion ? 1 : 0.985, anchor: .top)
+            .onAppear {
+                guard !shown else { return }
+                withAnimation(Motion.resolved(.spring(response: 0.5, dampingFraction: 0.86)).delay(delay)) { shown = true }
+            }
     }
 }
 

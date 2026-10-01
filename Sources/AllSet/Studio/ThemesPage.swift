@@ -413,9 +413,11 @@ struct ThemeDetailPage: View {
                             Label("Themes", systemImage: "chevron.left")
                         }
                         .buttonStyle(.pill)
-                        hero(set)
-                        titleRow(set)
-                        actions(set)
+                        // Opening a theme: the desktop rises in, then its
+                        // name, then what you can do with it.
+                        hero(set).entrance(rise: 28)
+                        titleRow(set).entrance(delay: 0.08)
+                        actions(set).entrance(delay: 0.14)
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 360), spacing: DS.Space.xl, alignment: .top)],
                                   alignment: .leading, spacing: DS.Space.xl) {
                             about(set)
@@ -427,6 +429,7 @@ struct ThemeDetailPage: View {
                             // setups would all read "Calm".
                             if set.designTheme != nil { motion(set) }
                         }
+                        .entrance(delay: 0.2)
                         research(set)
                     }
                     .padding(.horizontal, DS.Space.pageMargin(for: geometry.size.width))

@@ -95,7 +95,7 @@ struct LiveWallpaperPage: View {
                     .accessibilityHidden(true)
                 LibraryDetailSheet(video: video, store: store, images: services.images, deleteKind: deleteKind(for: video)) {
                     services.pickWallpaper(.library(video.id))
-                    detailVideo = nil
+                    withMotion(Motion.standard) { detailVideo = nil }
                 } onClose: {
                     withMotion(Motion.standard) { detailVideo = nil }
                 }
@@ -132,6 +132,9 @@ private struct WallpaperHero: View {
     /// Plays for a moment when the page opens, then whenever the pointer is on it.
     @State private var isIntroPlaying = true
     @State private var isHovering = false
+    /// A brief dip to dark when the wallpaper changes, so the new one fades
+    /// up instead of cutting in (one player at a time, never two).
+    @State private var dip = 0.0
 
     var body: some View {
         let store = services.wallpaper
@@ -144,6 +147,17 @@ private struct WallpaperHero: View {
             WallpaperView(config: { var preview = config; preview.frameRate = min(config.frameRate, 24); return preview }(),
                           services: services)
                 .environment(\.widgetIsVisible, isIntroPlaying || isHovering)
+                .overlay(Color.black.opacity(dip).allowsHitTesting(false))
+                .onChange(of: config.source) {
+                    guard !Motion.reducesMotion else { return }
+                    dip = 0.85
+                    isIntroPlaying = true
+                    withAnimation(.easeOut(duration: 0.55).delay(0.08)) { dip = 0 }
+                    Task {
+                        try? await Task.sleep(for: .seconds(4))
+                        isIntroPlaying = false
+                    }
+                }
         } actions: {
             Button {
                 withMotion(Motion.quick) { store.config.isEnabled.toggle() }
@@ -422,7 +436,7 @@ private struct LibrarySection: View {
                                         isCurrent: store.config.source == .library(video.id), deleteKind: deleteKind(for: video)) {
                                 services.pickWallpaper(.library(video.id))
                             } onShowDetails: {
-                                detailVideo = video
+                                withMotion(Motion.responsive) { detailVideo = video }
                             }
                         }
                     }

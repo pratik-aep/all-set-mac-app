@@ -105,31 +105,41 @@ struct MainView: View {
     var body: some View {
         GeometryReader { geometry in
             let margin = DS.Space.pageMargin(for: geometry.size.width)
-            detail(ui.page ?? .island)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    VStack(spacing: 0) {
-                        FloatingNav(services: services, ui: ui, margin: margin)
-                        if let error = services.widgets.saveError {
-                            Label("Your widget layout couldn't be saved: \(error)", systemImage: "exclamationmark.triangle.fill")
-                                .dsText(.body)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, DS.Space.m)
-                                .padding(.vertical, DS.Space.xs)
-                                .background(RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous).fill(Color.orange.opacity(0.22)))
-                                .padding(.horizontal, margin)
-                                .padding(.bottom, DS.Space.xs)
-                                .accessibilityAddTraits(.isStaticText)
-                        }
+            // Pages cross-fade, the new one settling in from a touch smaller:
+            // opening a theme or switching section moves instead of cutting.
+            // The navigation stays put above it.
+            ZStack {
+                detail(ui.page ?? .island)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .id(ui.page)
+                    .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.985)),
+                                            removal: .opacity))
+            }
+            .animation(Motion.resolved(.smooth(duration: 0.32)), value: ui.page)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    FloatingNav(services: services, ui: ui, margin: margin)
+                    if let error = services.widgets.saveError {
+                        Label("Your widget layout couldn't be saved: \(error)", systemImage: "exclamationmark.triangle.fill")
+                            .dsText(.body)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, DS.Space.m)
+                            .padding(.vertical, DS.Space.xs)
+                            .background(RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous).fill(Color.orange.opacity(0.22)))
+                            .padding(.horizontal, margin)
+                            .padding(.bottom, DS.Space.xs)
+                            .accessibilityAddTraits(.isStaticText)
                     }
                 }
-                .overlay(alignment: .bottom) {
-                    if let removed = ui.removedWidget {
-                        RemovedWidgetBar(removed: removed, services: services)
-                            .padding(.bottom, DS.Space.l)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
+            }
+            .overlay(alignment: .bottom) {
+                if let removed = ui.removedWidget {
+                    RemovedWidgetBar(removed: removed, services: services)
+                        .padding(.bottom, DS.Space.l)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+            }
         }
         .background(WindowBackdrop(paused: ui.performance.pausesDecorativeMotion))
         .environment(ui)
