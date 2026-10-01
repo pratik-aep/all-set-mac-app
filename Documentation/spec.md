@@ -3,12 +3,13 @@
 _Living document. If anything discovered later contradicts it, it is updated in
 the same checkpoint and the change is logged in `report.md`._
 
-_Last updated: 2026-09-29 (fourth source folder merged, crossfade fix)._
+_Last updated: 2026-10-01 (where the Library lives after the main-window redesign)._
 
 ## What this covers
-The Library in **Live Wallpaper → My Videos**: the user's own wallpaper
-collection, imported from a Wallpaper Engine folder. It does not cover the
-aerial, art, photo or My Photos tabs.
+The Library in **Desktop → Wallpaper → My Videos** (the main window's
+floating navigation, since 2026-09-30): the user's own wallpaper collection,
+imported from a Wallpaper Engine folder. It does not cover the page's other
+sources (Aerial Videos, Art).
 
 ## Who it's for
 One person, on their own Mac, using wallpapers they already own.

@@ -6,53 +6,35 @@ log; it never needs reading in full.
 ---
 
 ## CURRENT STATE
-_(overwritten every checkpoint — 2026-09-29, library UI: sizes, preview fix, two deletes)_
+_(overwritten every checkpoint — 2026-10-01, docs synced after the main-window redesign)_
 
 ### Working right now (verified only)
-- **File size** shown on every tile and in the new detail sheet.
-- **Preview, fixed at the root cause**: hover never fetches (silent, cheap,
-  shows "tap to preview" if not local — was silently blank for almost the
-  whole library after offloading); tap opens a new bottom-up
-  `LibraryDetailSheet` (title, category, resolution, size, duration/fps,
-  rights note, a bigger preview) which *does* fetch, same
-  `fetchLibraryVideoRetrying` + progress bar already proven.
-- **"Owned" filter**: chip next to All/Live/Stills — wallpapers with a
-  local copy right now. Delete behaviour is decided by this filter, not the
-  tile: Owned → offload only (`offloadAll(only: [id])`, stays on the server
-  and in the catalog); everywhere else → permanent, admin-gated.
-- **Permanent delete now reaches the database and the server**, not just
-  this Mac. New `WallpaperStore.deleteEverywhere(id)`: local cleanup first
-  (unconditional, already proven), then a call to a new server-side delete
-  API. Gated by `AdminGate` (Touch ID, falling back to the Mac password —
-  `LAContext`, first use of `LocalAuthentication` in this app) *before*
-  either deletion runs.
-- **New server-side `scripts/cloud/delete_service.py`**: stdlib
-  `http.server`, bound to `127.0.0.1` on the server (not the Tailscale
-  interface — reached only through the SSH tunnel, `tunnel.sh` now forwards
-  its port too), bearer-token auth (`~/.allset_delete_token` server-side,
-  this Mac's Keychain client-side via new `DeleteAPIKeychain`), rejects any
-  path resolving outside `~/AllSetStorage/wallpapers/`. Three layers before
-  anything is deleted: SSH key, bearer token, Touch ID.
-- **Real end-to-end proof** (not just unit tests): built a genuine
-  disposable wallpaper — real file, real catalog entry, real row inserted
-  in Postgres, real file pushed to the server — then called
-  `deleteEverywhere` for real and independently confirmed all four were
-  gone (local file, catalog entry, server file, database row).
-  **Not personally verified**: the Touch ID/password prompt itself — I
-  can't complete a biometric or type the Mac's login password. The
-  mechanics it gates are proven; the prompt appearing and working is for
-  the user to confirm once.
-- 227 tests pass (5 new), 0 warnings, app rebuilt and relaunched.
+- **The main-window redesign is merged** (`main` = `e92ba9e`). For the
+  Library it changed **where it lives and how it's dressed, not what it
+  does**: it is the **My Videos** source pill on the Wallpaper page
+  (Desktop → Wallpaper in the floating navigation), under the page's live
+  hero, with the shared design-system header, pills and tile radius.
+- **Checked against the code, feature by feature** (2026-10-01), all still
+  present in `WallpaperPages.swift`: file size on tiles and in
+  `LibraryDetailSheet`, "Tap to preview" when not local (hover never
+  fetches), the Owned filter, `LibraryTile.DeleteKind`
+  (`.offloadOnly` / `.permanent`), `AdminGate` before `deleteEverywhere`,
+  `fetchLibraryVideoRetrying`, Free Up Space.
+- **CI on `e92ba9e`**: build with 0 warnings, **239 tests pass**, and the
+  page renders (`wallpaper-videos-*.jpg` on the `ci-screenshots` branch, at
+  900×600, 1280×800 and 1728×1080). CI has no library catalog, so they show
+  the My Videos source and its empty drop zone, never Library tiles: the
+  Library's look after the redesign is **not yet seen with real wallpapers**.
+- Everything below this line from the 2026-09-29 checkpoint still stands
+  (no Library logic changed since): sizes, the detail sheet's fetch, the
+  Owned filter, and permanent delete reaching this Mac, the server file
+  and the Postgres row, proven end to end then.
+  **Still not personally verified**: the Touch ID/password prompt itself.
 
 ### Files touched this checkpoint
-- `Sources/AllSet/Wallpaper/WallpaperPages.swift` — size, tap→detail sheet,
-  `LibraryDetailSheet` (new), Owned chip, `LibraryTile.DeleteKind`,
-  hover-preview fix.
-- `Sources/AllSetCore/Wallpaper/WallpaperStore.swift` — `deleteEverywhere`,
-  `deleteServiceURL`/`deleteServiceToken` (instance, overridable for tests).
-- `Sources/AllSetCore/Support/AdminGate.swift`,
-  `Sources/AllSetCore/Wallpaper/DeleteAPIKeychain.swift` — new.
-- `scripts/cloud/delete_service.py` (new), `tunnel.sh` (second forward).
+- `Documentation/spec.md` — where the Library lives; the My Photos tab is gone.
+- `Documentation/report.md` — this block and one HISTORY line.
+- No code.
 
 ### Known issues / blockers
 - `delete_service.py` isn't a launchd service yet — started by hand on the
@@ -65,8 +47,9 @@ _(overwritten every checkpoint — 2026-09-29, library UI: sizes, preview fix, t
   server URL; the SSH key has no passphrase.
 
 ### Next step
-Awaiting the user: try the real delete button once (Touch ID prompt is the
-one thing not self-verified), or any of the known issues above.
+Unchanged, still waiting on the user: try the real delete button once (the
+Touch ID prompt is the one thing not self-verified), or pick one of the known
+issues above.
 
 ---
 
@@ -185,3 +168,4 @@ Result: no code changes needed; docs now agree with reality.
   retry logic outside the UI and confirmed it was never broken, just slow
   - no code change needed. Repair job still running server-side (~1000/1164
   done); re-sync again once it finishes.
+- Main-window redesign merged (floating navigation; Library now Desktop → Wallpaper → My Videos); Library features checked present, 239 tests, docs synced — docs only
