@@ -277,7 +277,10 @@ struct PreviewCanvas<Content: View>: View {
 // MARK: Surfaces
 
 /// Translucent glass for things that float over content: navigation,
-/// overlays, sheets. Not for cards or lists.
+/// overlays, sheets. Apple's Liquid Glass on macOS 26. Never for anything
+/// that scrolls with the page: glass re-samples what's behind it every frame
+/// it moves, which tripled scrolling CPU in the probe when every pill and
+/// button was glass. Not for cards or lists either.
 struct GlassPanel<Content: View>: View {
     var cornerRadius: CGFloat = DS.Radius.panel
     var padding: CGFloat = DS.Space.l
@@ -292,39 +295,6 @@ struct GlassPanel<Content: View>: View {
             padded
                 .background(.ultraThinMaterial, in: shape)
                 .overlay(shape.strokeBorder(DS.Surface.hairline))
-        }
-    }
-}
-
-/// Apple's Liquid Glass for one control that floats over content (a pill,
-/// a button, the search field): it bends and tints what's behind it and
-/// answers the pointer. `tint` makes it the prominent kind. Before macOS 26,
-/// the quiet fill these controls always had. Cards and lists stay solid:
-/// glass is for the layer you act with, not the content.
-extension View {
-    @ViewBuilder
-    func dsGlass<S: Shape>(_ shape: S, tint: Color? = nil, fallback: Color, hairline: Bool = false) -> some View {
-        if #available(macOS 26, *) {
-            glassEffect((tint.map { Glass.regular.tint($0) } ?? .regular).interactive(), in: shape)
-        } else {
-            background(shape.fill(fallback))
-                .overlay { if hairline { shape.stroke(DS.Surface.hairline) } }
-        }
-    }
-}
-
-/// A row of glass controls drawn as one: the system samples what's behind
-/// them once, and neighbours blend into each other as they do in Apple's
-/// own toolbars. A plain container before macOS 26.
-struct GlassGroup<Content: View>: View {
-    var spacing: CGFloat = DS.Space.xs
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        if #available(macOS 26, *) {
-            GlassEffectContainer(spacing: spacing) { content }
-        } else {
-            content
         }
     }
 }
@@ -352,7 +322,7 @@ struct PillButtonStyle: ButtonStyle {
                 .foregroundStyle(prominent ? Color.black.opacity(0.88) : DS.Ink.primary)
                 .padding(.horizontal, DS.Space.m)
                 .frame(height: 34)
-                .dsGlass(Capsule(), tint: prominent ? .white.opacity(0.9) : nil, fallback: fill)
+                .background(Capsule().fill(fill))
                 .opacity(isEnabled ? 1 : 0.45)
                 .scaleEffect(configuration.isPressed ? 0.96 : 1)
                 .contentShape(Capsule())
@@ -376,7 +346,8 @@ struct FloatingButtonStyle: ButtonStyle {
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(DS.Ink.primary)
             .frame(width: diameter, height: diameter)
-            .dsGlass(Circle(), fallback: .black.opacity(configuration.isPressed ? 0.6 : 0.42), hairline: true)
+            .background(Circle().fill(.black.opacity(configuration.isPressed ? 0.6 : 0.42)))
+            .overlay(Circle().strokeBorder(DS.Surface.hairline))
             .scaleEffect(configuration.isPressed ? 0.92 : 1)
             .contentShape(Circle())
             .motion(Motion.press, value: configuration.isPressed)
@@ -409,8 +380,7 @@ struct FilterPill: View {
             .foregroundStyle(isSelected ? Color.black.opacity(0.88) : DS.Ink.secondary)
             .padding(.horizontal, DS.Space.s)
             .frame(height: 28)
-            .dsGlass(Capsule(), tint: isSelected ? .white.opacity(0.9) : nil,
-                     fallback: isSelected ? Color.white.opacity(0.92) : DS.Surface.raised)
+            .background(Capsule().fill(isSelected ? Color.white.opacity(0.92) : DS.Surface.raised))
             .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())
@@ -438,7 +408,8 @@ struct SearchField: View {
         .font(.system(size: 13))
         .padding(.horizontal, DS.Space.s)
         .frame(height: 34)
-        .dsGlass(Capsule(), fallback: DS.Surface.raised, hairline: true)
+        .background(Capsule().fill(DS.Surface.raised))
+        .overlay(Capsule().strokeBorder(DS.Surface.hairline))
     }
 }
 

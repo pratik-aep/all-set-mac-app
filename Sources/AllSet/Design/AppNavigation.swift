@@ -225,8 +225,10 @@ struct FloatingNav: View {
     /// The section's pages, centred when they fit and scrolling when not.
     private var pages: some View {
         let items = NavItem.items(in: section, services: services)
-        let row = GlassGroup {
-            HStack(spacing: DS.Space.xs) {
+        // One glass capsule for the whole row, like an Apple segmented
+        // control: a single surface to sample, not one per pill.
+        let row = GlassPanel(cornerRadius: 18, padding: 3) {
+            HStack(spacing: 2) {
                 ForEach(items) { item in
                     PagePill(item: item, isSelected: item.matches(page)) {
                         withMotion(Motion.quick) { ui.page = item.page }
@@ -279,8 +281,7 @@ private struct PagePill: View {
             .foregroundStyle(isSelected ? Color.black.opacity(0.88) : DS.Ink.secondary)
             .padding(.horizontal, DS.Space.s)
             .frame(height: 28)
-            .dsGlass(Capsule(), tint: isSelected ? .white.opacity(0.9) : nil,
-                     fallback: isSelected ? Color.white.opacity(0.92) : DS.Surface.raised)
+            .background { if isSelected { Capsule().fill(Color.white.opacity(0.92)) } }
             .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())

@@ -76,15 +76,13 @@ struct GalleryPage: View {
     /// Every category a click away, so a category page never strands you.
     private var categoryPills: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            GlassGroup {
-                HStack(spacing: DS.Space.xs) {
-                    FilterPill(title: "All", symbol: "square.grid.2x2.fill", isSelected: category == nil) {
-                        services.ui.page = .gallery(nil)
-                    }
-                    ForEach(WidgetCategory.allCases) { item in
-                        FilterPill(title: item.title, symbol: item.symbol, isSelected: category == item) {
-                            services.ui.page = .gallery(item)
-                        }
+            HStack(spacing: DS.Space.xs) {
+                FilterPill(title: "All", symbol: "square.grid.2x2.fill", isSelected: category == nil) {
+                    services.ui.page = .gallery(nil)
+                }
+                ForEach(WidgetCategory.allCases) { item in
+                    FilterPill(title: item.title, symbol: item.symbol, isSelected: category == item) {
+                        services.ui.page = .gallery(item)
                     }
                 }
             }

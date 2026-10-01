@@ -108,12 +108,10 @@ struct LiveWallpaperPage: View {
 
     /// Where to look for a wallpaper: one row of pills, the chosen one filled.
     private var sourceBar: some View {
-        GlassGroup {
-            HStack(spacing: DS.Space.xs) {
-                ForEach(Tab.allCases) { item in
-                    FilterPill(title: item.title, symbol: item.symbol, isSelected: tab == item) {
-                        withMotion(Motion.quick) { tab = item }
-                    }
+        HStack(spacing: DS.Space.xs) {
+            ForEach(Tab.allCases) { item in
+                FilterPill(title: item.title, symbol: item.symbol, isSelected: tab == item) {
+                    withMotion(Motion.quick) { tab = item }
                 }
             }
         }
@@ -944,27 +942,25 @@ private struct AerialsSection: View {
                     .labelsHidden()
                     .fixedSize()
                 }
-                GlassGroup {
-                    HStack(spacing: DS.Space.xs) {
-                        FilterPill(title: "All", symbol: "sparkles", isSelected: category == nil) {
-                            withMotion(Motion.quick) { category = nil }
+                HStack(spacing: DS.Space.xs) {
+                    FilterPill(title: "All", symbol: "sparkles", isSelected: category == nil) {
+                        withMotion(Motion.quick) { category = nil }
+                    }
+                    ForEach(kinds) { kind in
+                        FilterPill(title: kind.title, symbol: kind.symbol, isSelected: category == kind) {
+                            withMotion(Motion.quick) { category = kind }
                         }
-                        ForEach(kinds) { kind in
-                            FilterPill(title: kind.title, symbol: kind.symbol, isSelected: category == kind) {
-                                withMotion(Motion.quick) { category = kind }
-                            }
-                        }
-                        Spacer(minLength: DS.Space.s)
-                        if !downloaded.isEmpty {
-                            Menu("\(downloaded.count) downloaded") {
-                                Button("Delete Downloads Not in Use", role: .destructive) {
-                                    for name in downloaded where store.config.source != .video(name) {
-                                        store.deleteVideo(name)
-                                    }
+                    }
+                    Spacer(minLength: DS.Space.s)
+                    if !downloaded.isEmpty {
+                        Menu("\(downloaded.count) downloaded") {
+                            Button("Delete Downloads Not in Use", role: .destructive) {
+                                for name in downloaded where store.config.source != .video(name) {
+                                    store.deleteVideo(name)
                                 }
                             }
-                            .fixedSize()
                         }
+                        .fixedSize()
                     }
                 }
             }

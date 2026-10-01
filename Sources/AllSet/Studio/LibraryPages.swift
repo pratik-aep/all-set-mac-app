@@ -244,12 +244,10 @@ private struct PaletteFilter: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            GlassGroup {
-                HStack(spacing: DS.Space.xs) {
-                    chip(title: "All Palettes", colors: [.white.opacity(0.5), .white.opacity(0.15)], value: nil)
-                    ForEach(ArtPalette.allCases) { palette in
-                        chip(title: palette.title, colors: palette.colors[2...4].map { Color($0) }, value: palette)
-                    }
+            HStack(spacing: DS.Space.xs) {
+                chip(title: "All Palettes", colors: [.white.opacity(0.5), .white.opacity(0.15)], value: nil)
+                ForEach(ArtPalette.allCases) { palette in
+                    chip(title: palette.title, colors: palette.colors[2...4].map { Color($0) }, value: palette)
                 }
             }
             .padding(.vertical, 2)
@@ -273,8 +271,7 @@ private struct PaletteFilter: View {
             .padding(.leading, DS.Space.xs)
             .padding(.trailing, DS.Space.s)
             .frame(height: 28)
-            .dsGlass(Capsule(), tint: isSelected ? .white.opacity(0.9) : nil,
-                     fallback: isSelected ? Color.white.opacity(0.92) : DS.Surface.raised)
+            .background(Capsule().fill(isSelected ? Color.white.opacity(0.92) : DS.Surface.raised))
             .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())
