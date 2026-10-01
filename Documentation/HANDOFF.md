@@ -39,6 +39,8 @@ Run DEBUG tools as `.build-probe/release/AllSet <flag> -skip window,wallpaper,wi
 
 **`-probe <name>`** prints numbers:
 
+CI's `probe` job runs `scroll`, `pages` and `galleryparts` on every push (debug build) and puts the numbers in the run summary.
+
 | Name | Measures |
 |---|---|
 | `islandmotion` | Frames lost per open, tab switch and close; `COLD=1` skips the warm-up |
@@ -52,6 +54,8 @@ Run DEBUG tools as `.build-probe/release/AllSet <flag> -skip window,wallpaper,wi
 | `reveal` | Theme reveal cost |
 | `windowserver` | WindowServer CPU |
 | `pages` | Page CPU (the default when no name is given) |
+| `scroll` | Themes, Gallery, Art and Wallpaper scrolled a step a frame, twice each (first sight, then warm): CPU, frame gaps, worst stall. Holds off App Nap and posts live-scroll notifications like a trackpad. On a GPU-less CI VM frame gaps sit near 80 ms on every page (the window server, not the app): compare CPU and the worst stall |
+| `galleryparts` | Build time of one Gallery card and of each of its parts |
 | `windowclose` | Monitor viewers, CPU and footprint around opening and closing the main window (Themes page) |
 | `covered` | A widget visible vs. covered; `ENTRY=`/`SIZE=` pick it |
 | `desktopwidgets` | Each of the user's desktop widgets alone; `ONLY_KIND=`, `SECONDS=` |
@@ -72,7 +76,7 @@ Run DEBUG tools as `.build-probe/release/AllSet <flag> -skip window,wallpaper,wi
 | `-renderWallpaperLibrary` | My Videos with the imported library |
 | `-renderPages` | Every main-window page at 900×600, 1280×800, 1728×1080 (`-pages a,b`, `-pageSizes WxH,…`). CI runs it on every push and force-pushes the latest set as JPEGs to the `ci-screenshots` branch (`git fetch origin ci-screenshots`) |
 
-**Design system (2026-09-30):** the main window is always dark. Tokens and shared components are in `Sources/AllSet/Design/` (`DS.Space`, `DS.Radius`, `DS.Ink`, `DS.Surface`, `.dsText(role)`, `.dsFormStyle()`, `PageScaffold`, `PageHeader`, `HeroSection`, `MediaCard`, `MediaRail`, `GlassPanel`, `.pill`/`.pillProminent`/`.floating`, `FilterPill`, `SearchField`, `EmptyState`, `FlowLayout`, `FormPage(eyebrow:title:subtitle:lead:content:)`). New or reworked pages use these instead of literals. Navigation is `FloatingNav` (`Design/AppNavigation.swift`): `NavSection.of(page)` maps every `AppPage` to one of five places, and `NavItem.items(in:)` lists each place's pages; a new page needs a case in both. The window has no visible title bar (`MainWindowController.dress`), so every page names itself with a `PageHeader` or `FormPage` title.
+**Design system (2026-09-30):** the main window is always dark. Tokens and shared components are in `Sources/AllSet/Design/` (`DS.Space`, `DS.Radius`, `DS.Ink`, `DS.Surface`, `.dsText(role)`, `.dsFormStyle()`, `PageScaffold`, `PageHeader`, `HeroSection`, `MediaCard`, `MediaRail`, `GlassPanel`, `.pill`/`.pillProminent`/`.floating`, `FilterPill`, `SearchField`, `EmptyState`, `FlowLayout`, `FormPage(eyebrow:title:subtitle:lead:content:)`). New or reworked pages use these instead of literals. **Backdrop (2026-10-01):** the window draws one `WindowBackdrop` (`Design/WindowBackdrop.swift`): a deep navy canvas and four blue glows drifting on Core Animation layers, frozen by `PerformancePolicy.pausesDecorativeMotion` and while the window is occluded. Pages don't paint a background over it (`AppBackground` is only an accent glow); keep page and list backgrounds transparent. Pages that lead with media use `BleedScrollPage` with `HeroSection(bleed:)`: the hero runs under the navigation and fades into the backdrop, and sets `UIState.mediaUnderNavigation` so the navigation drops its fade. Navigation is `FloatingNav` (`Design/AppNavigation.swift`): `NavSection.of(page)` maps every `AppPage` to one of five places, and `NavItem.items(in:)` lists each place's pages; a new page needs a case in both. The window has no visible title bar (`MainWindowController.dress`), so every page names itself with a `PageHeader` or `FormPage` title.
 
 **Scratchpad helpers** (session temp directory; they may be gone): `sheetL out.jpg cols files…` makes a contact sheet (sizes from the `CW`/`CH` environment variables); `load.sh` reads WindowServer load.
 

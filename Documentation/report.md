@@ -9,6 +9,12 @@ log; it never needs reading in full.
 _(overwritten every checkpoint — 2026-10-01, docs synced after the main-window redesign)_
 
 ### Working right now (verified only)
+- **2026-10-01, backdrop and full-bleed heroes:** the Wallpaper page (where
+  My Videos and the Library live) now opens on a full-bleed hero under the
+  navigation, over a navy backdrop with drifting blue light. **No Library
+  code changed**; the sources and Library sit below the hero as before.
+  CI green on `928c3fd` (0 warnings, all tests). Idle CPU of plain pages
+  unchanged with the moving backdrop (0.5–1.4% in the CI probe).
 - **The main-window redesign is merged** (`main` = `e92ba9e`). For the
   Library it changed **where it lives and how it's dressed, not what it
   does**: it is the **My Videos** source pill on the Wallpaper page
@@ -169,3 +175,4 @@ Result: no code changes needed; docs now agree with reality.
   - no code change needed. Repair job still running server-side (~1000/1164
   done); re-sync again once it finishes.
 - Main-window redesign merged (floating navigation; Library now Desktop → Wallpaper → My Videos); Library features checked present, 239 tests, docs synced — docs only
+- Backdrop with drifting blue light, full-bleed heroes (Wallpaper, Themes, Art), theme previews wait while scrolling; scroll/galleryparts probes in CI — `3dc4479`, `928c3fd`
