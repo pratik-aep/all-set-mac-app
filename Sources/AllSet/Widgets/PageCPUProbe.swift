@@ -733,18 +733,6 @@ enum PageCPUProbe {
         window.close()
     }
 
-    private static func tallestScrollView(in view: NSView?) -> NSScrollView? {
-        guard let view else { return nil }
-        var best = view as? NSScrollView
-        for child in view.subviews {
-            if let found = tallestScrollView(in: child),
-               (found.documentView?.frame.height ?? 0) > (best?.documentView?.frame.height ?? 0) {
-                best = found
-            }
-        }
-        return best
-    }
-
     private static func measure(_ name: String, seconds: Double) async {
         let start = cpuSeconds()
         let startSystem = systemSeconds()
