@@ -162,6 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case "gallery": await PageCPUProbe.run(pages: WidgetCategory.allCases.map { ("gallery \($0.rawValue)", .gallery($0)) }, services: services)
                 case "wallpapers": await PageCPUProbe.runWallpapers(services: services)
                 case "island": await PageCPUProbe.runIslandViews(services: services)
+                case "scroll": await PageCPUProbe.runScroll(services: services)
                 default:
                     await PageCPUProbe.run(pages: [("blank", .about), ("island", .island), ("activities", .activities),
                                                    ("gallery", .gallery(nil)), ("themes", .themes), ("wallpaper", .wallpaper), ("mixer", .mixer),

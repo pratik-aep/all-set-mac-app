@@ -682,6 +682,69 @@ enum PageCPUProbe {
         ], services: services)
     }
 
+    /// Scrolls the busiest pages of the real main window up and down, a
+    /// step every frame, and reports how often the main thread missed a
+    /// frame: the smoothness a person feels, as numbers CI can compare.
+    static func runScroll(services: AppServices) async {
+        let window = NSWindow(contentRect: NSRect(x: 40, y: 40, width: 1280, height: 800),
+                              styleMask: [.titled, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+        MainWindowController.dress(window)
+        window.alphaValue = 0.01
+        window.ignoresMouseEvents = true
+        window.level = .floating
+        window.isReleasedWhenClosed = false
+        let controller = NSHostingController(rootView: MainView(services: services, ui: services.ui))
+        controller.sizingOptions = []
+        window.contentViewController = controller
+        window.setContentSize(NSSize(width: 1280, height: 800))
+        window.orderFrontRegardless()
+        for (name, page) in [("themes", AppPage.themes), ("gallery", .gallery(nil)), ("art", .art), ("wallpaper", .wallpaper)] {
+            services.ui.page = page
+            try? await Task.sleep(for: .seconds(5))
+            guard let scroll = tallestScrollView(in: window.contentView), let document = scroll.documentView else {
+                print(String(format: "scroll %-10@ no scroll view", name as NSString))
+                continue
+            }
+            let clip = scroll.contentView
+            let range = max(document.frame.height - clip.bounds.height, 0)
+            var y: CGFloat = 0, step: CGFloat = 24
+            var gaps: [Double] = []
+            let cpu = cpuSeconds(), begin = CACurrentMediaTime()
+            var last = begin
+            while CACurrentMediaTime() - begin < 6 {
+                y += step
+                if y > range || y < 0 { step = -step; y = min(max(y, 0), range) }
+                clip.scroll(to: NSPoint(x: 0, y: y))
+                scroll.reflectScrolledClipView(clip)
+                try? await Task.sleep(for: .milliseconds(16))
+                let now = CACurrentMediaTime()
+                gaps.append(now - last)
+                last = now
+            }
+            let seconds = CACurrentMediaTime() - begin
+            gaps.sort()
+            let p95 = gaps[min(gaps.count - 1, Int(Double(gaps.count) * 0.95))] * 1000
+            print(String(format: "scroll %-10@ %5.1f%% CPU  frames %3d  p50 %4.1f ms  p95 %5.1f ms  max %5.1f ms  hitches(>33ms) %d  range %.0f pt",
+                         name as NSString, (cpuSeconds() - cpu) / seconds * 100, gaps.count,
+                         gaps[gaps.count / 2] * 1000, p95, (gaps.last ?? 0) * 1000,
+                         gaps.filter { $0 > 0.033 }.count, range))
+            clip.scroll(to: .zero)
+        }
+        window.close()
+    }
+
+    private static func tallestScrollView(in view: NSView?) -> NSScrollView? {
+        guard let view else { return nil }
+        var best = view as? NSScrollView
+        for child in view.subviews {
+            if let found = tallestScrollView(in: child),
+               (found.documentView?.frame.height ?? 0) > (best?.documentView?.frame.height ?? 0) {
+                best = found
+            }
+        }
+        return best
+    }
+
     private static func measure(_ name: String, seconds: Double) async {
         let start = cpuSeconds()
         let startSystem = systemSeconds()
