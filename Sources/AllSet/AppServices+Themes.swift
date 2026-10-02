@@ -70,6 +70,7 @@ extension AppServices {
         if setsWallpaper, let source = set.wallpaper { wallpaper.set(source) }
         settings.adopt(set)
         ui.desktopUndo = DesktopUndo(change: .theme(set.name), before: before)
+        ui.toast = Toast(message: "\(set.name) is on your desktop", symbol: "wand.and.stars")
         return true
     }
 
@@ -122,6 +123,7 @@ extension AppServices {
         settings.resetWidgetLook()
         ui.isArrangingWidgets = false
         ui.desktopUndo = DesktopUndo(change: .turnedOff(name), before: before)
+        ui.toast = Toast(message: "\(name) is off", symbol: "power")
     }
 
     /// A wallpaper the person picked, as opposed to one a theme brought: the

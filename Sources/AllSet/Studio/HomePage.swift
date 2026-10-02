@@ -23,6 +23,13 @@ struct HomePage: View {
                     ThemeSetCard(set: set, services: services)
                 }
             }
+            if !favorites.isEmpty {
+                rail("Your Favorites", subtitle: "\(favorites.count) themes", more: .themes) {
+                    MediaRail(items: favorites, cardWidth: 300) { set in
+                        ThemeSetCard(set: set, services: services)
+                    }
+                }
+            }
             rail("Popular Widgets", subtitle: "\(WidgetCatalog.entries.count) in the gallery", more: .gallery(nil)) {
                 MediaRail(items: Array(WidgetCatalog.entries.prefix(12)), cardWidth: 220) { entry in
                     GalleryCard(entry: entry, services: services)
@@ -40,6 +47,8 @@ struct HomePage: View {
             }
         }
     }
+
+    private var favorites: [ThemeSet] { ThemeDiscovery.favorites.sets(stats: services.themeStats) }
 
     private static let artPicks: [ArtPiece] = ArtStyle.allCases.enumerated().map { ArtPiece(style: $1, palette: ArtPalette.allCases[($0 * 3) % ArtPalette.allCases.count]) }
 
