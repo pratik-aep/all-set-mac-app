@@ -9,7 +9,7 @@ _Last updated: 2026-10-01 (where the Library lives after the main-window redesig
 The Library in **Desktop → Wallpaper → My Videos** (the main window's
 floating navigation, since 2026-09-30): the user's own wallpaper collection,
 imported from a Wallpaper Engine folder. It does not cover the page's other
-sources (Aerial Videos, Art).
+sources (Aerial Videos, Art, My Videos). Pages swap at once under a Core Animation fade; the Gallery is one flat lazy list of exact-height card rows.
 
 ## Who it's for
 One person, on their own Mac, using wallpapers they already own.

@@ -10,6 +10,10 @@ final class UIState {
     /// Which source the Live Wallpaper page opens on.
     var wallpaperTab = LiveWallpaperPage.Tab.aerials
     var isArrangingWidgets = false
+    /// ⌘K is open.
+    var isSearching = false
+    /// The confirmation floating at the top of the window, if any.
+    var toast: Toast?
     /// The full-bleed hero under the navigation right now, if one is: the
     /// navigation drops its fade so the picture runs to the top.
     var mediaUnderNavigation: UUID?
@@ -310,13 +314,18 @@ final class AppServices {
 
 extension AppServices {
     /// A screen's visible area in layout points: divided by the widget size.
+    /// How large widgets are drawn on a display: its own size, else the desktop-wide one.
+    func widgetScale(on screen: NSScreen?) -> Double {
+        settings.widgetScale(for: screen?.localizedName)
+    }
+
     func layoutBounds(of screen: NSScreen) -> CGSize {
-        let scale = settings.widgetScale
+        let scale = widgetScale(on: screen)
         return CGSize(width: screen.visibleFrame.width / scale, height: screen.visibleFrame.height / scale)
     }
 
     func widgetGrid(on screen: NSScreen) -> WidgetGrid {
-        WidgetGrid(bounds: layoutBounds(of: screen), margin: WidgetLayout.margin / settings.widgetScale)
+        WidgetGrid(bounds: layoutBounds(of: screen), margin: WidgetLayout.margin / widgetScale(on: screen))
     }
 
     /// Where a widget shows: the screen it names, else the first.
@@ -348,6 +357,37 @@ extension AppServices {
             for (index, widget) in zip(indices, arranged) { result[index] = widget }
         }
         return result
+    }
+
+    /// Widgets laid out for one screen size, shown on another (a resolution
+    /// change, a different display), are scaled and moved with it: the same
+    /// picture, centered the same way, never bigger than the screen. A screen
+    /// seen for the first time is only noted.
+    func refitWidgetsToScreens() {
+        for screen in NSScreen.screens {
+            let name = screen.localizedName
+            let size = screen.frame.size
+            guard let fit = settings.screenFits[name] else {
+                settings.screenFits[name] = ScreenFit(scale: settings.widgetScale(for: name), size: size)
+                continue
+            }
+            guard abs(fit.width - size.width) > 1 || abs(fit.height - size.height) > 1 else { continue }
+            let group = widgets.widgets.filter { shows($0, on: screen) }
+            guard !group.isEmpty else {
+                settings.screenFits[name] = ScreenFit(scale: fit.scale, size: size)
+                continue
+            }
+            let visible = screen.visibleFrame.size
+            let refit = WidgetLayout.refit(group, from: fit, toScreen: size, visible: visible, range: AppSettings.widgetScaleRange)
+            settings.screenFits[name] = ScreenFit(scale: refit.scale, size: size)
+            let grid = widgetGrid(on: screen)
+            var moved = grid.arranged(refit.widgets)
+            // A desktop that filled the old screen fills the new one.
+            if refit.fillsScreen { moved = grid.spread(moved) }
+            for widget in moved where widgets.instance(widget.id)?.offset != widget.offset {
+                widgets.update(widget.id) { $0.offset = widget.offset }
+            }
+        }
     }
 
     /// Lines every widget up on its screen's grid, with no overlaps. Changes
@@ -411,12 +451,14 @@ extension AppServices {
 
     /// A theme's arrangement sized and centered to fill the primary screen:
     /// sets the widget size and returns the widgets moved to match.
-    func fittedToScreen(_ layout: [WidgetInstance], on screen: NSScreen? = NSScreen.screens.first,
-                        keepingScale: Bool = false) -> [WidgetInstance] {
+    func fittedToScreen(_ layout: [WidgetInstance], on screen: NSScreen? = NSScreen.screens.first) -> [WidgetInstance] {
         let bounds = screen?.visibleFrame.size ?? CGSize(width: 1440, height: 860)
-        let range = keepingScale ? settings.widgetScale...settings.widgetScale : AppSettings.widgetScaleRange
-        let fitted = WidgetLayout.fitted(layout, in: bounds, range: range)
-        settings.widgetScale = fitted.scale
+        let fitted = WidgetLayout.fitted(layout, in: bounds, range: AppSettings.widgetScaleRange)
+        if let name = screen?.localizedName {
+            settings.screenFits[name] = ScreenFit(scale: fitted.scale, size: screen?.frame.size ?? bounds)
+        } else {
+            settings.widgetScale = fitted.scale
+        }
         return fitted.widgets
     }
 

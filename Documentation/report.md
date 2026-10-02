@@ -6,7 +6,16 @@ log; it never needs reading in full.
 ---
 
 ## CURRENT STATE
-_(overwritten every checkpoint — 2026-10-02, widgets, Lid Plane, AI Screenshot shortcut)_
+_(overwritten every checkpoint — 2026-10-03, smoothness pass; full log in Reports/2026-10-03-smoothness-grid-themes.md)_
+
+### 2026-10-03 (uncommitted, 293 tests, 0 warnings)
+- Page switches 330-990 ms -> 45-106 ms held (`PageVeil` Core Animation fade, no SwiftUI cross-fade); Gallery is flat exact-height rows; `PageScaffold` lazy.
+- Grid is quarter cells; swap-on-drop; per-display widget size (`screenFits`) with refit on resolution/monitor change; themes spread to the screen's edges.
+- Themes banner = active theme (`activeThemeSet`), Turn Off Theme (undoable); Liquid Glass tabs (not yet seen live); disk/energy rates fixed after idle gaps.
+- Aerial Videos stays its own tab (a move into My Videos was tried and reverted).
+- Not yet seen by a person: glass tabs, a second-monitor switch, swap-on-drop.
+
+### Earlier (2026-10-02)
 
 ### Working right now (verified only)
 - **Wallpaper library: unchanged** since the 2026-10-01 docs sync (sizes, detail sheet,

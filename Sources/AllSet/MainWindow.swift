@@ -8,6 +8,8 @@ enum AppPage: Hashable {
     case island
     case activities
     // Widgets
+    /// The Desktop section's front page.
+    case home
     /// Whole-desktop looks.
     case themes
     /// One theme set's page.
@@ -106,17 +108,14 @@ struct MainView: View {
     var body: some View {
         GeometryReader { geometry in
             let margin = DS.Space.pageMargin(for: geometry.size.width)
-            // Pages cross-fade, the new one settling in from a touch smaller:
-            // opening a theme or switching section moves instead of cutting.
-            // The navigation stays put above it.
+            // A page swaps at once and eases in under a Core Animation veil
+            // (`PageVeil`); the navigation stays put above it.
             ZStack {
                 detail(ui.page ?? .island)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .id(ui.page)
-                    .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.985)),
-                                            removal: .opacity))
             }
-            .animation(Motion.resolved(.smooth(duration: 0.32)), value: ui.page)
+            .overlay { PageVeil(page: ui.page).allowsHitTesting(false) }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 0) {
@@ -133,6 +132,19 @@ struct MainView: View {
                             .accessibilityAddTraits(.isStaticText)
                     }
                 }
+            }
+            .overlay(alignment: .top) {
+                if let toast = ui.toast {
+                    ToastView(toast: toast, ui: ui).padding(.top, 64)
+                }
+            }
+            .overlay {
+                if ui.isSearching { SearchOverlay(services: services, ui: ui) }
+            }
+            .background {
+                Button("Search") { withMotion(Motion.quick) { ui.isSearching.toggle() } }
+                    .keyboardShortcut("k", modifiers: .command)
+                    .opacity(0).accessibilityHidden(true)
             }
             .overlay(alignment: .bottom) {
                 if let removed = ui.removedWidget {
@@ -159,6 +171,8 @@ struct MainView: View {
             FormPage(eyebrow: "Island", title: "Live Activities", subtitle: "What the notch shows around itself while things happen.") {
                 ActivitySettings(settings: services.settings, media: services.media)
             }
+        case .home:
+            HomePage(services: services)
         case .themes:
             ThemesPage(services: services)
         case .themeSet(let id):

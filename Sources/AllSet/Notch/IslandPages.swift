@@ -230,7 +230,7 @@ struct MonitorPage: View {
             }
 
             VStack(alignment: .leading, spacing: DS.Space.m) {
-                SectionHeader(title: "What\u{2019}s using your Mac", subtitle: "Energy and memory by app, helpers included.")
+                SectionHeader(title: "What\u{2019}s using your Mac", subtitle: "Energy and memory by app, helpers included. macOS keeps its own services (WindowServer, kernel_task) private, so only apps you run are counted.")
                 // The card draws its own box, as it does in the notch.
                 TopAppsCard(services: services)
                     .frame(height: 300)

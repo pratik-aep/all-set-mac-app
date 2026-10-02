@@ -36,10 +36,89 @@ struct GalleryPage: View {
         return ranked + entries.filter { !rankedIDs.contains($0.id) && SearchMatch.containsAll(query, in: $0.searchText) }
     }
 
+    /// One thing in the page's list. Section titles and rows of cards are all
+    /// direct children of one lazy stack, each with an exact height, so scrolling
+    /// never builds a card (or a nested lazy container) just to measure it.
+    private struct Row: Identifiable {
+        enum Kind {
+            case sectionHeader(WidgetCategory)
+            case cards([CatalogEntry])
+            case themesHeader
+            case themeRails(limit: Int?)
+            case noMatches
+        }
+
+        let id: String
+        let kind: Kind
+        /// Space above it.
+        let top: CGFloat
+    }
+
+    private func rows(_ metrics: CardGridMetrics) -> [Row] {
+        var rows: [Row] = []
+        func cards(_ entries: [CatalogEntry], key: String, firstGap: CGFloat) {
+            for (index, chunk) in metrics.chunks(entries).enumerated() {
+                rows.append(Row(id: "\(key)-\(index)", kind: .cards(chunk), top: index == 0 ? firstGap : DS.Space.l))
+            }
+        }
+        if !SearchMatch.normalize(query).isEmpty {
+            let found = matches
+            if found.isEmpty && category != nil {
+                rows.append(Row(id: "none", kind: .noMatches, top: DS.Space.section))
+            } else {
+                cards(found, key: "match", firstGap: DS.Space.section)
+                if category == nil { rows.append(Row(id: "theme-widgets", kind: .themeRails(limit: nil), top: DS.Space.section)) }
+            }
+            return rows
+        }
+        for section in category.map({ [$0] }) ?? WidgetCategory.allCases {
+            if category == nil { rows.append(Row(id: "head-\(section.rawValue)", kind: .sectionHeader(section), top: DS.Space.section)) }
+            cards(WidgetCatalog.entries(in: section), key: section.rawValue, firstGap: category == nil ? DS.Space.m : DS.Space.section)
+        }
+        if category == nil {
+            rows.append(Row(id: "head-themes", kind: .themesHeader, top: DS.Space.section))
+            rows.append(Row(id: "theme-rails", kind: .themeRails(limit: 3), top: DS.Space.m))
+        }
+        return rows
+    }
+
+    @ViewBuilder
+    private func rowView(_ row: Row, metrics: CardGridMetrics) -> some View {
+        switch row.kind {
+        case .sectionHeader(let section):
+            SectionHeader(title: section.title, subtitle: "\(WidgetCatalog.entries(in: section).count) widgets",
+                          actionTitle: "See All", action: { services.ui.page = .gallery(section) })
+                .padding(.top, row.top)
+        case .cards(let chunk):
+            HStack(alignment: .top, spacing: metrics.spacing) {
+                ForEach(chunk) { entry in
+                    GalleryCard(entry: entry, services: services)
+                        .frame(width: metrics.cardWidth, height: GalleryCard.height)
+                }
+            }
+            .padding(.top, row.top)
+        case .themesHeader:
+            SectionHeader(title: "From Themes",
+                          subtitle: "\(ThemeWidgetCatalog.all.count) widgets, each as its theme dresses it",
+                          actionTitle: "See All", action: { withMotion(Motion.standard) { fromThemes = true } })
+                .padding(.top, row.top)
+        case .themeRails(let limit):
+            ThemeWidgetRails(services: services, query: limit == nil ? query : "", limit: limit)
+                .padding(.top, row.top)
+        case .noMatches:
+            EmptyState(symbol: "magnifyingglass", title: "No widgets match \u{201C}\(query)\u{201D}",
+                       message: "Try another word, or clear the search.",
+                       actionTitle: "Clear Search", action: { query = "" })
+                .padding(.top, row.top)
+        }
+    }
+
     var body: some View {
         GeometryReader { geometry in
+            let contentWidth = geometry.size.width - 2 * DS.Space.pageMargin(for: geometry.size.width)
+            let metrics = CardGridMetrics(width: contentWidth, minimumWidth: 300, spacing: DS.Space.l)
             ScrollView {
-                VStack(alignment: .leading, spacing: DS.Space.section) {
+                LazyVStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: DS.Space.m) {
                         PageHeader(eyebrow: fromThemes ? "\(ThemeWidgetCatalog.all.count) widgets from \(ThemeLibrary.all.count) themes"
                                        : category == nil ? "\(entries.count + ThemeWidgetCatalog.all.count) widgets" : "\(entries.count) widgets",
@@ -56,36 +135,9 @@ struct GalleryPage: View {
                     }
                     if fromThemes {
                         ThemeWidgetRails(services: services, query: query)
-                    } else if !SearchMatch.normalize(query).isEmpty {
-                        if matches.isEmpty && category != nil {
-                            EmptyState(symbol: "magnifyingglass", title: "No widgets match \u{201C}\(query)\u{201D}",
-                                       message: "Try another word, or clear the search.",
-                                       actionTitle: "Clear Search", action: { query = "" })
-                        } else {
-                            if !matches.isEmpty { grid(matches) }
-                            if category == nil {
-                                ThemeWidgetRails(services: services, query: query)
-                            }
-                        }
+                            .padding(.top, DS.Space.section)
                     } else {
-                        ForEach(category.map { [$0] } ?? WidgetCategory.allCases) { section in
-                            VStack(alignment: .leading, spacing: DS.Space.m) {
-                                if category == nil {
-                                    let count = WidgetCatalog.entries(in: section).count
-                                    SectionHeader(title: section.title, subtitle: "\(count) widgets",
-                                                  actionTitle: "See All", action: { services.ui.page = .gallery(section) })
-                                }
-                                grid(WidgetCatalog.entries(in: section))
-                            }
-                        }
-                        if category == nil {
-                            VStack(alignment: .leading, spacing: DS.Space.m) {
-                                SectionHeader(title: "From Themes",
-                                              subtitle: "\(ThemeWidgetCatalog.all.count) widgets, each as its theme dresses it",
-                                              actionTitle: "See All", action: { withMotion(Motion.standard) { fromThemes = true } })
-                                ThemeWidgetRails(services: services, limit: 3)
-                            }
-                        }
+                        ForEach(rows(metrics)) { row in rowView(row, metrics: metrics) }
                     }
                 }
                 .padding(.horizontal, DS.Space.pageMargin(for: geometry.size.width))
@@ -116,19 +168,14 @@ struct GalleryPage: View {
             .padding(.vertical, 2)
         }
     }
-
-    private func grid(_ entries: [CatalogEntry]) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: DS.Space.l)], spacing: DS.Space.l) {
-            ForEach(entries) { entry in
-                GalleryCard(entry: entry, services: services)
-            }
-        }
-    }
 }
 
 struct GalleryCard: View {
     let entry: CatalogEntry
     let services: AppServices
+
+    /// Every card is this tall: an exact frame keeps the grid from building cards to measure them.
+    static let height: CGFloat = 372
 
     @State private var size: WidgetSize
     @State private var added = false
@@ -252,16 +299,7 @@ struct GalleryCard: View {
                 }
                 Spacer(minLength: 0)
                 if entry.sizes.count > 1 {
-                    Picker("Size", selection: $size.animation(Motion.resolved(Motion.responsive))) {
-                        ForEach(entry.sizes) { size in
-                            Text(size.shortTitle).tag(size)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .fixedSize()
-                    .controlSize(.small)
-                    .help("Size")
+                    sizePicker
                 }
             }
 
@@ -273,6 +311,8 @@ struct GalleryCard: View {
                     look = WidgetMaterial(rawValue: raw)
                 }
             }
+
+            Spacer(minLength: 0)
 
             Button {
                 services.addWidget(sample)
@@ -288,9 +328,35 @@ struct GalleryCard: View {
             }
             .buttonStyle(.pillProminent)
         }
+        .frame(maxHeight: .infinity, alignment: .top)
         .padding(DS.Space.s)
         .background(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous).fill(DS.Surface.raised))
         .overlay(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous).strokeBorder(DS.Surface.hairline))
+    }
+
+    /// S, M, L in one capsule. A system segmented control took 10 ms to build, half a card.
+    private var sizePicker: some View {
+        HStack(spacing: 2) {
+            ForEach(entry.sizes) { option in
+                let isSelected = option == size
+                Button {
+                    withMotion(Motion.responsive) { size = option }
+                } label: {
+                    Text(option.shortTitle)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(isSelected ? Color.black.opacity(0.88) : DS.Ink.secondary)
+                        .frame(minWidth: 22, minHeight: 20)
+                        .background(Capsule().fill(isSelected ? Color.white.opacity(0.92) : .clear))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityLabel(option.title)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(Capsule().fill(DS.Surface.hover))
+        .help("Size")
     }
 
     private func chips(_ items: [(String, String)], selected: String?, pick: @escaping (String) -> Void) -> some View {

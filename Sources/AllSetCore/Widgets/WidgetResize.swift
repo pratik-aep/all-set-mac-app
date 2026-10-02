@@ -73,9 +73,8 @@ public enum WidgetResize {
 }
 
 extension WidgetResize {
-    /// Extra small: the small layout at about half size, so a widget keeps every
-    /// control and still fits a quarter of a cell's space.
-    public static let extraSmallScale = 0.52
+    /// Extra small: the small layout at about half size,     /// control and still fits a quarter of a cell's space.
+    public static let extraSmallScale = 0.45
 }
 
 extension WidgetInstance {

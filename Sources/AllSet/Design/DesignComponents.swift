@@ -60,7 +60,7 @@ struct PageScaffold<Content: View>: View {
     var body: some View {
         GeometryReader { geometry in
             ScrollView {
-                VStack(alignment: .leading, spacing: DS.Space.section) {
+                LazyVStack(alignment: .leading, spacing: DS.Space.section) {
                     content
                 }
                 .padding(.horizontal, DS.Space.pageMargin(for: geometry.size.width))
@@ -296,7 +296,7 @@ struct GlassPanel<Content: View>: View {
         // lit rim and faint sheen are what make it read as glass.
         if #available(macOS 26, *) {
             padded
-                .glassEffect(.clear, in: shape)
+                .glassEffect(.regular.tint(.white.opacity(0.05)), in: shape)
                 .overlay(GlassRim(shape: shape))
         } else {
             padded
@@ -325,6 +325,19 @@ private struct GlassRim<S: InsettableShape>: View {
                                lineWidth: 1)
         }
         .allowsHitTesting(false)
+    }
+}
+
+extension View {
+    /// The lit glass lens under the selected tab: Liquid Glass of its own, a touch
+    /// brighter than the bar it sits in, that responds to the pointer.
+    @ViewBuilder
+    func glassLens() -> some View {
+        if #available(macOS 26, *) {
+            glassEffect(.regular.tint(.white.opacity(0.24)).interactive(), in: Capsule())
+        } else {
+            background(Capsule().fill(.white.opacity(0.18)))
+        }
     }
 }
 
@@ -547,5 +560,23 @@ struct FlowLayout: Layout {
         }
         if !current.indices.isEmpty { rows.append(current) }
         return rows
+    }
+}
+
+/// Columns and card width for a grid of fixed-size cards in `width` points.
+struct CardGridMetrics {
+    let columns: Int
+    let cardWidth: CGFloat
+    let spacing: CGFloat
+
+    init(width: CGFloat, minimumWidth: CGFloat, spacing: CGFloat) {
+        columns = max(Int((width + spacing) / (minimumWidth + spacing)), 1)
+        cardWidth = max(((width - spacing * CGFloat(columns - 1)) / CGFloat(columns)).rounded(.down), 1)
+        self.spacing = spacing
+    }
+
+    /// `items` cut into rows of `columns`.
+    func chunks<Item>(_ items: [Item]) -> [[Item]] {
+        stride(from: 0, to: items.count, by: columns).map { Array(items[$0..<min($0 + columns, items.count)]) }
     }
 }

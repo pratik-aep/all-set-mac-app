@@ -56,6 +56,10 @@ final class ProcessEnergyReader {
     private var tracked: [pid_t: Tracked] = [:]
     private var smoothed: [String: (watts: Double, cpu: Double)] = [:]
     private var previousTime: TimeInterval?
+    private var lastEnergy: [AppUsage] = []
+    /// Readings further apart than this (the window was closed meanwhile) say nothing
+    /// about now: they average a long stretch. They only reset the baseline.
+    private static let longestGap: TimeInterval = 8
     private let nanosecondsPerTick: Double
 
     init() {
@@ -100,7 +104,10 @@ final class ProcessEnergyReader {
             .prefix(limit)
             .map { AppMemory(id: $0.key, name: ProcessGrouping.displayName(forGroup: $0.key),
                              isApp: $0.key.hasSuffix(".app"), bytes: $0.value) }
-        guard let previousTime, now > previousTime else { return ([], memoryApps) }
+        guard let previousTime, now > previousTime, now - previousTime <= Self.longestGap else {
+            smoothed = [:]
+            return (lastEnergy, memoryApps)
+        }
         let elapsed = now - previousTime
 
         // Blend with the previous reading so the ranking doesn't jump around
@@ -125,6 +132,7 @@ final class ProcessEnergyReader {
             .sorted { hasEnergy ? $0.watts > $1.watts : $0.cpuPercent > $1.cpuPercent }
             .prefix(limit)
             .map { $0 }
+        lastEnergy = energyApps
         return (energyApps, memoryApps)
     }
 

@@ -17,3 +17,6 @@ DerivedData/
 scripts/cloud/.env
 *.env
 .claude/settings.local.json
+
+# graphify knowledge graph (generated)
+graphify-out/

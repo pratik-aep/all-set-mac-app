@@ -8,10 +8,12 @@ import Foundation
 public struct DesktopSnapshot: Equatable, Sendable {
     public var widgets: [WidgetInstance]
     public var scale: Double
+    public var screenFits: [String: ScreenFit]
     public var font: WidgetFont
     public var cornerRadius: Double
     public var widgetTheme: String?
     public var designTheme: String?
+    public var activeThemeSet: String?
     public var showWidgets: Bool
     public var wallpaper: WallpaperConfig
 
@@ -19,10 +21,12 @@ public struct DesktopSnapshot: Equatable, Sendable {
     public init(settings: AppSettings, widgets: WidgetStore, wallpaper: WallpaperStore) {
         self.widgets = widgets.widgets
         scale = settings.widgetScale
+        screenFits = settings.screenFits
         font = settings.widgetFont
         cornerRadius = settings.widgetCornerRadius
         widgetTheme = settings.widgetTheme
         designTheme = settings.widgetDesignTheme
+        activeThemeSet = settings.activeThemeSet
         showWidgets = settings.showWidgets
         self.wallpaper = wallpaper.config
     }
@@ -31,10 +35,12 @@ public struct DesktopSnapshot: Equatable, Sendable {
     public func restore(settings: AppSettings, widgets: WidgetStore, wallpaper: WallpaperStore) {
         widgets.replaceAll(with: self.widgets)
         settings.widgetScale = scale
+        settings.screenFits = screenFits
         settings.widgetFont = font
         settings.widgetCornerRadius = cornerRadius
         settings.widgetTheme = widgetTheme
         settings.widgetDesignTheme = designTheme
+        settings.activeThemeSet = activeThemeSet
         settings.showWidgets = showWidgets
         // Only when it differs: setting it restarts the wallpaper.
         if wallpaper.config != self.wallpaper { wallpaper.config = self.wallpaper }
@@ -53,6 +59,7 @@ extension AppSettings {
         }
         widgetDesignTheme = set.designTheme?.id
         widgetTheme = set.setup?.id
+        activeThemeSet = set.id
         showWidgets = true
     }
 
@@ -64,5 +71,6 @@ extension AppSettings {
         widgetScale = 1
         widgetTheme = nil
         widgetDesignTheme = nil
+        activeThemeSet = nil
     }
 }

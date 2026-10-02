@@ -16,6 +16,8 @@ struct DesktopUndo: Equatable {
         /// The widgets were cleared because a wallpaper was picked. Taking
         /// it back keeps the new wallpaper.
         case clearedForWallpaper
+        /// The theme, by name, was turned off: widgets cleared, look reset.
+        case turnedOff(String)
     }
 
     let change: Change
@@ -110,6 +112,18 @@ extension AppServices {
         ui.desktopUndo = nil
     }
 
+    /// Takes the current theme off the desktop: its widgets go and the widget
+    /// look returns to a fresh install's. The wallpaper stays. Undo puts it all back.
+    func turnOffTheme() {
+        if ui.themePreview != nil { endThemePreview(keep: false) }
+        let name = settings.activeThemeSet.flatMap { ThemeLibrary.set($0)?.name } ?? "The theme"
+        let before = desktopSnapshot
+        widgets.replaceAll(with: [])
+        settings.resetWidgetLook()
+        ui.isArrangingWidgets = false
+        ui.desktopUndo = DesktopUndo(change: .turnedOff(name), before: before)
+    }
+
     /// A wallpaper the person picked, as opposed to one a theme brought: the
     /// desktop starts clean, with no widgets and no theme's look, and Undo
     /// brings the widgets back for a slip.
@@ -117,6 +131,7 @@ extension AppServices {
         if ui.themePreview != nil { endThemePreview(keep: false) }
         let before = desktopSnapshot
         wallpaper.set(source)
+        ui.toast = Toast(message: "Wallpaper applied", symbol: "photo.artframe")
         guard !widgets.widgets.isEmpty || settings.widgetTheme != nil || settings.widgetDesignTheme != nil else { return }
         widgets.replaceAll(with: [])
         settings.resetWidgetLook()
@@ -129,17 +144,13 @@ extension AppServices {
     }
 
     /// A set's widgets with the person's photos, sized and centered to fill
-    /// the primary screen, whatever its size, and lined up on its grid.
+    /// the chosen screen, whatever its size, and lined up on its grid.
     private func themeWidgets(_ set: ThemeSet, on screen: NSScreen?) -> [WidgetInstance] {
         let layout = set.widgets(screenName: screen?.localizedName, bounds: Self.unbounded)
         let personal = ThemeSet.personalized(layout, with: themePhotos.sources(for: set.id))
-        return prepared(gridArranged(fittedToScreen(personal, on: screen, keepingScale: widgetsRemain(besides: screen))))
-    }
-
-    /// Whether widgets on another display stay (and so the widget size must too).
-    private func widgetsRemain(besides screen: NSScreen?) -> Bool {
-        guard let screen else { return false }
-        return widgets.widgets.contains { !shows($0, on: screen) }
+        let arranged = gridArranged(fittedToScreen(personal, on: screen))
+        // Opened up to the screen's edges, so a wide display has no bare sides.
+        return prepared(screen.map { widgetGrid(on: $0).spread(arranged) } ?? arranged)
     }
 
     /// The widgets on `screen` replaced by `new`; those on other displays stay.

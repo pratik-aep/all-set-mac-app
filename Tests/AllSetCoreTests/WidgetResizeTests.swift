@@ -85,12 +85,12 @@ import Testing
     }
 
     @Test func aScaledWidgetTakesEveryCellItReaches() {
-        #expect(WidgetGrid.span(of: WidgetSize.small) == (1, 1))
-        #expect(WidgetGrid.span(of: WidgetSize.extraLarge) == (4, 2))
-        // 1.3 × small is 218 points: into a second cell each way.
-        #expect(WidgetGrid.span(of: CGSize(width: 218.4, height: 218.4)) == (2, 2))
-        // 0.7 × medium is 246 × 118: two cells across, one down.
-        #expect(WidgetGrid.span(of: CGSize(width: 246.4, height: 117.6)) == (2, 1))
+        #expect(WidgetGrid.span(of: WidgetSize.small) == (2, 2))
+        #expect(WidgetGrid.span(of: WidgetSize.extraLarge) == (8, 4))
+        // 1.3 × small is 218 points: into a third cell each way.
+        #expect(WidgetGrid.span(of: CGSize(width: 218.4, height: 218.4)) == (3, 3))
+        // 0.7 × medium is 246 × 118: three cells across, two down.
+        #expect(WidgetGrid.span(of: CGSize(width: 246.4, height: 117.6)) == (3, 2))
     }
 
     @Test func aResizedWidgetKeepsItsSpotAndTheOthersMakeRoom() {

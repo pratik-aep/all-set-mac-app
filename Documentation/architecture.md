@@ -250,3 +250,19 @@ is made by looking. Applied with `wallpaper_library.py remove-duplicates`.
 2. **2560 px loops, 10–30 s** (chosen per scene so its cycles fit) are the right quality/size point.
 3. **Motion threshold 1.0/255 on the most-changed region** is the right line between loop and still.
 4. Whether `perf-audit` should be merged to `main` and pushed.
+
+
+## Main window and desktop widgets (2026-10-03)
+- **Page changes**: `MainView` swaps pages at once (`.id(ui.page)`, no transition); `PageVeil` (Design/WindowBackdrop.swift) fades a canvas-colored layer out with Core Animation. Never cross-fade two pages in SwiftUI.
+- **Lists**: `LazyVGrid`/`LazyHStack` build children to measure them. The Gallery is one `LazyVStack` of rows with exact heights (`GalleryPage.Row`, `CardGridMetrics`); `PageScaffold` is lazy, `BleedScrollPage` eager.
+- **Widget grid** (`AllSetCore/Widgets/WidgetGrid.swift`): pitch 92 pt (a quarter small cell). `spread` fills a screen after a theme; `WidgetLayout.refit` carries a layout to a new resolution.
+- **Per display**: `AppSettings.screenFits[displayName]` holds each display's widget scale and the frame size it was laid out for; `AppServices.widgetScale(on:)`, `refitWidgetsToScreens()` (run from `DesktopWidgetController.tidyIfShapeChanged`).
+- **Themes**: `AppSettings.activeThemeSet` (set by `adopt`, cleared by `resetWidgetLook`, part of `DesktopSnapshot`); `AppServices.turnOffTheme()`.
+- **Stats**: `DiskReader` and `ProcessEnergyReader` ignore gaps over 8 s (nothing was watching); `SystemMonitor.setViewer` takes a second sample 1 s after a viewer appears.
+
+## Home, ⌘K and toasts (2026-10-03)
+
+- **Home** (`Studio/HomePage.swift`, `AppPage.home`, first Desktop pill and the section's landing page): the active (or featured) theme as the bleed hero, a shortcut strip, then Trending Themes, Popular Widgets and Art rails. It only composes `FeaturedThemeHero`, `ThemeSetCard`, `GalleryCard` and `MediaRail`.
+- **⌘K** (`Design/SearchOverlay.swift`, `UIState.isSearching`): a glass field over the window that searches themes, widgets and pages and navigates to the hit. Return takes the first result, Esc closes.
+- **Toasts** (`Toast`/`ToastView`, `UIState.toast`): a floating glass capsule that clears itself after 2.5 s. Wired to "Wallpaper applied" in `pickWallpaper`.
+- The hero type role is 52 pt. `-probe pageswitch` and `-renderPages` know the `home` page. `rules_frontend.md` is the visual spec.

@@ -62,7 +62,24 @@ public final class AppSettings {
     public var widgetCornerRadius: Double { didSet { save(widgetCornerRadius, Key.widgetCornerRadius) } }
     /// How large desktop widgets are drawn, 1 for their natural size. Applying a
     /// theme sets it so the theme's grid fills the screen.
-    public var widgetScale: Double { didSet { save(widgetScale, Key.widgetScale) } }
+    public var widgetScale: Double {
+        didSet {
+            save(widgetScale, Key.widgetScale)
+            // The size slider is for every display at once.
+            if !screenFits.isEmpty { screenFits = screenFits.mapValues { var fit = $0; fit.scale = widgetScale; return fit } }
+        }
+    }
+    /// Each display's own widget size and the screen size its widgets were last
+    /// laid out for, by display name. A new size (a resolution change, another
+    /// monitor) refits that display's widgets.
+    public var screenFits: [String: ScreenFit] {
+        didSet { defaults.set(try? JSONEncoder().encode(screenFits), forKey: Key.screenFits) }
+    }
+
+    /// The widget size on a display: its own, else the desktop-wide one.
+    public func widgetScale(for screenName: String?) -> Double {
+        screenName.flatMap { screenFits[$0]?.scale } ?? widgetScale
+    }
     public nonisolated static let widgetScaleRange: ClosedRange<Double> = 0.4...2
     /// The widget look before any theme: a fresh install's, and what a
     /// cleared desktop goes back to.
@@ -72,6 +89,8 @@ public final class AppSettings {
     public var widgetTheme: String? { didSet { defaults.set(widgetTheme, forKey: Key.widgetTheme) } }
     /// The design theme new widgets start in; nil for their own looks.
     public var widgetDesignTheme: String? { didSet { defaults.set(widgetDesignTheme, forKey: Key.widgetDesignTheme) } }
+    /// The theme set last put on the desktop, by `ThemeSet.id`; nil once it is turned off or the look reset.
+    public var activeThemeSet: String? { didSet { defaults.set(activeThemeSet, forKey: Key.activeThemeSet) } }
 
     // System monitor
     /// Seconds between samples while stats are on screen.
@@ -101,6 +120,8 @@ public final class AppSettings {
         static let screenshotShortcut = "screenshot.shortcut"
         static let widgetTheme = "widgets.theme"
         static let widgetDesignTheme = "widgets.designTheme"
+        static let activeThemeSet = "widgets.themeSet"
+        static let screenFits = "widgets.screenFits"
         static let refreshInterval = "monitor.refreshInterval"
         static let temperatureUnit = "monitor.temperatureUnit"
     }
@@ -128,6 +149,8 @@ public final class AppSettings {
                           Self.widgetScaleRange.upperBound)
         widgetTheme = defaults.string(forKey: Key.widgetTheme)
         widgetDesignTheme = defaults.string(forKey: Key.widgetDesignTheme)
+        activeThemeSet = defaults.string(forKey: Key.activeThemeSet)
+        screenFits = defaults.data(forKey: Key.screenFits).flatMap { try? JSONDecoder().decode([String: ScreenFit].self, from: $0) } ?? [:]
         refreshInterval = defaults.object(forKey: Key.refreshInterval) as? Double ?? 1
         temperatureUnit = defaults.string(forKey: Key.temperatureUnit).flatMap(TemperatureUnit.init) ?? .celsius
     }
@@ -135,4 +158,20 @@ public final class AppSettings {
     private func save(_ value: Any, _ key: String) {
         defaults.set(value, forKey: key)
     }
+}
+
+/// A display's widget size and the screen size (visible area, points) the widgets
+/// on it were laid out for.
+public struct ScreenFit: Codable, Equatable, Sendable {
+    public var scale: Double
+    public var width: Double
+    public var height: Double
+
+    public init(scale: Double, size: CGSize) {
+        self.scale = scale
+        width = Double(size.width)
+        height = Double(size.height)
+    }
+
+    public var size: CGSize { CGSize(width: width, height: height) }
 }

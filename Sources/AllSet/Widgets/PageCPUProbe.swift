@@ -705,8 +705,10 @@ enum PageCPUProbe {
         window.orderFrontRegardless()
         // Each page twice: the first pass pays for first sight (previews
         // drawn, tiles made); the second is what scrolling feels like after.
-        for (name, page) in [("themes", AppPage.themes), ("gallery", .gallery(nil)), ("art", .art), ("wallpaper", .wallpaper)]
+        let onlyScroll = ProcessInfo.processInfo.environment["ONLY"]
+        for (name, page) in [("home", AppPage.home), ("themes", AppPage.themes), ("gallery", .gallery(nil)), ("art", .art), ("wallpaper", .wallpaper)]
             .flatMap({ [($0.0 + " 1st", $0.1), ($0.0 + " 2nd", $0.1)] }) {
+            if let onlyScroll, !name.hasPrefix(onlyScroll) { continue }
             if services.ui.page != page {
                 services.ui.page = page
                 try? await Task.sleep(for: .seconds(5))
@@ -732,6 +734,7 @@ enum PageCPUProbe {
                 try? await Task.sleep(for: .milliseconds(16))
                 let now = CACurrentMediaTime()
                 gaps.append(now - last)
+                if now - last > 0.1 { print(String(format: "  stall %.0f ms at y=%.0f of %.0f", (now - last) * 1000, y, range)) }
                 last = now
             }
             let seconds = CACurrentMediaTime() - begin
@@ -743,6 +746,52 @@ enum PageCPUProbe {
                          gaps[gaps.count / 2] * 1000, p95, (gaps.last ?? 0) * 1000,
                          gaps.filter { $0 > 0.033 }.count, range))
             clip.scroll(to: .zero)
+        }
+        window.close()
+    }
+
+    /// Switches the real window between pages, a cold mount each time, and
+    /// reports how long the main thread was held: what a click on a tab feels like.
+    static func runPageSwitch(services: AppServices) async {
+        let activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .latencyCritical],
+                                                             reason: "Measuring page switches")
+        defer { ProcessInfo.processInfo.endActivity(activity) }
+        let window = NSWindow(contentRect: NSRect(x: 40, y: 40, width: 1280, height: 800),
+                              styleMask: [.titled, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+        MainWindowController.dress(window)
+        window.alphaValue = 0.01
+        window.ignoresMouseEvents = true
+        window.level = .floating
+        window.isReleasedWhenClosed = false
+        let controller = NSHostingController(rootView: MainView(services: services, ui: services.ui))
+        controller.sizingOptions = []
+        window.contentViewController = controller
+        window.setContentSize(NSSize(width: 1280, height: 800))
+        window.orderFrontRegardless()
+        services.ui.page = .about
+        try? await Task.sleep(for: .seconds(2))
+        let pages: [(String, AppPage)] = [("island", .island), ("home", .home), ("themes", .themes), ("gallery", .gallery(nil)), ("wallpaper", .wallpaper),
+                                          ("desktop", .desktop), ("monitor", .monitor), ("mixer", .mixer), ("notes", .notes), ("general", .general)]
+        let only = ProcessInfo.processInfo.environment["ONLY"]
+        let repeats = Int(ProcessInfo.processInfo.environment["REPEAT"] ?? "") ?? 1
+        for pass in (["1st", "2nd"] + Array(repeating: "again", count: max(repeats - 1, 0))) {
+            for (name, page) in pages where only == nil || only == name {
+                var gaps: [Double] = []
+                let start = CACurrentMediaTime()
+                var last = start
+                services.ui.page = page
+                while CACurrentMediaTime() - start < 1.5 {
+                    try? await Task.sleep(for: .milliseconds(4))
+                    let now = CACurrentMediaTime()
+                    gaps.append(now - last)
+                    last = now
+                }
+                let held = gaps.filter { $0 > 0.02 }.reduce(0, +)
+                print(String(format: "switch %@ %-10@ worst %6.1f ms  frames missed(>20ms) %2d  held %6.1f ms", pass as NSString, name as NSString,
+                             (gaps.max() ?? 0) * 1000, gaps.filter { $0 > 0.02 }.count, held * 1000))
+                services.ui.page = .about
+                try? await Task.sleep(for: .milliseconds(700))
+            }
         }
         window.close()
     }

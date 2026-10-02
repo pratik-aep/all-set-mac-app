@@ -192,7 +192,7 @@ Built on what's there: the **existing My Videos tab** of the Live Wallpaper page
 - **Rights label:** a one-line note, and a tooltip per card with the quarantine reason.
 - **Drive status:** an orange note when the drive isn't connected; cards say "Drive Not Connected" instead of "Set as Wallpaper".
 
-`UIState.wallpaperTab` (default Aerial Videos, as before) lets the page open on a given tab. `LiveWallpaperPage` got an optional `tab:` initialiser.
+`UIState.wallpaperTab` (default Aerial Videos; a 2026-10-03 move of aerials into My Videos was reverted) lets the page open on a given tab. `LiveWallpaperPage` got an optional `tab:` initialiser.
 
 **Visual check:** `-renderWallpaperLibrary <folder>` renders the tab at the top and scrolled.
 

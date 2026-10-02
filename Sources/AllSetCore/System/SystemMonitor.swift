@@ -56,7 +56,11 @@ public final class SystemMonitor {
         let oldInterval = currentInterval
         viewers[id] = visible ? (interval ?? 0) : nil
         guard isRunning else { return }
-        if wasIdle, !viewers.isEmpty { requestSample(detailed: true) }
+        if wasIdle, !viewers.isEmpty {
+            requestSample(detailed: true)
+            // Rates need two readings close together: one a second later.
+            Task { try? await Task.sleep(for: .seconds(1)); await sample(detailed: true) }
+        }
         if currentInterval != oldInterval { restartLoop() }
     }
 

@@ -228,3 +228,47 @@ struct BleedScrollPage<Hero: View, Content: View>: View {
         }
     }
 }
+
+/// A canvas-colored sheet that fades away over a page that just appeared, so
+/// opening a page eases in. Core Animation runs the fade on the render server:
+/// SwiftUI cross-fading two whole pages re-laid-out both on every frame and
+/// dropped most of them (a Themes switch held the main thread 560 ms, now ~100).
+struct PageVeil: NSViewRepresentable {
+    let page: AppPage?
+
+    func makeNSView(context: Context) -> VeilView { VeilView() }
+
+    func updateNSView(_ view: VeilView, context: Context) {
+        view.show(for: page)
+    }
+
+    final class VeilView: NSView {
+        private var shown: AppPage??
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            layer?.backgroundColor = NSColor(DS.Surface.canvasLift).cgColor
+            layer?.opacity = 0
+        }
+
+        required init?(coder: NSCoder) { nil }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        func show(for page: AppPage?) {
+            defer { shown = .some(page) }
+            // The first page appears with the window, not out of a veil.
+            guard let previous = shown, previous != page, let layer else { return }
+            layer.removeAllAnimations()
+            layer.opacity = 0
+            guard !Motion.reducesMotion else { return }
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0.9
+            fade.toValue = 0
+            fade.duration = 0.24
+            fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            layer.add(fade, forKey: "fade")
+        }
+    }
+}

@@ -5,6 +5,7 @@ import IOKit
 final class DiskReader {
     private var previous: (read: UInt64, written: UInt64, time: TimeInterval)?
     private var capacity: (total: UInt64, available: UInt64) = (0, 0)
+    private var lastRates: (read: Double, write: Double) = (0, 0)
     private var capacityReadAt: TimeInterval = -.infinity
 
     /// Free space barely moves and computing purgeable space isn't free, so
@@ -25,10 +26,15 @@ final class DiskReader {
         let bytes = Self.readTotalBytes()
         if let previous, now > previous.time {
             let elapsed = now - previous.time
-            // Counters reset when a disk is ejected; treat that as no activity.
-            usage.readBytesPerSecond = bytes.read >= previous.read ? Double(bytes.read - previous.read) / elapsed : 0
-            usage.writeBytesPerSecond = bytes.written >= previous.written ? Double(bytes.written - previous.written) / elapsed : 0
+            // Counters reset when a disk is ejected; treat that as no activity. After a
+            // long gap (nothing was watching) the average says nothing about now: keep the last.
+            if elapsed <= 8 {
+                lastRates = (bytes.read >= previous.read ? Double(bytes.read - previous.read) / elapsed : 0,
+                             bytes.written >= previous.written ? Double(bytes.written - previous.written) / elapsed : 0)
+            }
         }
+        usage.readBytesPerSecond = lastRates.read
+        usage.writeBytesPerSecond = lastRates.write
         previous = (bytes.read, bytes.written, now)
         return usage
     }

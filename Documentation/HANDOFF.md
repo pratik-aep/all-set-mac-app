@@ -2,7 +2,7 @@
 
 **Read this first at the start of every session, instead of reviewing the codebase.** It's rewritten at the end of every session. Dated session logs are in `Documentation/Reports/` (newest last). For what the app contains (widgets, themes, pages), see `CONTENT.md`. Only open the source files that the task at hand needs.
 
-_Last updated: 2026-10-02 (widget snap grid, drag from the gallery, right-click menu). For the wallpaper library, read Documentation/spec.md, architecture.md and report.md's CURRENT STATE first._
+_Last updated: 2026-10-03 (smoothness pass, quarter-cell grid, per-display widget size, active-theme banner; see Reports/2026-10-03-smoothness-grid-themes.md). For the wallpaper library, read Documentation/spec.md, architecture.md and report.md's CURRENT STATE first._
 
 ---
 
@@ -49,6 +49,7 @@ CI's `probe` job runs `scroll`, `pages` and `galleryparts` on every push (debug 
 
 | Name | Measures |
 |---|---|
+| `pageswitch` | Main-thread hold per page click in the real window (`ONLY=gallery REPEAT=10`); `scroll` also takes `ONLY=` |
 | `islandmotion` | Frames lost per open, tab switch and close; `COLD=1` skips the warm-up |
 | `systembuild` | System-tab build time |
 | `search` | Live search results per source |
@@ -116,6 +117,7 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
   - `WidgetCatalog.swift`: 91 gallery entries.
   - `FanModels.swift` and `MysticModels.swift`: the zodiac, tarot, aura, charm and magic-ball data.
   - Themes: `WidgetTheme*.swift` (57 looks: 14 moodboards, 22 fandom, 13 core, 8 Colour & Light in `WidgetTheme+Colour.swift`) and `DesignTheme.swift` (15 skins). `ThemeLibrary` holds the 57 complete desktops the Themes page shows.
+- **2026-10-03 grid change:** the grid pitch is a *quarter* of a small cell (92 pt): small 2x2, medium 4x2, large 4x4, XL 8x4, Extra Small (scale 0.45) 1x1. `WidgetGrid.spread` fills a wide screen after a theme installs; dropping a widget on one of the same size swaps them. Widget size is per display (`settings.screenFits`, `services.widgetScale(on:)`); a resolution or monitor change runs `refitWidgetsToScreens` (`WidgetLayout.refit`).
 - **Placement is a snap grid** (`AllSetCore/Widgets/WidgetGrid.swift`, tested in `WidgetGridTests`): slots the size of a small widget, `spacing` apart, centered in each screen's visible area, margin kept in *screen* points (`WidgetLayout.margin / widgetScale`, as `fitted` does, or themes lose a column). `place(near:)` for drops, `firstFree` for adds (columns from the left), `arranged` for Clean Up (group shifted onto the lattice first, so every theme keeps its exact shape; larger widgets choose first). `DesktopWidgetController.tidyIfShapeChanged` runs Clean Up whenever sizes, membership, screens or the widget scale change, so a new Mac or display reflows. Compare screens by `displayID`, never `NSScreen ==` (new objects each call). `WidgetGridOverlay` (Core Animation, shown only during drags) draws free slots and the target; gallery cards `.onDrag` set `ui.widgetDrop`, which lifts the widgets, dims the screen and makes the overlay a drop target. Right-click menu: `WidgetMenuItems` from the `widgetMenu` environment; widgets with their own `.contextMenu` append it after a divider.
 - **Corner resizing** (every widget, themed or not): `WidgetInstance.scale` (0.6–3, decoded as 1 when missing) multiplies the size's designed dimensions; `footprint` is what every placement path uses (grid spans are whole cells reached, `WidgetGrid.span(of: CGSize)`). Dragging the bottom-right `ResizeHandle` (shown on corner hover via a 20 Hz timer reading `NSEvent.mouseLocation` in `DesktopWidgetController.pointerMoved` -> `WidgetWindow.pointerMoved` (macOS sends no mouse-moved events to an app that isn't in front: tracking areas and global/local monitors can't work for desktop widgets), always while arranging) goes through `DesktopWidgetController.handleResize`: live `WidgetWindowState.liveSize/liveScale`, window grown from its top-left; `WidgetResize.resolve` (AllSetCore, tested in `WidgetResizeTests`) picks the kind's layout closest in shape and size, sticky near changeovers, snapping to scale 1 within 3%, kept within the grid and screen. On release `resizeWidget(_:to: Result)` saves and `cleanUpWidgets(keeping:)` keeps it in place while the others make room. Right-click offers "Reset to <Size> Size". `-widgetsFile /tmp/x.json -probe resize -resizeOut dir` drives a real window's corner through five sizes and saves PNGs (not yet run).
 - **Free-form resize, Extra Small, display choice** (2026-10-03): `WidgetInstance.stretch` (height relative to width, 0.1–6) lets width and height scale independently (`WidgetResize.Result.stretch`; scale range now 0.4–3); Edit Widget has Width/Height sliders (the hover handle was never confirmed on screen, the sliders don't depend on it). Extra Small = small layout at `WidgetResize.extraSmallScale` (0.52), in the right-click Size menu for kinds that have Small. `WidgetLayout.margin` is 8 and `AppSettings.widgetScaleRange` 0.4–2. Theme install/preview asks which display when several are connected (`AppServices.chooseThemeScreen`, NSAlert) and replaces only that screen's widgets, keeping the widget size if others remain. Not verified on a real second monitor. NOTE: the Dock app is `build/AllSet.app`, only `scripts/build-app.sh` updates it.
@@ -179,6 +181,9 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 - Deep links: `Support/DeepLink.swift` (`allset://open|widget|arrange|fit|theme|focus`).
 
 ## Performance lessons (don't relearn these)
+- **Never cross-fade two whole pages in SwiftUI** (`.transition` on `.id(page)`): both are re-laid out every frame. `PageVeil` (Core Animation) does the fade; the page swaps at once.
+- **`LazyVGrid`/`LazyHStack` build children to measure them.** Give cards exact width and height and put rows directly in one `LazyVStack` (Gallery). `BleedScrollPage` stays an eager VStack (lazy doubled Themes scroll CPU); `PageScaffold` is lazy.
+- **System segmented `Picker` costs ~10 ms to build**: use capsule buttons in repeated cards.
 - **The main window is released on close** (`MainWindowController.windowWillClose`). A hidden SwiftUI window gets no `onDisappear`, so anything registered in `onAppear` leaks until quit. Don't reintroduce `isReleasedWhenClosed = false` with a kept reference.
 - **SwiftUI redraws covered windows.** Desktop widgets must use `WidgetTimeline` (not `TimelineView`), which pauses via `widgetIsOnScreen`. Animated SwiftUI text every second (`.contentTransition(.numericText())`) costs about 10 % CPU: use Core Animation for anything per-second.
 - **Caches are `CostCache`** (bytes plus count, LRU). Weigh images with `NSImage.decodedByteCount`. `ImageRenderer` output is 16 bits a channel: convert with `ImageLibrary.displayReady` before keeping.

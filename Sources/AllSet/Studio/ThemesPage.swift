@@ -101,15 +101,18 @@ struct ThemesPage: View {
 
     var body: some View {
         let sections = self.sections
-        // The lead featured theme fills the top of the window; the rest of
-        // the featured row climbs onto its faded bottom. Always shown, so a
+        // The banner is the theme on the desktop now; with none, the best-liked one.
+        let active = services.settings.activeThemeSet.flatMap { ThemeLibrary.set($0) }
+        let lead = active ?? sections.featured.first
+        // The lead theme fills the top of the window; the rest of the
+        // featured row climbs onto its faded bottom. Always shown, so a
         // search or a filter never moves the search field.
-        BleedScrollPage(showsHero: sections.featured.first != nil) { layout in
-            if let lead = sections.featured.first {
-                FeaturedThemeHero(set: lead, services: services, layout: layout)
+        BleedScrollPage(showsHero: lead != nil) { layout in
+            if let lead {
+                FeaturedThemeHero(set: lead, isActive: active != nil, services: services, layout: layout)
             }
         } content: { _ in
-            shelf("Featured", sets: Array(sections.featured.dropFirst()), more: .featured)
+            shelf("Featured", sets: sections.featured.filter { $0.id != lead?.id }, more: .featured)
             VStack(alignment: .leading, spacing: DS.Space.l) {
                 header
                 banners
@@ -251,13 +254,14 @@ struct DesktopUndoBanner: View {
         switch change {
         case .theme(let name): "\(name) is on your desktop. Undo puts back your widgets, their look and your wallpaper."
         case .clearedForWallpaper: "Your widgets were cleared for the new wallpaper."
+        case .turnedOff(let name): "\(name) is off. Undo brings back its widgets and look."
         }
     }
 }
 
 /// A theme set as a card: a miniature desktop of the whole set, its name
 /// and what inspired it. Opens its detail page.
-private struct ThemeSetCard: View {
+struct ThemeSetCard: View {
     let set: ThemeSet
     let services: AppServices
 
@@ -311,14 +315,16 @@ private struct ThemeSetCard: View {
 }
 
 /// The lead featured theme, large: its desktop fills the hero.
-private struct FeaturedThemeHero: View {
+struct FeaturedThemeHero: View {
     let set: ThemeSet
+    /// This is the theme on the desktop now.
+    var isActive = false
     let services: AppServices
     let layout: BleedLayout
 
     var body: some View {
         let favorite = services.themeStats.isFavorite(set.id)
-        HeroSection(eyebrow: "Featured theme", title: set.name,
+        HeroSection(eyebrow: isActive ? "On your desktop" : "Featured theme", title: set.name,
                     metadata: [set.inspiration ?? set.tagline, "\(set.includedWidgets.count) widgets"], bleed: layout) {
             // Wide windows show the desktop whole, as a card on the right
             // between the navigation and the row below, over its own colors;
@@ -348,6 +354,10 @@ private struct FeaturedThemeHero: View {
         } actions: {
             Button("View Theme") { services.ui.page = .themeSet(set.id) }
                 .buttonStyle(.pillProminent)
+            if isActive {
+                Button("Turn Off Theme") { withMotion(Motion.standard) { services.turnOffTheme() } }
+                    .buttonStyle(.pill)
+            }
             Button {
                 withMotion(Motion.bouncy) { services.themeStats.toggleFavorite(set.id) }
             } label: {

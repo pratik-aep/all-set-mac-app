@@ -1,9 +1,15 @@
 import AllSetCore
+import AppKit
 import SwiftUI
 
 struct WidgetSettings: View {
     @Bindable var settings: AppSettings
     let services: AppServices
+
+    /// The size on the main display (each display keeps its own after a theme); moving it sets every display.
+    private var shownScale: Binding<Double> {
+        Binding(get: { services.widgetScale(on: NSScreen.screens.first) }, set: { settings.widgetScale = $0 })
+    }
 
     var body: some View {
         Section {
@@ -16,9 +22,9 @@ struct WidgetSettings: View {
             .disabled(!settings.showWidgets)
             LabeledContent("Size") {
                 HStack(spacing: 10) {
-                    Slider(value: $settings.widgetScale, in: AppSettings.widgetScaleRange, step: 0.05)
+                    Slider(value: shownScale, in: AppSettings.widgetScaleRange, step: 0.05)
                         .frame(width: 160)
-                    Text(settings.widgetScale, format: .percent.precision(.fractionLength(0)))
+                    Text(shownScale.wrappedValue, format: .percent.precision(.fractionLength(0)))
                         .monospacedDigit()
                         .frame(width: 44, alignment: .trailing)
                     Button("Fit to Screen") { services.fitWidgetsToScreen() }

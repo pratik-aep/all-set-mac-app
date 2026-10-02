@@ -1,8 +1,8 @@
 import CoreGraphics
 
-/// The desktop's widget slots: squares the size of a small widget, `spacing`
+/// The desktop's widget slots: squares a quarter the area of a small widget, `spacing`
 /// apart, centered in the screen's visible area. Every widget size spans whole
-/// cells (medium 2×1, large 2×2, extra large 4×2), so widgets placed here line
+/// cells (small 2×2, medium 4×2, large 4×4, extra large 8×4), so widgets placed here line
 /// up with each other and never overlap. Works in the coordinates
 /// `WidgetInstance.offset` uses (layout points, origin top-left, y down).
 public struct WidgetGrid: Equatable, Sendable {
@@ -15,8 +15,9 @@ public struct WidgetGrid: Equatable, Sendable {
         }
     }
 
-    /// From one cell's top-left to the next.
-    public static let pitch = WidgetSize.small.dimensions.width + WidgetLayout.spacing
+    /// From one cell's top-left to the next: half a small widget plus its gap, so
+    /// a small widget covers 2×2 cells and an extra small one a single cell.
+    public static let pitch = (WidgetSize.small.dimensions.width + WidgetLayout.spacing) / 2
 
     public let columns: Int
     public let rows: Int
@@ -159,6 +160,49 @@ public struct WidgetGrid: Equatable, Sendable {
         return result
     }
 
+    /// Widgets already on the grid, opened up to fill it: whole empty cells
+    /// are slipped in between them, across and down, wherever no widget
+    /// reaches over, and what can't be spread evenly is split between the two
+    /// edges. A wide screen then doesn't leave a theme with bare sides.
+    public func spread(_ widgets: [WidgetInstance]) -> [WidgetInstance] {
+        stretched(stretched(widgets, vertical: false), vertical: true)
+    }
+
+    private func stretched(_ widgets: [WidgetInstance], vertical: Bool) -> [WidgetInstance] {
+        guard widgets.count > 1 else { return widgets }
+        let start = vertical ? origin.y : origin.x
+        let total = vertical ? rows : columns
+        let ranges: [Range<Int>] = widgets.map { widget in
+            let first = Int((((vertical ? widget.offset.y : widget.offset.x) - start) / Self.pitch).rounded())
+            let span = Self.span(of: widget.footprint)
+            return first..<(first + (vertical ? span.rows : span.columns))
+        }
+        guard let low = ranges.map(\.lowerBound).min(), let high = ranges.map(\.upperBound).max() else { return widgets }
+        let extra = total - (high - low)
+        guard extra > 0, low >= 0, high <= total else { return widgets }
+        // Seams: lines between two cells that no widget crosses.
+        let seams = ((low + 1)..<max(high, low + 1)).filter { seam in !ranges.contains { $0.lowerBound < seam && seam < $0.upperBound } }
+        var inserted: [Int: Int] = [:]
+        var placed = 0
+        if !seams.isEmpty {
+            for step in 1...extra {
+                let target = Double(low) + Double(high - low) * Double(step) / Double(extra + 1)
+                let seam = seams.min { abs(Double($0) - target) < abs(Double($1) - target) }!
+                // At most two cells at one seam: a wider hole reads as a gap, not spacing.
+                if inserted[seam, default: 0] < 2 { inserted[seam, default: 0] += 1; placed += 1 }
+            }
+        }
+        let leading = (extra - placed) / 2
+        return widgets.enumerated().map { index, widget in
+            let first = ranges[index].lowerBound
+            let shifted = first - low + leading + inserted.filter { $0.key <= first }.values.reduce(0, +)
+            var widget = widget
+            let moved = start + CGFloat(shifted) * Self.pitch
+            if vertical { widget.offset.y = moved } else { widget.offset.x = moved }
+            return widget
+        }
+    }
+
     /// Which cells are taken.
     private struct Occupancy {
         let grid: WidgetGrid
@@ -217,5 +261,39 @@ public struct WidgetGrid: Equatable, Sendable {
             }
             return best?.cell
         }
+    }
+}
+
+extension WidgetLayout {
+    /// Widgets laid out for one screen size, carried to another: the same
+    /// picture, scaled with the screen, centered the same relative way, and
+    /// never bigger than the new screen holds. `fillsScreen` says the picture
+    /// took most of the screen, so it should keep doing so.
+    public static func refit(_ widgets: [WidgetInstance], from fit: ScreenFit, toScreen size: CGSize, visible: CGSize,
+                             range: ClosedRange<Double>) -> (widgets: [WidgetInstance], scale: Double, fillsScreen: Bool) {
+        guard let first = widgets.first, fit.width > 0, fit.height > 0 else { return (widgets, fit.scale, false) }
+        let box = widgets.dropFirst().reduce(CGRect(origin: first.offset, size: first.footprint)) {
+            $0.union(CGRect(origin: $1.offset, size: $1.footprint))
+        }
+        guard box.width > 0, box.height > 0 else { return (widgets, fit.scale, false) }
+        let ratio = min(size.width / CGFloat(fit.width), size.height / CGFloat(fit.height))
+        var scale = min(max(fit.scale * Double(ratio), range.lowerBound), range.upperBound)
+        scale = min(scale, Double((visible.width - 2 * margin) / box.width), Double((visible.height - 2 * margin) / box.height))
+        scale = max(scale, range.lowerBound)
+        let factor = CGFloat(scale)
+        // Where the picture's middle was on the old screen, as a share of it.
+        let middle = CGPoint(x: box.midX * CGFloat(fit.scale) / CGFloat(fit.width) * size.width,
+                             y: box.midY * CGFloat(fit.scale) / CGFloat(fit.height) * size.height)
+        let half = CGSize(width: box.width * factor / 2, height: box.height * factor / 2)
+        let center = CGPoint(x: min(max(middle.x, margin + half.width), max(visible.width - margin - half.width, margin + half.width)),
+                             y: min(max(middle.y, margin + half.height), max(visible.height - margin - half.height, margin + half.height)))
+        let shift = CGPoint(x: center.x / factor - box.width / 2 - box.minX, y: center.y / factor - box.height / 2 - box.minY)
+        let moved = widgets.map { widget -> WidgetInstance in
+            var widget = widget
+            widget.offset = CGPoint(x: widget.offset.x + shift.x, y: widget.offset.y + shift.y)
+            return widget
+        }
+        let fills = max(box.width * factor / visible.width, box.height * factor / visible.height) >= 0.8
+        return (moved, scale, fills)
     }
 }

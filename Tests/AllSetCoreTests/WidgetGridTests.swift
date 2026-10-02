@@ -33,20 +33,20 @@ import Testing
 
     @Test func gridFitsTheScreenAndIsCentered() {
         let grid = WidgetGrid(bounds: airBounds)
-        #expect(grid.columns == 7 && grid.rows >= 4)
+        #expect(grid.columns == 15 && grid.rows >= 8)
         let width = CGFloat(grid.columns) * WidgetGrid.pitch - WidgetLayout.spacing
         #expect(abs(grid.origin.x - (airBounds.width - width) / 2) <= 0.5)
         #expect(grid.origin.x >= WidgetLayout.margin && grid.origin.y >= WidgetLayout.margin)
         // Bigger widgets mean fewer, larger slots.
         let larger = WidgetGrid(bounds: CGSize(width: airBounds.width / 1.4, height: airBounds.height / 1.4))
-        #expect(larger.columns == 5 && larger.rows == 3)
+        #expect(larger.columns == 11 && larger.rows == 7)
     }
 
     @Test func everySizeSpansWholeCells() {
-        #expect(WidgetGrid.span(of: .small) == (1, 1))
-        #expect(WidgetGrid.span(of: .medium) == (2, 1))
-        #expect(WidgetGrid.span(of: .large) == (2, 2))
-        #expect(WidgetGrid.span(of: .extraLarge) == (4, 2))
+        #expect(WidgetGrid.span(of: .small) == (2, 2))
+        #expect(WidgetGrid.span(of: .medium) == (4, 2))
+        #expect(WidgetGrid.span(of: .large) == (4, 4))
+        #expect(WidgetGrid.span(of: .extraLarge) == (8, 4))
     }
 
     @Test func aDropLandsInTheNearestFreeSlot() {
@@ -55,10 +55,10 @@ import Testing
         // Dropped right on top of a widget already there: the next slot over.
         let taken = CGRect(origin: first, size: WidgetSize.small.dimensions)
         let spot = grid.place(.small, near: CGPoint(x: first.x + 10, y: first.y + 5), avoiding: [taken])
-        #expect(spot == grid.offset(of: .init(column: 0, row: 1)) || spot == grid.offset(of: .init(column: 1, row: 0)))
+        #expect(spot == grid.offset(of: .init(column: 0, row: 2)) || spot == grid.offset(of: .init(column: 2, row: 0)))
         // Dropped past the edge: kept on the screen.
         let edge = grid.place(.medium, near: CGPoint(x: 5000, y: -300), avoiding: [])
-        #expect(edge == grid.offset(of: .init(column: grid.columns - 2, row: 0)))
+        #expect(edge == grid.offset(of: .init(column: grid.columns - 4, row: 0)))
         // A full grid has no slot.
         let everything = CGRect(x: 0, y: 0, width: airBounds.width, height: airBounds.height)
         #expect(grid.place(.small, near: .zero, avoiding: [everything]) == nil)
@@ -69,7 +69,7 @@ import Testing
         let first = grid.firstFree(.small, avoiding: [])
         #expect(first == grid.offset(of: .init(column: 0, row: 0)))
         let taken = CGRect(origin: first!, size: WidgetSize.small.dimensions)
-        #expect(grid.firstFree(.small, avoiding: [taken]) == grid.offset(of: .init(column: 0, row: 1)))
+        #expect(grid.firstFree(.small, avoiding: [taken]) == grid.offset(of: .init(column: 0, row: 2)))
     }
 
     @Test func cleanUpRemovesOverlapsAndLinesEverythingUp() {
@@ -89,6 +89,21 @@ import Testing
         expectOnGrid(tidy, grid)
         // A tidy desktop stays exactly as it is.
         #expect(frames(grid.arranged(tidy)) == frames(tidy))
+    }
+
+    @Test func spreadOpensUpTheGridToItsEdges() {
+        let grid = WidgetGrid(bounds: airBounds)
+        // A row of seven small widgets, 14 of the 15 columns: one empty cell slips in between.
+        let row = (0..<7).map { WidgetInstance(kind: .clock, size: .small, offset: grid.offset(of: .init(column: $0 * 2, row: 3))) }
+        let spread = grid.spread(row)
+        expectNoOverlaps(spread)
+        expectOnGrid(spread, grid)
+        let right = spread.map { $0.offset.x + $0.footprint.width }.max()!
+        #expect(abs(right - (grid.origin.x + grid.capacity.width)) < 0.5)
+        // A single row has no seam to open down the screen: it is centered instead.
+        #expect(Set(spread.map(\.offset.y)).count == 1)
+        let top = spread[0].offset.y
+        #expect(top == grid.origin.y + CGFloat((grid.rows - 2) / 2) * WidgetGrid.pitch)
     }
 
     @Test func cleanUpKeepsAThemesShape() {
@@ -120,5 +135,51 @@ import Testing
         #expect(tidy[0].offset == a)
         expectNoOverlaps(tidy)
         expectOnGrid(tidy, grid)
+    }
+}
+
+@Suite struct WidgetRefitTests {
+    private func layout() -> [WidgetInstance] {
+        [WidgetInstance(kind: .clock, size: .medium, offset: CGPoint(x: 100, y: 80)),
+         WidgetInstance(kind: .weather, size: .small, offset: CGPoint(x: 100, y: 264)),
+         WidgetInstance(kind: .photo, size: .large, offset: CGPoint(x: 468, y: 80))]
+    }
+
+    private func box(_ widgets: [WidgetInstance]) -> CGRect {
+        widgets.dropFirst().reduce(CGRect(origin: widgets[0].offset, size: widgets[0].footprint)) {
+            $0.union(CGRect(origin: $1.offset, size: $1.footprint))
+        }
+    }
+
+    @Test func aBiggerScreenScalesTheSamePictureUp() {
+        let fit = ScreenFit(scale: 1, size: CGSize(width: 1440, height: 900))
+        let out = WidgetLayout.refit(layout(), from: fit, toScreen: CGSize(width: 2560, height: 1440),
+                                     visible: CGSize(width: 2560, height: 1400), range: 0.4...2)
+        #expect(out.scale > 1.5 && out.scale <= 2)
+        // Same shape: every widget moved by the same amount.
+        let shifts = Set(zip(layout(), out.widgets).map { "\(($1.offset.x - $0.offset.x).rounded()),\(($1.offset.y - $0.offset.y).rounded())" })
+        #expect(shifts.count == 1)
+        // On the new screen it still sits inside the margins.
+        let drawn = box(out.widgets)
+        #expect(drawn.maxX * out.scale <= 2560 - WidgetLayout.margin + 0.5 && drawn.maxY * out.scale <= 1400 - WidgetLayout.margin + 0.5)
+        #expect(drawn.minX >= 0 && drawn.minY >= 0)
+    }
+
+    @Test func aSmallerScreenShrinksItToFit() {
+        let fit = ScreenFit(scale: 1.4, size: CGSize(width: 2560, height: 1440))
+        let wide = box(layout())
+        let out = WidgetLayout.refit(layout(), from: fit, toScreen: CGSize(width: 1280, height: 720),
+                                     visible: CGSize(width: 1280, height: 690), range: 0.4...2)
+        #expect(out.scale < 1.4)
+        #expect(wide.width * out.scale <= 1280 - 2 * WidgetLayout.margin + 0.5)
+        #expect(wide.height * out.scale <= 690 - 2 * WidgetLayout.margin + 0.5)
+    }
+
+    @Test func aSameSizedScreenChangesNothing() {
+        let fit = ScreenFit(scale: 1.1, size: CGSize(width: 1440, height: 900))
+        let out = WidgetLayout.refit(layout(), from: fit, toScreen: CGSize(width: 1440, height: 900),
+                                     visible: CGSize(width: 1440, height: 870), range: 0.4...2)
+        #expect(abs(out.scale - 1.1) < 0.001)
+        #expect(zip(layout(), out.widgets).allSatisfy { abs($0.offset.x - $1.offset.x) < 0.5 && abs($0.offset.y - $1.offset.y) < 0.5 })
     }
 }

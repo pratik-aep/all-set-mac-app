@@ -35,7 +35,7 @@ enum NavSection: String, CaseIterable, Identifiable {
     var home: AppPage {
         switch self {
         case .island: .island
-        case .desktop: .themes
+        case .desktop: .home
         case .workspace: .snapping
         case .tools: .clipboard
         case .system: .monitor
@@ -45,7 +45,7 @@ enum NavSection: String, CaseIterable, Identifiable {
     static func of(_ page: AppPage) -> NavSection {
         switch page {
         case .island, .activities: .island
-        case .themes, .themeSet, .gallery, .art, .widget, .widgetAppearance, .wallpaper, .wallpaperOptions, .desktop: .desktop
+        case .home, .themes, .themeSet, .gallery, .art, .widget, .widgetAppearance, .wallpaper, .wallpaperOptions, .desktop: .desktop
         case .snapping, .workspaces: .workspace
         case .clipboard, .shelf, .mixer, .knocks, .notes, .screenshot: .tools
         case .monitor, .lidPlane, .general, .about: .system
@@ -77,7 +77,8 @@ struct NavItem: Identifiable {
             [NavItem(page: .island, title: "Dynamic Island", symbol: "capsule.fill"),
              NavItem(page: .activities, title: "Live Activities", symbol: "waveform")]
         case .desktop:
-            [NavItem(page: .themes, title: "Themes", symbol: "wand.and.stars"),
+            [NavItem(page: .home, title: "Home", symbol: "house.fill"),
+             NavItem(page: .themes, title: "Themes", symbol: "wand.and.stars"),
              NavItem(page: .gallery(nil), title: "Widgets", symbol: "square.grid.2x2.fill"),
              NavItem(page: .art, title: "Art", symbol: "paintpalette.fill"),
              NavItem(page: .wallpaper, title: "Wallpaper", symbol: "photo.artframe"),
@@ -113,6 +114,7 @@ struct FloatingNav: View {
     /// The page last shown in each section, so switching back returns to it.
     @State private var lastPage: [NavSection: AppPage] = [:]
     @Namespace private var selection
+    @Namespace private var lens
 
     private var page: AppPage { ui.page ?? .island }
     private var section: NavSection { .of(page) }
@@ -169,7 +171,7 @@ struct FloatingNav: View {
                             .frame(height: 34)
                             .background {
                                 if isSelected {
-                                    Capsule().fill(.white.opacity(0.14))
+                                    Color.clear.glassLens()
                                         .matchedGeometryEffect(id: "section", in: selection)
                                 }
                             }
@@ -231,7 +233,7 @@ struct FloatingNav: View {
         let row = GlassPanel(cornerRadius: 18, padding: 3) {
             HStack(spacing: 2) {
                 ForEach(items) { item in
-                    PagePill(item: item, isSelected: item.matches(page)) {
+                    PagePill(item: item, isSelected: item.matches(page), lens: lens) {
                         withMotion(Motion.quick) { ui.page = item.page }
                     }
                 }
@@ -261,6 +263,7 @@ private struct SectionLabelStyle: LabelStyle {
 private struct PagePill: View {
     let item: NavItem
     let isSelected: Bool
+    let lens: Namespace.ID
     let action: @MainActor () -> Void
 
     var body: some View {
@@ -273,16 +276,21 @@ private struct PagePill: View {
                         .font(.system(size: 10, weight: .bold).monospacedDigit())
                         .padding(.horizontal, 5)
                         .frame(minWidth: 16, minHeight: 16)
-                        .background(Capsule().fill(isSelected ? Color.black.opacity(0.12) : DS.Surface.hover))
+                        .background(Capsule().fill(isSelected ? Color.white.opacity(0.2) : DS.Surface.hover))
                 }
             }
             .font(.system(size: 12, weight: .medium))
             .lineLimit(1)
             .fixedSize()
-            .foregroundStyle(isSelected ? Color.black.opacity(0.88) : DS.Ink.secondary)
+            .foregroundStyle(isSelected ? DS.Ink.primary : DS.Ink.secondary)
             .padding(.horizontal, DS.Space.s)
             .frame(height: 28)
-            .background { if isSelected { Capsule().fill(Color.white.opacity(0.92)) } }
+            .background {
+                if isSelected {
+                    Color.clear.glassLens()
+                        .matchedGeometryEffect(id: "page", in: lens)
+                }
+            }
             .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())

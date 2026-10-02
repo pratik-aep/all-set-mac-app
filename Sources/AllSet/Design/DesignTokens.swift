@@ -81,7 +81,7 @@ enum DS {
 
         var font: Font {
             switch self {
-            case .hero: .system(size: 40, weight: .bold)
+            case .hero: .system(size: 52, weight: .bold)
             case .title: .system(size: 28, weight: .semibold)
             case .section: .system(size: 20, weight: .semibold)
             case .headline: .system(size: 14, weight: .semibold)
@@ -101,7 +101,7 @@ enum DS {
 
         var tracking: CGFloat {
             switch self {
-            case .hero: -0.6
+            case .hero: -1.0
             case .title: -0.3
             case .eyebrow: 1.2
             default: 0

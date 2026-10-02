@@ -23,6 +23,35 @@ import Testing
         #expect(settings.widgetTheme == setup.id)
         #expect(settings.widgetDesignTheme == nil)
         #expect(settings.showWidgets)
+        #expect(settings.activeThemeSet == set.id)
+    }
+
+    /// The Themes banner follows the set on the desktop, and survives a restart.
+    @Test func theActiveSetIsRememberedAndForgotten() throws {
+        let suite = "AllSetTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let set = try #require(ThemeLibrary.set("setup.seven"))
+        let settings = AppSettings(defaults: defaults)
+        settings.adopt(set)
+        #expect(AppSettings(defaults: defaults).activeThemeSet == set.id)
+        settings.resetWidgetLook()
+        #expect(AppSettings(defaults: defaults).activeThemeSet == nil)
+    }
+
+    /// Each display keeps its own widget size; the size slider sets them all.
+    @Test func eachDisplayKeepsItsOwnWidgetSize() throws {
+        let suite = "AllSetTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.screenFits["Built-in"] = ScreenFit(scale: 1.2, size: CGSize(width: 1470, height: 956))
+        settings.screenFits["Monitor"] = ScreenFit(scale: 1.8, size: CGSize(width: 2560, height: 1440))
+        #expect(settings.widgetScale(for: "Built-in") == 1.2 && settings.widgetScale(for: "Monitor") == 1.8)
+        #expect(settings.widgetScale(for: "Unknown") == settings.widgetScale)
+        #expect(AppSettings(defaults: defaults).screenFits["Monitor"]?.scale == 1.8)
+        settings.widgetScale = 1.5
+        #expect(settings.widgetScale(for: "Built-in") == 1.5 && settings.widgetScale(for: "Monitor") == 1.5)
     }
 
     /// Picking a wallpaper leaves no theme behind.

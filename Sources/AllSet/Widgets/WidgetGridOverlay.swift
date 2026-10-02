@@ -80,12 +80,12 @@ final class WidgetGridOverlay {
     }
 
     private func freeCells(_ grid: WidgetGrid, avoiding occupied: [CGRect]) -> [CGRect] {
-        let small = WidgetSize.small.dimensions
+        let side = WidgetGrid.pitch - WidgetLayout.spacing
         var cells: [CGRect] = []
         for column in 0..<grid.columns {
             for row in 0..<grid.rows {
                 let corner = grid.offset(of: WidgetGrid.Cell(column: column, row: row))
-                let cell = CGRect(origin: corner, size: small)
+                let cell = CGRect(origin: corner, size: CGSize(width: side, height: side))
                 guard !occupied.contains(where: { $0.insetBy(dx: 1, dy: 1).intersects(cell) }) else { continue }
                 cells.append(CGRect(x: cell.minX * scale, y: cell.minY * scale, width: cell.width * scale, height: cell.height * scale))
             }
