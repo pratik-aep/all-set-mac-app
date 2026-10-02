@@ -266,3 +266,4 @@ is made by looking. Applied with `wallpaper_library.py remove-duplicates`.
 - **⌘K** (`Design/SearchOverlay.swift`, `UIState.isSearching`): a glass field over the window that searches themes, widgets and pages and navigates to the hit. Return takes the first result, Esc closes.
 - **Toasts** (`Toast`/`ToastView`, `UIState.toast`): a floating glass capsule that clears itself after 2.5 s. Wired to "Wallpaper applied" in `pickWallpaper`.
 - The hero type role is 52 pt. `-probe pageswitch` and `-renderPages` know the `home` page. `rules_frontend.md` is the visual spec.
+- **Collections** (`Studio/CollectionsPage.swift`): a rail of covers (each a distinct theme from its group) over the chosen collection's themes. **Favorites** (same file): hearted themes, and Recent (themes by `lastUsed`). Both are Desktop pills.

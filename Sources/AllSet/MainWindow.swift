@@ -10,6 +10,8 @@ enum AppPage: Hashable {
     // Widgets
     /// The Desktop section's front page.
     case home
+    case collections
+    case favorites
     /// Whole-desktop looks.
     case themes
     /// One theme set's page.
@@ -173,6 +175,10 @@ struct MainView: View {
             }
         case .home:
             HomePage(services: services)
+        case .collections:
+            CollectionsPage(services: services)
+        case .favorites:
+            FavoritesPage(services: services)
         case .themes:
             ThemesPage(services: services)
         case .themeSet(let id):

@@ -770,7 +770,7 @@ enum PageCPUProbe {
         window.orderFrontRegardless()
         services.ui.page = .about
         try? await Task.sleep(for: .seconds(2))
-        let pages: [(String, AppPage)] = [("island", .island), ("home", .home), ("themes", .themes), ("gallery", .gallery(nil)), ("wallpaper", .wallpaper),
+        let pages: [(String, AppPage)] = [("island", .island), ("home", .home), ("collections", .collections), ("favorites", .favorites), ("themes", .themes), ("gallery", .gallery(nil)), ("wallpaper", .wallpaper),
                                           ("desktop", .desktop), ("monitor", .monitor), ("mixer", .mixer), ("notes", .notes), ("general", .general)]
         let only = ProcessInfo.processInfo.environment["ONLY"]
         let repeats = Int(ProcessInfo.processInfo.environment["REPEAT"] ?? "") ?? 1

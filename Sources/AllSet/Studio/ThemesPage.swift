@@ -371,7 +371,7 @@ struct FeaturedThemeHero: View {
 }
 
 /// A theme's preview picture, drawn on first sight.
-private struct ThemeSnapshot: View {
+struct ThemeSnapshot: View {
     let set: ThemeSet
     let dark: Bool
     let services: AppServices
