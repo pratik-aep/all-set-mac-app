@@ -319,6 +319,7 @@ public enum WidgetKind: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// The sizes it has layouts for.
     public var supportedSizes: [WidgetSize] {
         switch self {
         case .battery, .nowPlaying, .focus, .stopwatch, .date, .reading, .airQuality: [.small, .medium]
@@ -984,6 +985,21 @@ public struct WidgetInstance: Codable, Identifiable, Equatable, Sendable {
     /// Top-left corner, measured from the top-left of the screen's visible area.
     public var offset: CGPoint
     public var options: WidgetOptions
+    /// How much larger or smaller than its size's own dimensions it's drawn,
+    /// from dragging its corner on the desktop. Its layout stays the one that
+    /// size was designed with; 1 for a widget never resized.
+    public var scale: Double
+    /// Height relative to width once scaled: 1 keeps the layout's own shape,
+    /// other values stretch it taller or shorter (a free-form resize).
+    public var stretch: Double
+
+    public static let scaleRange: ClosedRange<Double> = 0.4...3
+    public static let stretchRange: ClosedRange<Double> = 0.1...6
+
+    /// What it covers on the desktop, in layout points.
+    public var footprint: CGSize {
+        CGSize(width: size.dimensions.width * scale, height: size.dimensions.height * scale * stretch)
+    }
 
     public init(kind: WidgetKind, size: WidgetSize? = nil, screenName: String? = nil, offset: CGPoint = .zero) {
         id = UUID()
@@ -993,6 +1009,8 @@ public struct WidgetInstance: Codable, Identifiable, Equatable, Sendable {
         self.screenName = screenName
         self.offset = offset
         options = WidgetOptions()
+        scale = 1
+        stretch = 1
         switch kind {
         case .weather:
             material = .tinted
@@ -1155,6 +1173,11 @@ public struct WidgetInstance: Codable, Identifiable, Equatable, Sendable {
         screenName = try? container.decodeIfPresent(String.self, forKey: .screenName)
         offset = (try? container.decode(CGPoint.self, forKey: .offset)) ?? .zero
         options = (try? container.decode(WidgetOptions.self, forKey: .options)) ?? WidgetOptions()
+        // Layouts saved before resizing existed have none: their own size.
+        let saved = (try? container.decodeIfPresent(Double.self, forKey: .scale)) ?? 1
+        scale = saved.isFinite ? min(max(saved, Self.scaleRange.lowerBound), Self.scaleRange.upperBound) : 1
+        let stretched = (try? container.decodeIfPresent(Double.self, forKey: .stretch)) ?? 1
+        stretch = stretched.isFinite ? min(max(stretched, Self.stretchRange.lowerBound), Self.stretchRange.upperBound) : 1
     }
 }
 
@@ -1164,7 +1187,7 @@ public enum WidgetLayout {
     /// Gap between widgets, as on macOS.
     public static let spacing: CGFloat = 16
     /// Distance from the edges of the visible area.
-    public static let margin: CGFloat = 24
+    public static let margin: CGFloat = 8
     public static let grid: CGFloat = 8
 
     /// Keeps a widget of `size` fully inside `bounds`, without moving it otherwise.
@@ -1180,8 +1203,8 @@ public enum WidgetLayout {
     public static func fitted(_ widgets: [WidgetInstance], in bounds: CGSize,
                               range: ClosedRange<Double>) -> (widgets: [WidgetInstance], scale: Double) {
         guard let first = widgets.first else { return (widgets, 1) }
-        let box = widgets.dropFirst().reduce(CGRect(origin: first.offset, size: first.size.dimensions)) {
-            $0.union(CGRect(origin: $1.offset, size: $1.size.dimensions))
+        let box = widgets.dropFirst().reduce(CGRect(origin: first.offset, size: first.footprint)) {
+            $0.union(CGRect(origin: $1.offset, size: $1.footprint))
         }
         guard box.width > 0, box.height > 0 else { return (widgets, 1) }
         let fits = Double(min((bounds.width - 2 * margin) / box.width, (bounds.height - 2 * margin) / box.height))

@@ -86,7 +86,7 @@ public struct WidgetTheme: Identifiable, Sendable {
                                  y: WidgetLayout.margin + Double(item.row) * step)
             var widget = styled(WidgetInstance(kind: item.kind, size: item.size, screenName: screenName, offset: offset))
             item.configure(&widget, self)
-            widget.offset = WidgetLayout.snap(widget.offset, size: widget.size.dimensions, within: bounds)
+            widget.offset = WidgetLayout.snap(widget.offset, size: widget.footprint, within: bounds)
             return widget
         }
     }

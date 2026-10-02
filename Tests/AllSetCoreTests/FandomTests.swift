@@ -165,7 +165,7 @@ import Testing
             for b in rects[(index + 1)...] { #expect(!a.insetBy(dx: 1, dy: 1).intersects(b)) }
         }
         // A screen the theme already fits exactly stays at natural size.
-        let natural = WidgetLayout.fitted(layout, in: CGSize(width: 1136, height: 768), range: AppSettings.widgetScaleRange)
+        let natural = WidgetLayout.fitted(layout, in: CGSize(width: 1088 + 2 * WidgetLayout.margin, height: 720 + 2 * WidgetLayout.margin), range: AppSettings.widgetScaleRange)
         #expect(abs(natural.scale - 1) < 0.01)
     }
 }

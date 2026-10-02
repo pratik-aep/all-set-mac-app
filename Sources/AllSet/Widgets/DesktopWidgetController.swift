@@ -21,6 +21,9 @@ final class DesktopWidgetController {
     private var arrivals: Task<Void, Never>?
     private var occlusionObservers: [UUID: NSObjectProtocol] = [:]
     private var screenObserver: NSObjectProtocol?
+    /// Reads the pointer for the corner resize handles.
+    private var pointerWatch: Timer?
+    private var lastPointer: CGPoint?
     private var toolbar: NSPanel?
     /// "Keep / Go Back" while a theme is being tried on the desktop.
     private var previewBar: NSPanel?
@@ -28,6 +31,11 @@ final class DesktopWidgetController {
     private var hasStarted = false
     /// The widget being dragged, where the pointer started and where its window was.
     private var drag: (id: UUID, startPointer: CGPoint, startOrigin: CGPoint)?
+    /// The widget being resized by its corner: where the pointer started, its
+    /// content's top-left on screen (which stays put) and its footprint then.
+    private var resize: (id: UUID, startPointer: CGPoint, topLeft: CGPoint, startFootprint: CGSize)?
+    /// What the resize last showed, saved when the corner is let go.
+    private var resizeResult: WidgetResize.Result?
     /// The slots, shown while a widget is dragged or dropped from the gallery.
     private let gridOverlay = WidgetGridOverlay()
     /// What the grid layout last depended on; a change tidies the widgets.
@@ -37,7 +45,7 @@ final class DesktopWidgetController {
     private var dropReleasedAt: Date?
 
     private struct GridShape: Equatable {
-        var sizes: [UUID: WidgetSize]
+        var footprints: [UUID: CGSize]
         var screens: [CGRect]
         var scale: Double
     }
@@ -65,11 +73,27 @@ final class DesktopWidgetController {
             self?.updateDropping()
         }
         hasStarted = true
+        // macOS sends no mouse-moved events to an app that isn't in front, so
+        // the pointer is read directly: two dozen cheap checks a second.
+        let watch = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.pointerMoved() }
+        }
+        watch.tolerance = 0.02
+        RunLoop.main.add(watch, forMode: .common)
+        pointerWatch = watch
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.sync(animated: false) }
         }
+    }
+
+    private func pointerMoved() {
+        guard resize == nil, services.settings.showWidgets else { return }
+        let pointer = NSEvent.mouseLocation
+        guard pointer != lastPointer else { return }
+        lastPointer = pointer
+        for window in windows.values { window.pointerMoved(to: pointer) }
     }
 
     // MARK: Windows
@@ -108,11 +132,11 @@ final class DesktopWidgetController {
     /// in place, so it's free the rest of the time.
     private func tidyIfShapeChanged() {
         let shape = GridShape(
-            sizes: Dictionary(services.widgets.widgets.map { ($0.id, $0.size) }, uniquingKeysWith: { first, _ in first }),
+            footprints: Dictionary(services.widgets.widgets.map { ($0.id, $0.footprint) }, uniquingKeysWith: { first, _ in first }),
             screens: NSScreen.screens.map(\.visibleFrame),
             scale: services.settings.widgetScale
         )
-        guard shape != gridShape, drag == nil else { return }
+        guard shape != gridShape, drag == nil, resize == nil else { return }
         gridShape = shape
         services.cleanUpWidgets()
     }
@@ -148,6 +172,7 @@ final class DesktopWidgetController {
     private func show(_ instance: WidgetInstance) {
         let window = makeWindow(for: instance)
         window.allowsKey = instance.kind == .note || instance.kind == .todo
+        window.state.contentScale = contentScale(for: instance)
         if let frame = frame(for: instance) { window.setFrame(frame, display: false) }
         if hasStarted { arrive(window, motion: instance.designTheme?.motion ?? .calm) }
         window.orderFront(nil)
@@ -157,7 +182,8 @@ final class DesktopWidgetController {
     private func place(_ instance: WidgetInstance, animated: Bool) {
         guard let window = windows[instance.id] else { return }
         window.allowsKey = instance.kind == .note || instance.kind == .todo
-        guard drag?.id != instance.id, let frame = frame(for: instance) else { return }
+        guard drag?.id != instance.id, resize?.id != instance.id, let frame = frame(for: instance) else { return }
+        window.state.contentScale = contentScale(for: instance)
         if window.frame != frame {
             if animated, window.isVisible {
                 NSAnimationContext.runAnimationGroup { context in
@@ -215,11 +241,16 @@ final class DesktopWidgetController {
         let id = instance.id
         let window = spares.popLast() ?? WidgetWindow()
         window.state.isOccluded = false
+        window.state.cornerHovered = false
+        window.state.isResizing = false
+        window.state.liveSize = nil
+        window.state.liveScale = nil
         let root = WidgetRoot(
             id: id,
             services: services,
             window: window.state,
             onDrag: { [weak self] phase in self?.handleDrag(id, phase) },
+            onResize: { [weak self] phase in self?.handleResize(id, phase) },
             onRemove: { [weak self] in self?.services.removeWidget(id) },
             onConfigure: { [weak self] in self?.services.openWindow(.widget(id)) }
         )
@@ -273,12 +304,24 @@ final class DesktopWidgetController {
         let visible = screen.visibleFrame
         // Offsets are layout points: position and size both grow with the widget size.
         let scale = services.settings.widgetScale
-        let size = CGSize(width: instance.size.dimensions.width * scale, height: instance.size.dimensions.height * scale)
+        let size = CGSize(width: instance.footprint.width * scale, height: instance.footprint.height * scale)
         let offset = WidgetLayout.clamp(CGPoint(x: instance.offset.x * scale, y: instance.offset.y * scale),
                                         size: size, within: visible.size)
-        let content = CGRect(x: visible.minX + offset.x, y: visible.maxY - offset.y - size.height,
-                             width: size.width, height: size.height)
-        return content.insetBy(dx: -WidgetWindow.margin * scale, dy: -WidgetWindow.margin * scale)
+        return windowFrame(topLeft: CGPoint(x: visible.minX + offset.x, y: visible.maxY - offset.y),
+                           size: size, contentScale: scale * instance.scale)
+    }
+
+    /// A window around content of `size` (screen points) hanging from
+    /// `topLeft`. The margin grows with the widget, so its shadow and badges
+    /// keep the same room at any size.
+    private func windowFrame(topLeft: CGPoint, size: CGSize, contentScale: Double) -> CGRect {
+        let content = CGRect(x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height)
+        return content.insetBy(dx: -WidgetWindow.margin * contentScale, dy: -WidgetWindow.margin * contentScale)
+    }
+
+    /// How much larger than layout points a widget's window draws it.
+    private func contentScale(for instance: WidgetInstance) -> Double {
+        services.settings.widgetScale * instance.scale
     }
 
     private func screen(named name: String?) -> NSScreen? {
@@ -337,13 +380,14 @@ final class DesktopWidgetController {
     /// screen under its middle.
     private func slot(for instance: WidgetInstance, in window: NSWindow) -> (screen: NSScreen, offset: CGPoint, grid: WidgetGrid)? {
         let scale = services.settings.widgetScale
-        let content = window.frame.insetBy(dx: WidgetWindow.margin * scale, dy: WidgetWindow.margin * scale)
+        let margin = WidgetWindow.margin * contentScale(for: instance)
+        let content = window.frame.insetBy(dx: margin, dy: margin)
         let center = CGPoint(x: content.midX, y: content.midY)
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(center) }) ?? screen(named: nil) else { return nil }
         let visible = screen.visibleFrame
         let offset = CGPoint(x: (content.minX - visible.minX) / scale, y: (visible.maxY - content.maxY) / scale)
         let grid = services.widgetGrid(on: screen)
-        guard let spot = grid.place(instance.size, near: offset, avoiding: services.occupiedRects(on: screen, except: instance.id)) else {
+        guard let spot = grid.place(instance.footprint, near: offset, avoiding: services.occupiedRects(on: screen, except: instance.id)) else {
             return nil
         }
         return (screen, spot, grid)
@@ -359,7 +403,71 @@ final class DesktopWidgetController {
                              occupied: services.occupiedRects(on: slot.screen, except: instance.id),
                              level: window.level, below: window)
         }
-        gridOverlay.highlight(CGRect(origin: slot.offset, size: instance.size.dimensions))
+        gridOverlay.highlight(CGRect(origin: slot.offset, size: instance.footprint))
+    }
+
+    // MARK: Resizing
+
+    /// The corner handle being dragged: the widget grows or shrinks live from
+    /// its top-left, taking whichever of its layouts fits the drag best
+    /// (`WidgetResize`), and is saved when let go, the others making room.
+    private func handleResize(_ id: UUID, _ phase: WidgetDragPhase, pointer: CGPoint = NSEvent.mouseLocation) {
+        guard let window = windows[id], let instance = services.widgets.instance(id),
+              let screen = services.screen(for: instance) else { return }
+        let scale = services.settings.widgetScale
+        switch phase {
+        case .changed:
+            if resize?.id != id {
+                let margin = WidgetWindow.margin * contentScale(for: instance)
+                resize = (id, pointer, CGPoint(x: window.frame.minX + margin, y: window.frame.maxY - margin), instance.footprint)
+                resizeResult = WidgetResize.Result(size: instance.size, scale: instance.scale, stretch: instance.stretch)
+            }
+            guard let resize else { return }
+            // Layout points; dragging down (smaller y on screen) makes it taller.
+            let dragged = CGSize(width: resize.startFootprint.width + (pointer.x - resize.startPointer.x) / scale,
+                                 height: resize.startFootprint.height + (resize.startPointer.y - pointer.y) / scale)
+            // No further than the grid holds, or than the screen reaches from here.
+            let visible = screen.visibleFrame
+            let edgeRoom = CGSize(width: (visible.maxX - resize.topLeft.x) / scale - WidgetLayout.margin / scale,
+                                  height: (resize.topLeft.y - visible.minY) / scale - WidgetLayout.margin / scale)
+            let capacity = services.widgetRoom(for: instance) ?? edgeRoom
+            let room = CGSize(width: min(capacity.width, edgeRoom.width), height: min(capacity.height, edgeRoom.height))
+            let result = WidgetResize.resolve(dragged, current: resizeResult?.size ?? instance.size,
+                                              sizes: instance.kind.supportedSizes, room: room)
+            guard result != resizeResult || window.state.liveSize == nil else { return }
+            resizeResult = result
+            window.state.liveSize = result.size
+            window.state.liveScale = result.scale
+            window.state.liveStretch = result.stretch
+            window.state.contentScale = scale * result.scale
+            let size = CGSize(width: result.footprint.width * scale, height: result.footprint.height * scale)
+            window.setFrame(windowFrame(topLeft: resize.topLeft, size: size, contentScale: scale * result.scale), display: true)
+            showResizeSlot(for: instance, footprint: result.footprint, in: screen, window: window)
+        case .ended:
+            guard resize?.id == id else { return }
+            let result = resizeResult
+            resize = nil
+            resizeResult = nil
+            gridOverlay.hide()
+            // Saved first, so the window's size and content agree throughout.
+            if let result { services.resizeWidget(id, to: result) }
+            window.state.liveSize = nil
+            window.state.liveScale = nil
+            window.state.liveStretch = nil
+            sync()
+        }
+    }
+
+    /// The cells a widget being resized will take, from where it stands.
+    private func showResizeSlot(for instance: WidgetInstance, footprint: CGSize, in screen: NSScreen, window: NSWindow) {
+        let grid = services.widgetGrid(on: screen)
+        if !gridOverlay.isShowing || gridOverlay.screen?.displayID != screen.displayID {
+            gridOverlay.show(on: screen, grid: grid, scale: services.settings.widgetScale,
+                             occupied: services.occupiedRects(on: screen, except: instance.id),
+                             level: window.level, below: window)
+        }
+        let cell = grid.nearestCell(to: instance.offset, footprint: footprint).map(grid.offset(of:)) ?? instance.offset
+        gridOverlay.highlight(CGRect(origin: cell, size: footprint))
     }
 
     // MARK: Dropping from the gallery
@@ -410,15 +518,15 @@ final class DesktopWidgetController {
     /// The slot for a widget centered on `point`.
     private func dropSlot(at point: CGPoint, for instance: WidgetInstance) -> (screen: NSScreen, offset: CGPoint)? {
         guard let screen = gridOverlay.screen, let layout = gridOverlay.layoutPoint(point) else { return nil }
-        let size = instance.size.dimensions
+        let size = instance.footprint
         let wanted = CGPoint(x: layout.x - size.width / 2, y: layout.y - size.height / 2)
-        guard let spot = services.widgetGrid(on: screen).place(instance.size, near: wanted,
+        guard let spot = services.widgetGrid(on: screen).place(size, near: wanted,
                                                                avoiding: services.occupiedRects(on: screen)) else { return nil }
         return (screen, spot)
     }
 
     private func dropMoved(to point: CGPoint, instance: WidgetInstance) {
-        gridOverlay.highlight(dropSlot(at: point, for: instance).map { CGRect(origin: $0.offset, size: instance.size.dimensions) })
+        gridOverlay.highlight(dropSlot(at: point, for: instance).map { CGRect(origin: $0.offset, size: instance.footprint) })
     }
 
     private func drop(_ instance: WidgetInstance, at point: CGPoint) -> Bool {
@@ -484,24 +592,44 @@ private struct WidgetRoot: View {
     let services: AppServices
     let window: WidgetWindowState
     let onDrag: @MainActor (WidgetDragPhase) -> Void
+    let onResize: @MainActor (WidgetDragPhase) -> Void
     let onRemove: @MainActor () -> Void
     let onConfigure: @MainActor () -> Void
 
     var body: some View {
         // Laid out at natural size, then drawn larger or smaller as a whole;
-        // SwiftUI redraws at the new size, so text and shapes stay sharp.
-        let scale = services.settings.widgetScale
+        // SwiftUI redraws at the new size, so text and shapes stay sharp. The
+        // widget's own scale (from its corner) multiplies the desktop-wide one.
+        let instance = services.widgets.instance(id)
+        let own = window.liveScale ?? instance?.scale ?? 1
+        let stretch = window.liveStretch ?? instance?.stretch ?? 1
+        let scale = services.settings.widgetScale * own
+        let scaleY = scale * stretch
         GeometryReader { geometry in
-            WidgetHostView(id: id, services: services, window: window, onDrag: onDrag, onRemove: onRemove, onConfigure: onConfigure)
+            WidgetHostView(id: id, services: services, window: window, onDrag: onDrag, onResize: onResize,
+                           onRemove: onRemove, onConfigure: onConfigure)
                 .id(id)
-                .frame(width: geometry.size.width / scale, height: geometry.size.height / scale)
-                .scaleEffect(scale, anchor: .topLeading)
+                .frame(width: geometry.size.width / scale, height: geometry.size.height / scaleY)
+                .scaleEffect(x: scale, y: scaleY, anchor: .topLeading)
                 .environment(\.widgetRenderScale, scale)
         }
     }
 
     /// What a spare window holds: nothing (no widget has this id).
     static func empty(services: AppServices) -> WidgetRoot {
-        WidgetRoot(id: UUID(), services: services, window: WidgetWindowState(), onDrag: { _ in }, onRemove: {}, onConfigure: {})
+        WidgetRoot(id: UUID(), services: services, window: WidgetWindowState(), onDrag: { _ in }, onResize: { _ in },
+                   onRemove: {}, onConfigure: {})
     }
 }
+
+#if DEBUG
+extension DesktopWidgetController {
+    /// For `-probe resize`: a widget's window, and its corner dragged to `pointer`.
+    func debugWindow(_ id: UUID) -> WidgetWindow? { windows[id] }
+
+    func debugResize(_ id: UUID, _ phase: WidgetDragPhase, pointer: CGPoint) {
+        windows[id]?.state.isResizing = phase == .changed
+        handleResize(id, phase, pointer: pointer)
+    }
+}
+#endif

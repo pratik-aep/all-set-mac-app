@@ -41,14 +41,32 @@ public struct WidgetGrid: Equatable, Sendable {
 
     /// How many cells a size covers across and down.
     public static func span(of size: WidgetSize) -> (columns: Int, rows: Int) {
-        let dimensions = size.dimensions
-        return (max(Int(((dimensions.width + WidgetLayout.spacing) / pitch).rounded()), 1),
-                max(Int(((dimensions.height + WidgetLayout.spacing) / pitch).rounded()), 1))
+        span(of: size.dimensions)
+    }
+
+    /// How many cells a footprint reaches into across and down: whole cells,
+    /// so a resized widget keeps a full gap to its neighbours.
+    public static func span(of footprint: CGSize) -> (columns: Int, rows: Int) {
+        func cells(_ length: CGFloat) -> Int {
+            // A hair of tolerance: the four sizes span exactly 1, 2 or 4.
+            max(Int(((length + WidgetLayout.spacing) / pitch - 0.01).rounded(.up)), 1)
+        }
+        return (cells(footprint.width), cells(footprint.height))
     }
 
     public func fits(_ size: WidgetSize) -> Bool {
-        let span = Self.span(of: size)
+        fits(size.dimensions)
+    }
+
+    public func fits(_ footprint: CGSize) -> Bool {
+        let span = Self.span(of: footprint)
         return span.columns <= columns && span.rows <= rows
+    }
+
+    /// The largest footprint the grid holds.
+    public var capacity: CGSize {
+        CGSize(width: CGFloat(columns) * Self.pitch - WidgetLayout.spacing,
+               height: CGFloat(rows) * Self.pitch - WidgetLayout.spacing)
     }
 
     public func offset(of cell: Cell) -> CGPoint {
@@ -59,6 +77,10 @@ public struct WidgetGrid: Equatable, Sendable {
     /// `size` starting there stays on the grid. Nil when the size is larger
     /// than the whole grid.
     public func nearestCell(to offset: CGPoint, size: WidgetSize) -> Cell? {
+        nearestCell(to: offset, footprint: size.dimensions)
+    }
+
+    public func nearestCell(to offset: CGPoint, footprint size: CGSize) -> Cell? {
         guard fits(size) else { return nil }
         let span = Self.span(of: size)
         let column = Int(((offset.x - origin.x) / Self.pitch).rounded())
@@ -69,6 +91,10 @@ public struct WidgetGrid: Equatable, Sendable {
     /// The free spot nearest to `offset` for a widget of `size`, clear of
     /// every rect in `occupied`. Nil when nothing is free.
     public func place(_ size: WidgetSize, near offset: CGPoint, avoiding occupied: [CGRect]) -> CGPoint? {
+        place(size.dimensions, near: offset, avoiding: occupied)
+    }
+
+    public func place(_ size: CGSize, near offset: CGPoint, avoiding occupied: [CGRect]) -> CGPoint? {
         var taken = Occupancy(self)
         occupied.forEach { taken.mark($0) }
         return taken.nearestFree(size, to: offset).map(offset(of:))
@@ -77,6 +103,10 @@ public struct WidgetGrid: Equatable, Sendable {
     /// The first free spot, filling columns from the left as macOS does
     /// (desktop icons live top right). Nil when nothing is free.
     public func firstFree(_ size: WidgetSize, avoiding occupied: [CGRect]) -> CGPoint? {
+        firstFree(size.dimensions, avoiding: occupied)
+    }
+
+    public func firstFree(_ size: CGSize, avoiding occupied: [CGRect]) -> CGPoint? {
         guard fits(size) else { return nil }
         var taken = Occupancy(self)
         occupied.forEach { taken.mark($0) }
@@ -93,18 +123,21 @@ public struct WidgetGrid: Equatable, Sendable {
     /// The widgets tidied onto the grid: each moves to the free cell nearest
     /// where it is, the whole group first shifted onto the grid so an
     /// arrangement already built from cells (a theme's) keeps its shape.
-    /// Larger widgets choose first. A widget with no free cell left stays
-    /// where it is, inside the screen. Running it again changes nothing.
-    public func arranged(_ widgets: [WidgetInstance]) -> [WidgetInstance] {
+    /// Larger widgets choose first, except `kept`, which chooses before all
+    /// of them: one just resized holds its spot and the rest make room. A
+    /// widget with no free cell left stays where it is, inside the screen.
+    /// Running it again changes nothing.
+    public func arranged(_ widgets: [WidgetInstance], keeping kept: WidgetInstance.ID? = nil) -> [WidgetInstance] {
         guard let first = widgets.first else { return widgets }
-        let box = widgets.dropFirst().reduce(CGRect(origin: first.offset, size: first.size.dimensions)) {
-            $0.union(CGRect(origin: $1.offset, size: $1.size.dimensions))
+        let box = widgets.dropFirst().reduce(CGRect(origin: first.offset, size: first.footprint)) {
+            $0.union(CGRect(origin: $1.offset, size: $1.footprint))
         }
         let shift = CGPoint(x: ((box.minX - origin.x) / Self.pitch).rounded() * Self.pitch + origin.x - box.minX,
                             y: ((box.minY - origin.y) / Self.pitch).rounded() * Self.pitch + origin.y - box.minY)
         let order = widgets.indices.sorted { a, b in
-            let areaA = widgets[a].size.dimensions.width * widgets[a].size.dimensions.height
-            let areaB = widgets[b].size.dimensions.width * widgets[b].size.dimensions.height
+            if let kept, (widgets[a].id == kept) != (widgets[b].id == kept) { return widgets[a].id == kept }
+            let areaA = widgets[a].footprint.width * widgets[a].footprint.height
+            let areaB = widgets[b].footprint.width * widgets[b].footprint.height
             if areaA != areaB { return areaA > areaB }
             if widgets[a].offset.y != widgets[b].offset.y { return widgets[a].offset.y < widgets[b].offset.y }
             return widgets[a].offset.x < widgets[b].offset.x
@@ -116,11 +149,11 @@ public struct WidgetGrid: Equatable, Sendable {
         for index in order {
             let widget = widgets[index]
             let wanted = CGPoint(x: widget.offset.x + shift.x, y: widget.offset.y + shift.y)
-            if let cell = taken.nearestFree(widget.size, to: wanted) {
-                taken.claim(cell, span: Self.span(of: widget.size))
+            if let cell = taken.nearestFree(widget.footprint, to: wanted) {
+                taken.claim(cell, span: Self.span(of: widget.footprint))
                 result[index].offset = offset(of: cell)
             } else {
-                result[index].offset = WidgetLayout.clamp(widget.offset, size: widget.size.dimensions, within: bounds)
+                result[index].offset = WidgetLayout.clamp(widget.offset, size: widget.footprint, within: bounds)
             }
         }
         return result
@@ -168,7 +201,7 @@ public struct WidgetGrid: Equatable, Sendable {
             return true
         }
 
-        func nearestFree(_ size: WidgetSize, to offset: CGPoint) -> Cell? {
+        func nearestFree(_ size: CGSize, to offset: CGPoint) -> Cell? {
             guard grid.fits(size) else { return nil }
             let span = WidgetGrid.span(of: size)
             var best: (cell: Cell, distance: CGFloat)?

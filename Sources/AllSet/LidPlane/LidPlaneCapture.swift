@@ -10,6 +10,8 @@ final class LidPlaneCapture: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     var onFrame: ((CVPixelBuffer) -> Void)?
     var onError: ((Error) -> Void)?
     private(set) var frames = 0
+    /// Wide enough for every built-in MacBook panel.
+    static var colorSpaceName: CFString { CGColorSpace.displayP3 }
 
     /// `excludingWindowID` is the overlay: only that window is left out, because
     /// the wallpaper and widgets this app draws are part of the desktop being shown.
@@ -26,18 +28,25 @@ final class LidPlaneCapture: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         }
         let filter = SCContentFilter(display: display, excludingWindows: [overlay])
         let config = SCStreamConfiguration()
-        // Keep a Retina source at native resolution where practical, capped at 2560px.
-        let width = CGDisplayPixelsWide(displayID)
-        let height = CGDisplayPixelsHigh(displayID)
-        let scale = min(1, 2560.0 / Double(max(width, height)))
+        // Native pixels, so the first overlay frame is as sharp as the desktop it
+        // replaces. CGDisplayPixelsWide gives points on a scaled Retina mode
+        // (1470 on a 2940-pixel panel), which made the effect start soft.
+        let mode = CGDisplayCopyDisplayMode(displayID)
+        let width = mode?.pixelWidth ?? CGDisplayPixelsWide(displayID)
+        let height = mode?.pixelHeight ?? CGDisplayPixelsHigh(displayID)
+        let scale = min(1, 3456.0 / Double(max(width, height)))
         config.width = max(2, Int(Double(width) * scale))
         config.height = max(2, Int(Double(height) * scale))
-        config.minimumFrameInterval = CMTime(value: 1, timescale: 30)
+        // The fold itself is drawn every display refresh from the last frame;
+        // this is only how often what's on the desktop can change underneath.
+        config.minimumFrameInterval = CMTime(value: 1, timescale: 60)
         config.queueDepth = 3
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.showsCursor = false
         config.capturesAudio = false
-        config.colorSpaceName = CGColorSpace.sRGB
+        // Must match the overlay layer's colour space (LidPlaneController), or
+        // colours shift the moment the overlay replaces the desktop.
+        config.colorSpaceName = LidPlaneCapture.colorSpaceName
         let stream = SCStream(filter: filter, configuration: config, delegate: self)
         try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: .main)
         self.stream = stream

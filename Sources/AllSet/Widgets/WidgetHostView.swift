@@ -21,9 +21,14 @@ extension EnvironmentValues {
 struct WidgetMenuActions {
     let sizes: [WidgetSize]
     let size: WidgetSize
+    /// Drawn larger or smaller than its size, from dragging its corner.
+    let isResized: Bool
+    let isExtraSmall: Bool
     let isArranging: Bool
     let edit: @MainActor () -> Void
     let resize: @MainActor (WidgetSize) -> Void
+    let extraSmall: @MainActor () -> Void
+    let resetScale: @MainActor () -> Void
     let cleanUp: @MainActor () -> Void
     let toggleArranging: @MainActor () -> Void
     let remove: @MainActor () -> Void
@@ -37,12 +42,22 @@ struct WidgetMenuItems: View {
     var body: some View {
         if let actions {
             Button("Edit Widget…", action: actions.edit)
-            if actions.sizes.count > 1 {
-                Picker("Size", selection: Binding(get: { actions.size }, set: { actions.resize($0) })) {
+            if actions.sizes.count > 1 || actions.sizes.contains(.small) {
+                let hasExtraSmall = actions.sizes.contains(.small)
+                Picker("Size", selection: Binding(
+                    get: { actions.isExtraSmall ? "xs" : actions.size.rawValue },
+                    set: { choice in
+                        if choice == "xs" { actions.extraSmall() } else if let size = WidgetSize(rawValue: choice) { actions.resize(size) }
+                    }
+                )) {
+                    if hasExtraSmall { Text("Extra Small").tag("xs") }
                     ForEach(actions.sizes) { size in
-                        Text(size.title).tag(size)
+                        Text(size.title).tag(size.rawValue)
                     }
                 }
+            }
+            if actions.isResized {
+                Button("Reset to \(actions.size.title) Size", action: actions.resetScale)
             }
             Divider()
             Button("Clean Up Widgets", action: actions.cleanUp)
@@ -135,13 +150,18 @@ struct WidgetHostView: View {
     /// Whether this widget's window is covered.
     var window = WidgetWindowState()
     let onDrag: @MainActor (WidgetDragPhase) -> Void
+    var onResize: @MainActor (WidgetDragPhase) -> Void = { _ in }
     let onRemove: @MainActor () -> Void
     let onConfigure: @MainActor () -> Void
 
     @State private var isDragging = false
 
     var body: some View {
-        if let instance = services.widgets.instance(id) {
+        if var instance = services.widgets.instance(id) {
+            // While its corner is dragged, the layout the drag has reached.
+            let _ = window.liveSize.map { instance.size = $0 }
+            let ownScale = window.liveScale ?? instance.scale
+            let ownStretch = window.liveStretch ?? instance.stretch
             let arranging = services.ui.isArrangingWidgets
             let radius = instance.designTheme?.cornerRadius ?? instance.options.cornerRadius ?? services.settings.widgetCornerRadius
             let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -183,6 +203,16 @@ struct WidgetHostView: View {
                         .transition(.scale.combined(with: .opacity))
                 }
             }
+            .overlay(alignment: .bottomTrailing) {
+                // Every widget, theme or not: hover its corner (or arrange) and drag.
+                if window.cornerHovered || window.isResizing || arranging {
+                    ResizeHandle(isActive: window.isResizing, onResize: resize)
+                        // The same size on screen whatever the widget's own scale.
+                        .scaleEffect(x: 1 / ownScale, y: 1 / (ownScale * ownStretch))
+                        .offset(x: 9, y: 9)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+                }
+            }
             .scaleEffect(isDragging ? 1.03 : 1)
             // Freeform widgets cast their own shadows.
             .modifier(ThemedShadow(instance: instance, isDragging: isDragging))
@@ -190,6 +220,7 @@ struct WidgetHostView: View {
             .environment(\.widgetMenu, menuActions(for: instance, arranging: arranging))
             .motion(Motion.responsive, value: isDragging)
             .motion(Motion.quick, value: arranging)
+            .motion(Motion.quick, value: window.cornerHovered)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -197,22 +228,45 @@ struct WidgetHostView: View {
     private var moveGesture: some Gesture {
         DragGesture(minimumDistance: 3)
             .onChanged { _ in
+                // The corner handle is resizing it, not moving it.
+                guard !window.isResizing else { return }
                 if !isDragging { isDragging = true }
                 onDrag(.changed)
             }
             .onEnded { _ in
+                guard isDragging else { return }
                 isDragging = false
                 onDrag(.ended)
             }
+    }
+
+    private func resize(_ phase: WidgetDragPhase) {
+        switch phase {
+        case .changed:
+            if !window.isResizing { window.isResizing = true }
+            onResize(.changed)
+        case .ended:
+            onResize(.ended)
+            window.isResizing = false
+        }
     }
 
     private func menuActions(for instance: WidgetInstance, arranging: Bool) -> WidgetMenuActions {
         WidgetMenuActions(
             sizes: instance.kind.supportedSizes,
             size: instance.size,
+            isResized: instance.scale != 1 || instance.stretch != 1,
+            isExtraSmall: instance.isExtraSmall,
             isArranging: arranging,
             edit: onConfigure,
             resize: { [services, id] size in withMotion(Motion.responsive) { services.resizeWidget(id, to: size) } },
+            extraSmall: { [services, id] in
+                withMotion(Motion.responsive) { services.resizeWidget(id, to: WidgetResize.Result(size: .small, scale: WidgetResize.extraSmallScale)) }
+            },
+            resetScale: { [services, id] in
+                guard let size = services.widgets.instance(id)?.size else { return }
+                services.resizeWidget(id, to: WidgetResize.Result(size: size, scale: 1))
+            },
             cleanUp: { [services] in services.cleanUpWidgets() },
             toggleArranging: { [services] in services.ui.isArrangingWidgets.toggle() },
             remove: onRemove
@@ -339,6 +393,47 @@ private struct ArrangeBadge: View {
         }
         .buttonStyle(.plain)
         .help(help)
+    }
+}
+
+/// The arrow in a widget's bottom-right corner: drag it and the widget grows
+/// or shrinks from its top-left, live.
+private struct ResizeHandle: View {
+    let isActive: Bool
+    let onResize: @MainActor (WidgetDragPhase) -> Void
+
+    var body: some View {
+        Image(systemName: "arrow.up.left.and.arrow.down.right")
+            .font(.system(size: 9.5, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 22, height: 22)
+            .background(Circle().fill(Color(white: isActive ? 0.12 : 0.3)))
+            .overlay(Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1.5))
+            .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
+            .scaleEffect(isActive ? 1.15 : 1)
+            .motion(Motion.quick, value: isActive)
+            // More to grab than the badge itself.
+            .frame(width: 36, height: 36)
+            .contentShape(Rectangle())
+            .gesture(
+                // Global, since the widget's own frame moves under the pointer.
+                DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                    .onChanged { _ in onResize(.changed) }
+                    .onEnded { _ in onResize(.ended) }
+            )
+            .modifier(ResizeCursor())
+            .help("Drag to resize")
+    }
+}
+
+/// The diagonal resize pointer, where macOS offers one.
+private struct ResizeCursor: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 15, *) {
+            content.pointerStyle(.frameResize(position: .bottomTrailing))
+        } else {
+            content
+        }
     }
 }
 

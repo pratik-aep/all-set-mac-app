@@ -23,8 +23,14 @@ final class LidPlaneRenderer: NSObject, MTKViewDelegate, @unchecked Sendable {
     private var desktopBuffer: CVPixelBuffer?
     private var textureCache: CVMetalTextureCache?
     private var blurLevels: [MTLTexture] = []
+    /// Each level's input: the previous level (or the source) at half its size.
+    private var blurInputs: [MTLTexture] = []
     private var blurFilters: [MPSImageGaussianBlur] = []
+    private var blurScale: MPSImageBilinearScale?
     private var blurDirty = true
+    /// What the blur levels were last built from, so an unchanged picture
+    /// (the preview artwork) is never blurred twice.
+    private var blurredSource: ObjectIdentifier?
     private let inFlight = DispatchSemaphore(value: 2)
     var delta: Float = 0
     var blur = true
@@ -73,26 +79,50 @@ final class LidPlaneRenderer: NSObject, MTKViewDelegate, @unchecked Sendable {
 
     private var source: MTLTexture { desktopTexture.flatMap(CVMetalTextureGetTexture) ?? texture }
 
+    /// Four Gaussian levels (σ 2, 6, 16 and 40 per 1000 px of height), each at
+    /// half the size of the one before and built from it. A blurred picture
+    /// carries no fine detail, so the small levels look the same as full-size
+    /// ones at a fraction of the GPU time, which leaves room for 120 Hz.
     private func prepareBlur(_ command: MTLCommandBuffer, source: MTLTexture) {
-        if blurLevels.first?.width != source.width || blurLevels.first?.height != source.height {
-            let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: source.width, height: source.height, mipmapped: false)
-            desc.usage = [.shaderRead, .shaderWrite]
-            desc.storageMode = .private
-            blurLevels = (0..<4).map { _ in gpu.makeTexture(descriptor: desc)! }
-            blurFilters = [Float(2), 6, 16, 40].map {
-                let filter = MPSImageGaussianBlur(device: gpu, sigma: $0 * Float(source.height) / 1000)
+        let sigmas: [Float] = [2, 6, 16, 40].map { $0 * Float(source.height) / 1000 }
+        if blurSize != (source.width, source.height) {
+            blurInputs = []; blurLevels = []
+            for level in 0..<4 {
+                let divisor = 2 << level
+                let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float,
+                    width: max(1, source.width / divisor), height: max(1, source.height / divisor), mipmapped: false)
+                desc.usage = [.shaderRead, .shaderWrite]
+                desc.storageMode = .private
+                blurInputs.append(gpu.makeTexture(descriptor: desc)!)
+                blurLevels.append(gpu.makeTexture(descriptor: desc)!)
+            }
+            // Each level adds only the blur the previous one doesn't already
+            // have, measured in its own (smaller) pixels.
+            blurFilters = sigmas.indices.map { level in
+                let previous = level == 0 ? 0 : sigmas[level - 1]
+                let extra = (sigmas[level] * sigmas[level] - previous * previous).squareRoot()
+                let filter = MPSImageGaussianBlur(device: gpu, sigma: max(0.5, extra / Float(2 << level)))
                 filter.edgeMode = .clamp
                 return filter
             }
+            blurScale = MPSImageBilinearScale(device: gpu)
+            blurSize = (source.width, source.height)
             blurDirty = true
         }
-        if blurDirty {
-            for (filter, destination) in zip(blurFilters, blurLevels) {
-                filter.encode(commandBuffer: command, sourceTexture: source, destinationTexture: destination)
-            }
-            blurDirty = false
+        let identity = ObjectIdentifier(source)
+        guard blurDirty || blurredSource != identity, let blurScale else { return }
+        var input = source
+        for level in 0..<4 {
+            blurScale.encode(commandBuffer: command, sourceTexture: input, destinationTexture: blurInputs[level])
+            blurFilters[level].encode(commandBuffer: command, sourceTexture: blurInputs[level], destinationTexture: blurLevels[level])
+            input = blurLevels[level]
         }
+        blurDirty = false
+        blurredSource = identity
     }
+
+    private var blurSize = (0, 0)
+    private var previewOutput: MTLTexture?
 
     private func bindTextures(_ encoder: MTLRenderCommandEncoder, source: MTLTexture) {
         encoder.setFragmentTexture(source, index: 0)
@@ -101,20 +131,55 @@ final class LidPlaneRenderer: NSObject, MTKViewDelegate, @unchecked Sendable {
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 
+    /// GPU milliseconds for one live frame at `width`×`height`: a new desktop
+    /// frame (so the blur levels are rebuilt) drawn at full size.
+    func frameCost(width: Int, height: Int, angle: Float) -> Double {
+        let sourceDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: width, height: height, mipmapped: false)
+        sourceDesc.usage = .shaderRead
+        sourceDesc.storageMode = .private
+        let outputDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: width, height: height, mipmapped: false)
+        outputDesc.usage = .renderTarget
+        outputDesc.storageMode = .private
+        guard let source = gpu.makeTexture(descriptor: sourceDesc), let output = gpu.makeTexture(descriptor: outputDesc) else { return .nan }
+        var samples: [Double] = []
+        for _ in 0..<12 {
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = output
+            pass.colorAttachments[0].loadAction = .dontCare
+            pass.colorAttachments[0].storeAction = .store
+            let command = queue.makeCommandBuffer()!
+            blurDirty = true
+            prepareBlur(command, source: source)
+            let encoder = command.makeRenderCommandEncoder(descriptor: pass)!
+            var params = SIMD4<Float>(angle, Float(width) / Float(height), 1, projectionMode)
+            encoder.setRenderPipelineState(pipeline)
+            bindTextures(encoder, source: source)
+            encoder.setFragmentBytes(&params, length: MemoryLayout.size(ofValue: params), index: 0)
+            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            encoder.endEncoding()
+            command.commit(); command.waitUntilCompleted()
+            samples.append((command.gpuEndTime - command.gpuStartTime) * 1000)
+        }
+        return samples.dropFirst(2).sorted()[samples.count / 2 - 1]
+    }
+
     @discardableResult
     func preview(to url: URL?, angle: Float, sourceTexture: MTLTexture? = nil) throws -> CGImage {
         let previewSource = sourceTexture ?? texture
-        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: 1000, height: 625, mipmapped: false)
-        descriptor.usage = [.renderTarget]
-        descriptor.storageMode = .shared
-        let output = gpu.makeTexture(descriptor: descriptor)!
+        // Reused: each render waits for the GPU and copies the pixels out.
+        let output = previewOutput ?? {
+            let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: 1000, height: 625, mipmapped: false)
+            descriptor.usage = [.renderTarget]
+            descriptor.storageMode = .shared
+            return gpu.makeTexture(descriptor: descriptor)!
+        }()
+        previewOutput = output
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = output
         pass.colorAttachments[0].loadAction = .clear
         pass.colorAttachments[0].storeAction = .store
         let command = queue.makeCommandBuffer()!
-        // Diagnostic inputs can change without a new desktop frame arriving.
-        blurDirty = true
+        // Blur levels are rebuilt only when the picture itself changes.
         prepareBlur(command, source: previewSource)
         let encoder = command.makeRenderCommandEncoder(descriptor: pass)!
         var params = SIMD4<Float>(angle, 1.6, blur ? 1 : 0, projectionMode)
@@ -125,9 +190,10 @@ final class LidPlaneRenderer: NSObject, MTKViewDelegate, @unchecked Sendable {
         encoder.endEncoding()
         command.commit(); command.waitUntilCompleted()
         if let error = command.error { throw error }
-        var pixels = [UInt8](repeating: 0, count: 1000*625*4)
-        output.getBytes(&pixels, bytesPerRow: 4000, from: MTLRegionMake2D(0, 0, 1000, 625), mipmapLevel: 0)
-        let data = Data(pixels)
+        var data = Data(count: 1000*625*4)
+        data.withUnsafeMutableBytes {
+            output.getBytes($0.baseAddress!, bytesPerRow: 4000, from: MTLRegionMake2D(0, 0, 1000, 625), mipmapLevel: 0)
+        }
         let image = CGImage(width: 1000, height: 625, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 4000,
                             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue).union(.byteOrder32Little),
                             provider: CGDataProvider(data: data as CFData)!, decode: nil, shouldInterpolate: true, intent: .defaultIntent)!
@@ -264,7 +330,9 @@ final class LidPlaneRenderer: NSObject, MTKViewDelegate, @unchecked Sendable {
         // Three sigma on either side approximates the Gaussian edge falloff.
         float2 sourceSize = float2(art.get_width(), art.get_height());
         float sigmaPixels = radius * sourceSize.y / 1000.0;
-        float2 feather = max(3.0 * sigmaPixels / sourceSize, fwidth(uv));
+        // Half a pixel of antialiasing on tilted edges; an unfolded picture
+        // keeps its outermost pixels at full strength, with no dark rim.
+        float2 feather = max(3.0 * sigmaPixels / sourceSize, 0.5 * fwidth(uv));
         float2 coverage = smoothstep(-feather, feather, uv)
                         * (1.0 - smoothstep(1.0 - feather, 1.0 + feather, uv));
         float mask = coverage.x * coverage.y;

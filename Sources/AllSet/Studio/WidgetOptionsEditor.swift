@@ -23,6 +23,14 @@ struct WidgetOptionsEditor: View {
                 }
                 .pickerStyle(.segmented)
 
+                scaleSlider("Width", instance, \.scale)
+                scaleSlider("Height", instance, \.stretch)
+                if instance.scale != 1 || instance.stretch != 1 {
+                    Button("Reset to \(instance.size.title) Size") {
+                        services.resizeWidget(id, to: WidgetResize.Result(size: instance.size, scale: 1))
+                    }
+                }
+
                 if instance.kind == .note {
                     Picker("Paper", selection: binding(\.options.noteColor, instance)) {
                         ForEach(NoteColor.allCases) { color in
@@ -901,6 +909,28 @@ struct WidgetOptionsEditor: View {
         guard panel.runModal() == .OK else { return }
         let names = services.images.importImages(from: panel.urls)
         services.widgets.update(id) { $0.options.images += names.map { ImageSource.file($0) } }
+    }
+
+    /// Width or height as a percentage of the layout's own size (height is `stretch` of the width).
+    private func scaleSlider(_ title: String, _ instance: WidgetInstance, _ keyPath: KeyPath<WidgetInstance, Double>) -> some View {
+        let isWidth = keyPath == \WidgetInstance.scale
+        let range = isWidth ? WidgetInstance.scaleRange : 0.2...WidgetInstance.scaleRange.upperBound
+        let current: () -> WidgetInstance = { services.widgets.instance(id) ?? instance }
+        return LabeledContent(title) {
+            HStack {
+                Slider(value: Binding(
+                    get: { isWidth ? current().scale : current().scale * current().stretch },
+                    set: { value in
+                        let now = current()
+                        let width = isWidth ? value : now.scale
+                        let height = isWidth ? now.scale * now.stretch : value
+                        services.resizeWidget(id, to: WidgetResize.Result(size: now.size, scale: width, stretch: height / width))
+                    }
+                ), in: range)
+                Text("\(Int(((isWidth ? current().scale : current().scale * current().stretch) * 100).rounded()))%")
+                    .monospacedDigit().frame(width: 44, alignment: .trailing)
+            }
+        }
     }
 
     private func binding<Value>(_ keyPath: WritableKeyPath<WidgetInstance, Value>, _ fallback: WidgetInstance) -> Binding<Value> {

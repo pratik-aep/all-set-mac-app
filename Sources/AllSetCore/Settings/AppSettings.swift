@@ -63,7 +63,7 @@ public final class AppSettings {
     /// How large desktop widgets are drawn, 1 for their natural size. Applying a
     /// theme sets it so the theme's grid fills the screen.
     public var widgetScale: Double { didSet { save(widgetScale, Key.widgetScale) } }
-    public nonisolated static let widgetScaleRange: ClosedRange<Double> = 0.7...1.6
+    public nonisolated static let widgetScaleRange: ClosedRange<Double> = 0.4...2
     /// The widget look before any theme: a fresh install's, and what a
     /// cleared desktop goes back to.
     public nonisolated static let defaultWidgetFont = WidgetFont.rounded

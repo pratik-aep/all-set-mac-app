@@ -149,3 +149,139 @@ import Testing
         #expect(second.isEnabled && second.angleMode && second.activationAngle == 110 && second.perspective)
     }
 }
+
+@Suite struct LidPlaneTrackingTests {
+    private static func ease(_ x: Double) -> Double { let t = min(1, max(0, x)); return t * t * (3 - 2 * t) }
+
+    /// Feeds whole-degree readings at 60 Hz, draws at `hz`. Returns the RMS and
+    /// worst distance from the true lid after the first 0.3 s, and roughness:
+    /// RMS change of per-frame movement (steps show up here).
+    private func track(_ lid: (Double) -> Double, for duration: Double, hz: Double = 120)
+        -> (rms: Double, worst: Double, roughness: Double) {
+        var tracker = LidTracker()
+        var lastPoll = -1.0, t = 0.0, errors: [Double] = [], drawn: [Double] = []
+        while t < duration {
+            if t - lastPoll >= 1.0 / 60 - 1e-9 { lastPoll = t; tracker.reading(lid(t).rounded(), at: t) }
+            let angle = tracker.advance(to: t)!
+            if t > 0.3 { errors.append(angle - lid(t)); drawn.append(angle) }
+            t += 1 / hz
+        }
+        func rootMeanSquare(_ values: [Double]) -> Double {
+            var sum = 0.0
+            for value in values { sum += value * value }
+            return (sum / Double(values.count)).squareRoot()
+        }
+        var bends: [Double] = []
+        for index in 2..<drawn.count {
+            let bend: Double = drawn[index] - 2 * drawn[index - 1] + drawn[index - 2]
+            bends.append(bend)
+        }
+        return (rootMeanSquare(errors), errors.map(abs).max()!, rootMeanSquare(bends))
+    }
+
+    @Test func tracksANormalCloseClosely() {
+        // 90° in 1.5 s. The spring this replaced was 4.3° RMS / 7.3° behind.
+        let result = track({ 130 - 90 * Self.ease($0 / 1.5) }, for: 2.5)
+        #expect(result.rms < 1.2)
+        #expect(result.worst < 2.5)
+    }
+
+    @Test func smoothsOutTheWholeDegreeSteps() {
+        // Raw readings are ~0.94 rough on this close; tracked ~0.03.
+        let result = track({ 130 - 90 * Self.ease($0 / 1.5) }, for: 2.5)
+        #expect(result.roughness < 0.06)
+        // A slow 8 °/s drift: one reading step every 125 ms, drawn as a glide.
+        let slow = track({ 120 - 8 * $0 }, for: 4)
+        #expect(slow.roughness < 0.05)
+        #expect(slow.worst < 0.5)
+    }
+
+    @Test func sameCurveAtSixtyAndOneTwentyHertz() {
+        let lid: (Double) -> Double = { 130 - 90 * Self.ease($0 / 1.5) }
+        let slow = track(lid, for: 2.5, hz: 60), fast = track(lid, for: 2.5, hz: 120)
+        #expect(abs(slow.rms - fast.rms) < 0.3)
+    }
+
+    @Test func openingLidIsFlatByTheTimeItPassesTheAngle() {
+        // The old spring still showed 10–30° of fold here, which then snapped
+        // away as a resize.
+        for duration in [2.0, 1.0, 0.5] {
+            var tracker = LidTracker()
+            var lastPoll = -1.0, t = 0.0, left = 0.0
+            while t < duration + 0.5 {
+                let reading = (70 + 60 * Self.ease(t / duration)).rounded()
+                if t - lastPoll >= 1.0 / 60 - 1e-9 { lastPoll = t; tracker.reading(reading, at: t) }
+                let angle = tracker.advance(to: t)!
+                if reading > 110 { left = max(0, 110 - angle); break }
+                t += 1.0 / 120
+            }
+            // Under a degree, and the overlay already more than half dissolved,
+            // so hiding it can't be seen.
+            #expect(left < 1)
+            #expect(OverlayVisibility.alpha(delta: left * .pi / 180) < 0.5)
+        }
+    }
+
+    @Test func holdsStillAndSurvivesTheIdleTimer() {
+        var tracker = LidTracker()
+        for frame in 0..<30 { tracker.reading(100, at: Double(frame) / 10); tracker.advance(to: Double(frame) / 10) }
+        #expect(tracker.angle == 100 && tracker.velocity == 0)
+        // Readings stop: the prediction doesn't run away.
+        var moving = LidTracker()
+        for frame in 0..<30 { moving.reading(100 - Double(frame), at: Double(frame) / 60) }
+        let last = moving.predicted(at: 29.0 / 60)
+        #expect(abs(moving.predicted(at: 10) - last) < 10)
+    }
+
+    @Test func aStartLevelWithTheLidJustTracksIt() {
+        var intro = FoldIntro()
+        let target = 0.5 * Double.pi / 180
+        #expect(intro.step(toward: target, dt: 1.0 / 120) == target)
+    }
+
+    @Test func aLateStartEasesInLikeAKeyframe() {
+        var intro = FoldIntro()
+        let target = 30 * Double.pi / 180
+        var previous = 0.0, steps: [Double] = [], peak = 0.0
+        for _ in 0..<120 {
+            let fold = intro.step(toward: target, dt: 1.0 / 120)
+            steps.append(fold - previous)
+            peak = max(peak, (fold - previous) * 120 * 180 / .pi)
+            previous = fold
+        }
+        // Starts from rest, speeds up, lands on the lid, never sprints.
+        #expect(steps[0] < steps[1] && steps[1] < steps[2])
+        #expect(abs(previous - target) < 1e-9)
+        #expect(peak < 100)
+    }
+
+    @Test func overlayDissolvesOverTheFirstDegreeAndAHalf() {
+        #expect(OverlayVisibility.alpha(delta: 0) == 0)
+        #expect(OverlayVisibility.alpha(delta: OverlayVisibility.fullAt / 2) == 0.5)
+        #expect(OverlayVisibility.alpha(delta: -OverlayVisibility.fullAt) == 1)
+        #expect(OverlayVisibility.alpha(delta: 0.5) == 1)
+    }
+
+    @Test func captureWarmsUpOnlyWhileTheLidHeadsForTheAngle() {
+        var warmup = CaptureWarmup()
+        warmup.update(angle: 130, now: 0)
+        #expect(!warmup.isWarm(angle: 130, limit: 110, angleMode: true, now: 0.1))
+        warmup.update(angle: 124, now: 0.5)
+        #expect(warmup.isWarm(angle: 124, limit: 110, angleMode: true, now: 0.5))
+        #expect(!warmup.isWarm(angle: 140, limit: 110, angleMode: true, now: 0.5))
+        #expect(!warmup.isWarm(angle: 124, limit: 110, angleMode: false, now: 0.5))
+        #expect(!warmup.isWarm(angle: 124, limit: 110, angleMode: true, now: 0.5 + CaptureWarmup.restAfter))
+        warmup.update(angle: 124.6, now: 4)
+        #expect(!warmup.isWarm(angle: 124.6, limit: 110, angleMode: true, now: 4))
+    }
+
+    @Test func aQuickCloseWarmsUpFurtherAhead() {
+        var warmup = CaptureWarmup()
+        warmup.update(angle: 160, now: 0)
+        warmup.update(angle: 150, now: 0.05)
+        #expect(warmup.isWarm(angle: 150, limit: 110, angleMode: true, closingSpeed: 180, now: 0.05))
+        #expect(!warmup.isWarm(angle: 150, limit: 110, angleMode: true, closingSpeed: 20, now: 0.05))
+        #expect(!warmup.isWarm(angle: 150, limit: 110, angleMode: true, closingSpeed: -180, now: 0.05))
+        #expect(!warmup.isWarm(angle: 175, limit: 110, angleMode: true, closingSpeed: 1000, now: 0.05))
+    }
+}

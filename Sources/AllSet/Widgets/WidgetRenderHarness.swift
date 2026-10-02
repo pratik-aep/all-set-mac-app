@@ -484,6 +484,63 @@ extension WidgetRenderHarness {
         window.close()
     }
 
+    /// `-probe resize` (with `-widgetsFile` pointing at a throwaway layout):
+    /// drags a real widget window's corner through several sizes, saving the
+    /// window after each step and printing what the store ends up with.
+    static func runResize(controller: DesktopWidgetController, services: AppServices, to folder: URL) async {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? await Task.sleep(for: .seconds(1.5))
+        guard let target = services.widgets.widgets.first(where: { $0.size == .medium }) ?? services.widgets.widgets.first,
+              let window = controller.debugWindow(target.id) else { print("resize: no widget"); return }
+        func save(_ name: String) async {
+            try? await Task.sleep(for: .milliseconds(450))
+            if let image = captureOwnWindow(window), let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+                try? png.write(to: folder.appendingPathComponent("resize-\(name).png"))
+            }
+        }
+        func report(_ step: String, ms: Double) {
+            let live = window.state.liveSize.map { "\($0.shortTitle) × \(String(format: "%.2f", window.state.liveScale ?? 1))" } ?? "-"
+            print(String(format: "resize %-14@ live %-10@ window %4.0f × %4.0f  (%.1f ms)", step, live,
+                         window.frame.width, window.frame.height, ms))
+        }
+        let margin = WidgetWindow.margin * window.state.contentScale
+        // The real pointer, onto the corner, through the real monitor.
+        let corner = CGPoint(x: window.frame.maxX - margin - 6, y: window.frame.minY + margin + 6)
+        let screenHeight = NSScreen.screens.first?.frame.height ?? 0
+        CGWarpMouseCursorPosition(CGPoint(x: corner.x, y: screenHeight - corner.y))
+        CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: CGPoint(x: corner.x, y: screenHeight - corner.y), mouseButton: .left)?.post(tap: .cghidEventTap)
+        try? await Task.sleep(for: .milliseconds(600))
+        print("resize hover: pointer", NSEvent.mouseLocation, "corner", corner, "windowFrame", window.frame, "topWindow", NSWindow.windowNumber(at: corner, belowWindowWithWindowNumber: 0), "this", window.windowNumber, "cornerHovered", window.state.cornerHovered)
+        await save("0-hover")
+        let start = CGPoint(x: window.frame.maxX - margin, y: window.frame.minY + margin)
+        let steps: [(String, CGFloat, CGFloat)] = [
+            ("1-bigger", 90, -45), ("2-square", 0, -184), ("3-small", -184, 0),
+            ("4-smallest", -260, 80), ("5-final", 60, -120),
+        ]
+        for (name, dx, dy) in steps {
+            let began = CACurrentMediaTime()
+            controller.debugResize(target.id, .changed, pointer: CGPoint(x: start.x + dx, y: start.y + dy))
+            report(name, ms: (CACurrentMediaTime() - began) * 1000)
+            await save(name)
+        }
+        controller.debugResize(target.id, .ended, pointer: CGPoint(x: start.x + 60, y: start.y - 120))
+        window.state.cornerHovered = false
+        await save("6-released")
+        guard let saved = services.widgets.instance(target.id) else { return }
+        print(String(format: "resize saved: %@ × %.3f at (%.0f, %.0f), window %.0f × %.0f", saved.size.title, saved.scale,
+                     saved.offset.x, saved.offset.y, window.frame.width, window.frame.height))
+        let rects = services.widgets.widgets.map { CGRect(origin: $0.offset, size: $0.footprint) }
+        var overlaps = 0
+        for (index, rect) in rects.enumerated() {
+            for other in rects[(index + 1)...] where rect.intersects(other.insetBy(dx: 1, dy: 1)) { overlaps += 1 }
+        }
+        for widget in services.widgets.widgets {
+            print(String(format: "resize   %@ %@ × %.2f at (%.0f, %.0f)", widget.kind.rawValue, widget.size.shortTitle,
+                         widget.scale, widget.offset.x, widget.offset.y))
+        }
+        print("resize overlaps:", overlaps)
+    }
+
     private static func capture(_ view: some View, size: CGSize) async -> CGImage? {
         let host = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
         host.frame = CGRect(origin: .zero, size: size)

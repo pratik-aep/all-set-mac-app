@@ -1,3 +1,4 @@
+import AllSetCore
 import AppKit
 import Observation
 
@@ -31,11 +32,37 @@ final class WidgetWindow: NSPanel {
 
     override var canBecomeKey: Bool { allowsKey }
     override var canBecomeMain: Bool { false }
+
+    /// How far into the widget, in its own points, the corner reaches.
+    static let cornerReach: CGFloat = 40
+
+    /// Shows the resize handle while the pointer (screen coordinates) is over
+    /// the widget's bottom-right corner and nothing is on top of it.
+    func pointerMoved(to point: CGPoint) {
+        var inCorner = false
+        if frame.contains(point) {
+            let scale = state.contentScale
+            let margin = Self.margin * scale, reach = Self.cornerReach * scale
+            // The corner runs out into the margin, where the handle sits.
+            inCorner = point.x >= frame.maxX - margin - reach && point.y <= frame.minY + margin + reach
+        }
+        if state.cornerHovered != inCorner { state.cornerHovered = inCorner }
+    }
 }
 
-/// Whether one widget's window can be seen. Each window has its own, so a
-/// widget being covered redraws that widget alone, not every one on the desktop.
+/// One widget window's live state. Each window has its own, so a widget being
+/// covered or resized redraws that widget alone, not every one on the desktop.
 @Observable @MainActor
 final class WidgetWindowState {
     var isOccluded = false
+    /// The pointer is over the widget's bottom-right corner.
+    var cornerHovered = false
+    /// The corner handle is being dragged.
+    var isResizing = false
+    /// The size and scale shown while the corner is dragged; saved on release.
+    var liveSize: WidgetSize?
+    var liveScale: Double?
+    var liveStretch: Double?
+    /// Window points per layout point, for finding the corner.
+    @ObservationIgnored var contentScale: CGFloat = 1
 }

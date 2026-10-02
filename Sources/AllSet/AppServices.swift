@@ -298,8 +298,8 @@ final class AppServices {
             let occupied = occupiedRects(on: screen)
             let bounds = layoutBounds(of: screen)
             instance.screenName = screen.localizedName
-            instance.offset = widgetGrid(on: screen).firstFree(instance.size, avoiding: occupied)
-                ?? WidgetLayout.freeOffset(for: instance.size.dimensions, avoiding: occupied, within: bounds)
+            instance.offset = widgetGrid(on: screen).firstFree(instance.footprint, avoiding: occupied)
+                ?? WidgetLayout.freeOffset(for: instance.footprint, avoiding: occupied, within: bounds)
         }
         settings.showWidgets = true
         return widgets.add(instance)
@@ -334,16 +334,17 @@ extension AppServices {
     func occupiedRects(on screen: NSScreen, except id: UUID? = nil) -> [CGRect] {
         widgets.widgets
             .filter { $0.id != id && shows($0, on: screen) }
-            .map { CGRect(origin: $0.offset, size: $0.size.dimensions) }
+            .map { CGRect(origin: $0.offset, size: $0.footprint) }
     }
 
-    /// The widgets tidied onto each screen's grid (`WidgetGrid.arranged`).
-    func gridArranged(_ instances: [WidgetInstance]) -> [WidgetInstance] {
+    /// The widgets tidied onto each screen's grid (`WidgetGrid.arranged`);
+    /// `kept` holds its spot while the others make room.
+    func gridArranged(_ instances: [WidgetInstance], keeping kept: UUID? = nil) -> [WidgetInstance] {
         var result = instances
         for screen in NSScreen.screens {
             let indices = result.indices.filter { shows(result[$0], on: screen) }
             guard !indices.isEmpty else { continue }
-            let arranged = widgetGrid(on: screen).arranged(indices.map { result[$0] })
+            let arranged = widgetGrid(on: screen).arranged(indices.map { result[$0] }, keeping: kept)
             for (index, widget) in zip(indices, arranged) { result[index] = widget }
         }
         return result
@@ -351,16 +352,41 @@ extension AppServices {
 
     /// Lines every widget up on its screen's grid, with no overlaps. Changes
     /// nothing when they already are.
-    func cleanUpWidgets() {
-        for widget in gridArranged(widgets.widgets) where widgets.instance(widget.id)?.offset != widget.offset {
+    func cleanUpWidgets(keeping kept: UUID? = nil) {
+        for widget in gridArranged(widgets.widgets, keeping: kept) where widgets.instance(widget.id)?.offset != widget.offset {
             widgets.update(widget.id) { $0.offset = widget.offset }
         }
     }
 
-    /// A new size for a widget; the grid makes room for it.
+    /// A new size for a widget, at the scale it has; the grid makes room for it.
     func resizeWidget(_ id: UUID, to size: WidgetSize) {
-        widgets.update(id) { $0.size = size }
-        cleanUpWidgets()
+        guard let instance = widgets.instance(id) else { return }
+        resizeWidget(id, to: WidgetResize.Result(size: size, scale: fittedScale(1, size: size, for: instance)))
+    }
+
+    /// A widget dragged to a new size by its corner: it stays where it is and
+    /// the widgets around it make room.
+    func resizeWidget(_ id: UUID, to result: WidgetResize.Result) {
+        guard let instance = widgets.instance(id) else { return }
+        guard instance.size != result.size || instance.scale != result.scale || instance.stretch != result.stretch else { return }
+        widgets.update(id) {
+            $0.size = result.size
+            $0.scale = result.scale
+            $0.stretch = result.stretch
+        }
+        cleanUpWidgets(keeping: id)
+    }
+
+    /// The grid's room for a widget on its screen, in layout points.
+    func widgetRoom(for instance: WidgetInstance) -> CGSize? {
+        screen(for: instance).map { widgetGrid(on: $0).capacity }
+    }
+
+    /// `scale` kept within what fits on the widget's screen at `size`.
+    private func fittedScale(_ scale: Double, size: WidgetSize, for instance: WidgetInstance) -> Double {
+        guard let room = widgetRoom(for: instance) else { return scale }
+        let fits = min(Double(room.width / size.dimensions.width), Double(room.height / size.dimensions.height))
+        return max(WidgetInstance.scaleRange.lowerBound, min(scale, fits))
     }
 }
 

@@ -70,10 +70,10 @@ import Testing
 
     @Test func findsTheFirstFreeSpotDownTheLeftColumn() {
         let small = WidgetSize.small.dimensions
-        let first = CGRect(origin: CGPoint(x: 24, y: 24), size: small)
+        let first = CGRect(origin: CGPoint(x: WidgetLayout.margin, y: WidgetLayout.margin), size: small)
         let spot = WidgetLayout.freeOffset(for: small, avoiding: [first], within: screen)
-        #expect(spot == CGPoint(x: 24, y: 24 + 168 + 16))
-        #expect(WidgetLayout.freeOffset(for: small, avoiding: [], within: screen) == CGPoint(x: 24, y: 24))
+        #expect(spot == CGPoint(x: WidgetLayout.margin, y: WidgetLayout.margin + 168 + 16))
+        #expect(WidgetLayout.freeOffset(for: small, avoiding: [], within: screen) == CGPoint(x: WidgetLayout.margin, y: WidgetLayout.margin))
     }
 
     @Test func starterSetFitsTogetherWithoutOverlapping() {

@@ -85,6 +85,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 renderer.perspective = true
                 save(try renderer.preview(to: nil, angle: 35 * .pi / 180), "perspective.png")
                 try LidPlaneRenderChecks.run(renderer)
+                let started = CACurrentMediaTime()
+                for degrees in stride(from: 0.0, through: 60, by: 6) { _ = try renderer.preview(to: nil, angle: Float(degrees * .pi / 180)) }
+                print(String(format: "preview: %.1f ms each (11 renders)", (CACurrentMediaTime() - started) * 1000 / 11))
+                print(String(format: "live frame, 2560x1600 GPU: %.2f ms", renderer.frameCost(width: 2560, height: 1600, angle: 0.6)))
+                func timed(_ label: String, _ count: Int = 1, _ work: () throws -> Void) rethrows {
+                    let start = CACurrentMediaTime()
+                    for _ in 0..<count { try work() }
+                    print(String(format: "%@: %.2f ms", label, (CACurrentMediaTime() - start) * 1000 / Double(count)))
+                }
+                try timed("new renderer") { _ = try LidPlaneRenderer(gpu: gpu) }
+                var sensor: LidSensor?
+                timed("sensor connect") { sensor = LidSensor() }
+                timed("sensor read", 100) { _ = sensor?.read() }
                 print("sensor:", LidSensor().diagnostic, "screen access:", CGPreflightScreenCaptureAccess())
             } catch { print(error); exit(1) }
             exit(0)
@@ -176,6 +189,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case "islandmotion": await PageCPUProbe.runIslandMotion(services: services)
                 case "systembuild": await SystemTab.buildTimes(services: services)
                 case "search": await PageCPUProbe.runSearch(services: services)
+                case "resize":
+                    let widgets = DesktopWidgetController(services: services)
+                    widgets.start()
+                    await WidgetRenderHarness.runResize(controller: widgets, services: services,
+                        to: URL(fileURLWithPath: UserDefaults.standard.string(forKey: "resizeOut") ?? NSTemporaryDirectory()))
                 case "apply":
                     let widgets = DesktopWidgetController(services: services)
                     widgets.start()

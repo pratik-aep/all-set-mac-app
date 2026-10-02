@@ -99,7 +99,7 @@ public struct ThemeSet: Identifiable, Sendable {
                 widget.options.accent = nil
             }
             item.configure(&widget, now)
-            widget.offset = WidgetLayout.snap(widget.offset, size: widget.size.dimensions, within: bounds)
+            widget.offset = WidgetLayout.snap(widget.offset, size: widget.footprint, within: bounds)
             return widget
         }
     }

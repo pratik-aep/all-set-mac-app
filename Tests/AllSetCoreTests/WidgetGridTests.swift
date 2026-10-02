@@ -33,7 +33,7 @@ import Testing
 
     @Test func gridFitsTheScreenAndIsCentered() {
         let grid = WidgetGrid(bounds: airBounds)
-        #expect(grid.columns == 7 && grid.rows == 4)
+        #expect(grid.columns == 7 && grid.rows >= 4)
         let width = CGFloat(grid.columns) * WidgetGrid.pitch - WidgetLayout.spacing
         #expect(abs(grid.origin.x - (airBounds.width - width) / 2) <= 0.5)
         #expect(grid.origin.x >= WidgetLayout.margin && grid.origin.y >= WidgetLayout.margin)

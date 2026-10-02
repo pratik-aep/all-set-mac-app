@@ -7,9 +7,6 @@ import SwiftUI
 struct LidPlanePage: View {
     let services: AppServices
 
-    @State private var previewFold = 35.0
-    @State private var preview: CGImage?
-
     private var lid: LidPlaneController { services.lidPlane }
     private var settings: LidPlaneSettings { services.lidPlane.settings }
 
@@ -35,41 +32,10 @@ struct LidPlanePage: View {
 
     private var lead: some View {
         HStack(alignment: .top, spacing: DS.Space.l) {
-            PreviewCanvas(height: 250) {
-                if let preview {
-                    Image(decorative: preview, scale: 1)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .padding(DS.Space.s)
-                } else {
-                    ProgressView()
-                }
-            }
-            .frame(maxWidth: 420)
-            .overlay(alignment: .bottom) {
-                HStack(spacing: DS.Space.xs) {
-                    Image(systemName: "angle")
-                    Slider(value: $previewFold, in: 0...60, step: 1)
-                    Text("\(Int(previewFold))° fold").dsText(.meta).monospacedDigit().frame(width: 62, alignment: .trailing)
-                }
-                .padding(.horizontal, DS.Space.s)
-                .padding(.bottom, DS.Space.xs)
-                .help("How far the lid has closed, in the preview")
-            }
-            .task(id: previewKey) {
-                // Slider drags settle before the picture is drawn again.
-                try? await Task.sleep(for: .milliseconds(120))
-                guard !Task.isCancelled else { return }
-                preview = lid.previewImage(degrees: previewFold)
-            }
+            LidPlanePreview(lid: lid)
 
             VStack(alignment: .leading, spacing: DS.Space.s) {
-                HStack(alignment: .firstTextBaseline, spacing: DS.Space.xxs) {
-                    Text(angleText).font(.system(size: 54, weight: .semibold, design: .rounded)).monospacedDigit()
-                    Text("lid angle").dsText(.meta)
-                }
-                Text(lid.hasSensor ? "Live from the hinge sensor." : "No lid angle sensor reading yet.")
-                    .dsText(.meta)
+                LidAngleReadout(lid: lid)
                 Button {
                     withMotion(Motion.responsive) { lid.toggleEnabled() }
                 } label: {
@@ -85,21 +51,12 @@ struct LidPlanePage: View {
         }
     }
 
-    private var previewKey: String {
-        "\(Int(previewFold))\(settings.blur)\(settings.holdAngle)\(settings.perspective)"
-    }
-
-    private var angleText: String {
-        guard let angle = lid.angle else { return "—°" }
-        return "\(Int(angle.rounded()))°"
-    }
-
     // MARK: Sections
 
     private var statusSection: some View {
         Section {
             Toggle("Lid Plane", isOn: Binding(get: { settings.isEnabled }, set: { lid.setEnabled($0) }))
-            LabeledContent("Status", value: settings.isEnabled ? lid.status : "Off")
+            LabeledContent("Status") { LidStatusText(lid: lid) }
             if !lid.hasScreenAccess {
                 VStack(alignment: .leading, spacing: DS.Space.xs) {
                     Label("Screen Recording isn\u{2019}t allowed yet", systemImage: "exclamationmark.triangle.fill")
@@ -205,5 +162,72 @@ struct LidPlanePage: View {
         } footer: {
             Text("Lid Plane is by Jhey (github.com/jh3y/lid-plane), under GPL-3.0-or-later, built into All Set. Only the built-in display is changed, and only your own screen is read.")
         }
+    }
+}
+
+// The live parts of the page are their own views, so a new picture, angle or
+// status redraws just that piece instead of the whole form.
+
+/// The effect on generated artwork. Blur levels are kept between renders, so a
+/// new picture is cheap enough to draw on every slider step and toggle.
+private struct LidPlanePreview: View {
+    let lid: LidPlaneController
+
+    @State private var fold = 35.0
+    @State private var image: CGImage?
+
+    private var settings: LidPlaneSettings { lid.settings }
+
+    var body: some View {
+        PreviewCanvas(height: 250) {
+            if let image {
+                Image(decorative: image, scale: 1)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .padding(DS.Space.s)
+            } else {
+                ProgressView()
+            }
+        }
+        .frame(maxWidth: 420)
+        .overlay(alignment: .bottom) {
+            HStack(spacing: DS.Space.xs) {
+                Image(systemName: "angle")
+                Slider(value: $fold, in: 0...60, step: 1)
+                Text("\(Int(fold))° fold").dsText(.meta).monospacedDigit().frame(width: 62, alignment: .trailing)
+            }
+            .padding(.horizontal, DS.Space.s)
+            .padding(.bottom, DS.Space.xs)
+            .help("How far the lid has closed, in the preview")
+        }
+        .onChange(of: Key(fold: fold, blur: settings.blur, hold: settings.holdAngle, perspective: settings.perspective), initial: true) {
+            image = lid.previewImage(degrees: fold)
+        }
+    }
+
+    private struct Key: Equatable {
+        var fold: Double, blur: Bool, hold: Bool, perspective: Bool
+    }
+}
+
+private struct LidAngleReadout: View {
+    let lid: LidPlaneController
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: DS.Space.xxs) {
+            Text(lid.angle.map { "\(Int($0.rounded()))°" } ?? "—°")
+                .font(.system(size: 54, weight: .semibold, design: .rounded)).monospacedDigit()
+            Text("lid angle").dsText(.meta)
+        }
+        Text(lid.hasSensor ? "Live from the hinge sensor." : "No lid angle sensor reading yet.")
+            .dsText(.meta)
+    }
+}
+
+private struct LidStatusText: View {
+    let lid: LidPlaneController
+
+    var body: some View {
+        Text(lid.settings.isEnabled ? lid.status : "Off")
     }
 }
