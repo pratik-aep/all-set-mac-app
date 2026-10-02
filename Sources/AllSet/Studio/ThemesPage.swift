@@ -458,7 +458,7 @@ struct ThemeDetailPage: View {
 
     private func install(_ set: ThemeSet, _ mode: ThemeInstall, _ message: String) {
         withMotion(Motion.standard) {
-            services.install(set, mode: mode, wallpaper: setsWallpaper)
+            guard services.install(set, mode: mode, wallpaper: setsWallpaper) else { return }
             done = message
         }
         Task {

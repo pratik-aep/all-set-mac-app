@@ -35,16 +35,23 @@ enum ThemeInstall {
 
 extension AppServices {
     /// Installs a theme set: its widgets, look and (if asked) wallpaper.
-    func install(_ set: ThemeSet, mode: ThemeInstall, wallpaper setsWallpaper: Bool) {
+    @discardableResult
+    func install(_ set: ThemeSet, mode: ThemeInstall, wallpaper setsWallpaper: Bool) -> Bool {
+        // With a monitor connected, asks which display gets the widgets.
+        var target = NSScreen.screens.first
+        if mode != .restyle {
+            guard let chosen = chooseThemeScreen(for: set) else { return false }
+            target = chosen
+        }
         // Installing over a preview starts from the desktop before the preview.
         if ui.themePreview != nil { endThemePreview(keep: false) }
         let before = desktopSnapshot
         switch mode {
         case .replace:
-            widgets.replaceAll(with: themeWidgets(set))
+            replaceWidgets(on: target, with: themeWidgets(set, on: target))
             themeStats.record(.install, for: set.id)
         case .add:
-            let screen = NSScreen.screens.first
+            let screen = target
             let bounds = screen?.visibleFrame.size ?? CGSize(width: 1440, height: 860)
             let added = ThemeSet.personalized(set.widgets(screenName: screen?.localizedName, bounds: bounds),
                                               with: themePhotos.sources(for: set.id))
@@ -61,14 +68,16 @@ extension AppServices {
         if setsWallpaper, let source = set.wallpaper { wallpaper.set(source) }
         settings.adopt(set)
         ui.desktopUndo = DesktopUndo(change: .theme(set.name), before: before)
+        return true
     }
 
     /// Tries a set on the desktop until Keep or Go Back. It's put there
     /// exactly as Install would, so Keep has nothing left to change.
     func previewOnDesktop(_ set: ThemeSet, wallpaper setsWallpaper: Bool) {
+        guard let target = chooseThemeScreen(for: set) else { return }
         if ui.themePreview != nil { endThemePreview(keep: false) }
         ui.themePreview = ThemePreview(setID: set.id, before: desktopSnapshot)
-        widgets.replaceAll(with: themeWidgets(set))
+        replaceWidgets(on: target, with: themeWidgets(set, on: target))
         if setsWallpaper, let source = set.wallpaper { wallpaper.set(source) }
         settings.adopt(set)
         themeStats.record(.preview, for: set.id)
@@ -121,9 +130,36 @@ extension AppServices {
 
     /// A set's widgets with the person's photos, sized and centered to fill
     /// the primary screen, whatever its size, and lined up on its grid.
-    private func themeWidgets(_ set: ThemeSet) -> [WidgetInstance] {
-        let layout = set.widgets(screenName: NSScreen.screens.first?.localizedName, bounds: Self.unbounded)
-        return prepared(gridArranged(fittedToScreen(ThemeSet.personalized(layout, with: themePhotos.sources(for: set.id)))))
+    private func themeWidgets(_ set: ThemeSet, on screen: NSScreen?) -> [WidgetInstance] {
+        let layout = set.widgets(screenName: screen?.localizedName, bounds: Self.unbounded)
+        let personal = ThemeSet.personalized(layout, with: themePhotos.sources(for: set.id))
+        return prepared(gridArranged(fittedToScreen(personal, on: screen, keepingScale: widgetsRemain(besides: screen))))
+    }
+
+    /// Whether widgets on another display stay (and so the widget size must too).
+    private func widgetsRemain(besides screen: NSScreen?) -> Bool {
+        guard let screen else { return false }
+        return widgets.widgets.contains { !shows($0, on: screen) }
+    }
+
+    /// The widgets on `screen` replaced by `new`; those on other displays stay.
+    private func replaceWidgets(on screen: NSScreen?, with new: [WidgetInstance]) {
+        guard let screen, NSScreen.screens.count > 1 else { return widgets.replaceAll(with: new) }
+        widgets.replaceAll(with: widgets.widgets.filter { !shows($0, on: screen) } + new)
+    }
+
+    /// Where a theme's widgets go. One display needs no question; with a
+    /// monitor connected, asks: this Mac or the monitor. Nil when cancelled.
+    private func chooseThemeScreen(for set: ThemeSet) -> NSScreen? {
+        let screens = NSScreen.screens.sorted { ($0.isBuiltIn ? 0 : 1) < ($1.isBuiltIn ? 0 : 1) }
+        guard screens.count > 1 else { return screens.first }
+        let alert = NSAlert()
+        alert.messageText = "Where should \(set.name) go?"
+        alert.informativeText = "A second display is connected. The theme's widgets go on the one you pick; the other keeps its own."
+        for screen in screens { alert.addButton(withTitle: screen.isBuiltIn ? "On this Mac" : "On \(screen.localizedName)") }
+        alert.addButton(withTitle: "Cancel")
+        let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+        return screens.indices.contains(index) ? screens[index] : nil
     }
 
     /// Gives location-based widgets a city: one already used, else a guess

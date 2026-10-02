@@ -411,9 +411,11 @@ extension AppServices {
 
     /// A theme's arrangement sized and centered to fill the primary screen:
     /// sets the widget size and returns the widgets moved to match.
-    func fittedToScreen(_ layout: [WidgetInstance]) -> [WidgetInstance] {
-        let bounds = NSScreen.screens.first?.visibleFrame.size ?? CGSize(width: 1440, height: 860)
-        let fitted = WidgetLayout.fitted(layout, in: bounds, range: AppSettings.widgetScaleRange)
+    func fittedToScreen(_ layout: [WidgetInstance], on screen: NSScreen? = NSScreen.screens.first,
+                        keepingScale: Bool = false) -> [WidgetInstance] {
+        let bounds = screen?.visibleFrame.size ?? CGSize(width: 1440, height: 860)
+        let range = keepingScale ? settings.widgetScale...settings.widgetScale : AppSettings.widgetScaleRange
+        let fitted = WidgetLayout.fitted(layout, in: bounds, range: range)
         settings.widgetScale = fitted.scale
         return fitted.widgets
     }
