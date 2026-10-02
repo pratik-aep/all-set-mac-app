@@ -180,3 +180,7 @@ Result: no code changes needed; docs now agree with reality.
   slot with a live preview, gallery drag-to-desktop, right-click menu. 246 tests (7 new,
   all 57 themes keep their shape on the grid). Real app: tidy and Arrange drag landed on
   the predicted slots, menu and Remove work; gallery drop and direct drag await the user.
+- Widgets: From Themes in the gallery (623 widgets, 57 themes), per-widget font, letters,
+  corners, renamed built-in words (listed from the live preview) and a caption below.
+  249 tests. Offscreen renders checked; gallery scroll A/B against the previous commit:
+  no change (its hitches predate this, kept for the smoothness step).

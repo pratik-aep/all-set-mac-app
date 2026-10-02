@@ -157,7 +157,7 @@ struct WeatherWidget: View {
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .leading), count: columns), spacing: 10) {
             ForEach(shown, id: \.1) { symbol, title, value in
                 VStack(alignment: .leading, spacing: 2) {
-                    Label(title, systemImage: symbol)
+                    Label { WidgetWord(title) } icon: { Image(systemName: symbol) }
                         .font(style.label(10))
                         .foregroundStyle(style.secondary)
                     Text(value).font(style.body(14, weight: .semibold))

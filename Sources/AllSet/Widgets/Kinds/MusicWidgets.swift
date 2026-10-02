@@ -253,7 +253,7 @@ struct VHSWidget: View {
                 HStack {
                     HStack(spacing: 5) {
                         BlinkingLight(color: Color(hex: 0xFF2D2D), period: 1.4).frame(width: small ? 7 : 9, height: small ? 7 : 9)
-                        Text("REC")
+                        WidgetWord("REC")
                     }
                     Spacer()
                     Text(small ? "SP" : "PLAY ▶  SP")

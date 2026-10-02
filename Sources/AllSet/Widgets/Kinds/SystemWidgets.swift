@@ -52,7 +52,7 @@ struct SystemWidget: View {
             chips(snapshot)
                 .frame(maxWidth: .infinity)
             Divider().opacity(0.5)
-            Text("Using the most energy")
+            WidgetWord("Using the most energy")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
             TopAppsList(apps: snapshot.topApps, spacing: 8, track: .primary.opacity(0.12))
@@ -64,7 +64,7 @@ struct SystemWidget: View {
     private func history(_ title: String, _ value: String, _ values: [Double], color: Color, top: Double = 1) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                WidgetWord(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                 Spacer()
                 Text(value).font(.system(size: 12, weight: .semibold)).monospacedDigit()
             }
@@ -162,7 +162,7 @@ struct BatteryWidget: View {
         } else {
             VStack(spacing: 6) {
                 Image(systemName: "powerplug.fill").font(.system(size: 24))
-                Text("No battery").font(.system(size: 12, weight: .semibold))
+                WidgetWord("No battery").font(.system(size: 12, weight: .semibold))
             }
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -175,7 +175,7 @@ struct BatteryWidget: View {
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(.secondary)
                 .frame(width: 14)
-            Text(title).foregroundStyle(.secondary)
+            WidgetWord(title).foregroundStyle(.secondary)
             Spacer(minLength: 4)
             Text(value).monospacedDigit()
         }
@@ -297,7 +297,7 @@ struct NowPlayingWidget: View {
                 Image(systemName: "music.note")
                     .font(.system(size: 26, weight: .medium))
                     .foregroundStyle(accent)
-                Text("Nothing playing")
+                WidgetWord("Nothing playing")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
             }

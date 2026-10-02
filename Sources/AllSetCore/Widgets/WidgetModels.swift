@@ -815,8 +815,25 @@ public struct WidgetOptions: Codable, Equatable, Sendable {
     public var wordArt: WordArtFinish = .chrome
     public var charm: CharmShape = .heart
     public var zodiac: ZodiacSign = .leo
+    // Text and shape, for every widget
+    /// This widget's own typeface; nil follows the desktop's (or its design theme's).
+    public var font: WidgetFont?
+    /// This widget's own corner roundness; nil follows the desktop's.
+    public var cornerRadius: Double?
+    public var textCase: WidgetTextCase = .asWritten
+    /// The widget's built-in words renamed: its own text → what to show instead.
+    public var renamedText: [String: String] = [:]
+    /// A line of the person's own under the widget.
+    public var footnote = ""
+    public var footnoteStyle = FootnoteStyle()
 
     public init() {}
+
+    /// What to show for one of the widget's built-in words.
+    public func text(_ original: String) -> String {
+        guard let renamed = renamedText[original], !renamed.trimmingCharacters(in: .whitespaces).isEmpty else { return original }
+        return renamed
+    }
 
     // Missing keys fall back to defaults, so saved layouts survive new options.
     public init(from decoder: Decoder) throws {
@@ -883,6 +900,75 @@ public struct WidgetOptions: Codable, Equatable, Sendable {
         wordArt = (try? container.decodeIfPresent(WordArtFinish.self, forKey: .wordArt)) ?? defaults.wordArt
         charm = (try? container.decodeIfPresent(CharmShape.self, forKey: .charm)) ?? defaults.charm
         zodiac = (try? container.decodeIfPresent(ZodiacSign.self, forKey: .zodiac)) ?? defaults.zodiac
+        font = try? container.decodeIfPresent(WidgetFont.self, forKey: .font)
+        cornerRadius = try? container.decodeIfPresent(Double.self, forKey: .cornerRadius)
+        textCase = (try? container.decodeIfPresent(WidgetTextCase.self, forKey: .textCase)) ?? defaults.textCase
+        renamedText = (try? container.decodeIfPresent([String: String].self, forKey: .renamedText)) ?? defaults.renamedText
+        footnote = (try? container.decodeIfPresent(String.self, forKey: .footnote)) ?? defaults.footnote
+        footnoteStyle = (try? container.decodeIfPresent(FootnoteStyle.self, forKey: .footnoteStyle)) ?? defaults.footnoteStyle
+    }
+}
+
+/// How a widget's words are cased.
+public enum WidgetTextCase: String, Codable, CaseIterable, Identifiable, Sendable {
+    case asWritten, uppercase, lowercase
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .asWritten: "As Written"
+        case .uppercase: "UPPERCASE"
+        case .lowercase: "lowercase"
+        }
+    }
+}
+
+/// How the line under a widget looks.
+public struct FootnoteStyle: Codable, Equatable, Sendable {
+    public enum Size: String, Codable, CaseIterable, Identifiable, Sendable {
+        case small, medium, large
+        public var id: String { rawValue }
+        public var title: String { rawValue.capitalized }
+        public var points: Double {
+            switch self {
+            case .small: 10
+            case .medium: 11.5
+            case .large: 13
+            }
+        }
+    }
+
+    public enum Alignment: String, Codable, CaseIterable, Identifiable, Sendable {
+        case leading, center, trailing
+        public var id: String { rawValue }
+        public var title: String {
+            switch self {
+            case .leading: "Left"
+            case .center: "Center"
+            case .trailing: "Right"
+            }
+        }
+    }
+
+    public var size: Size = .medium
+    public var alignment: Alignment = .center
+    public var bold = true
+    /// Nil is white with a soft shadow, readable on most wallpapers.
+    public var color: WidgetColor?
+    /// Nil follows the widget's own font.
+    public var font: WidgetFont?
+
+    public init() {}
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = FootnoteStyle()
+        size = (try? container.decodeIfPresent(Size.self, forKey: .size)) ?? defaults.size
+        alignment = (try? container.decodeIfPresent(Alignment.self, forKey: .alignment)) ?? defaults.alignment
+        bold = (try? container.decodeIfPresent(Bool.self, forKey: .bold)) ?? defaults.bold
+        color = try? container.decodeIfPresent(WidgetColor.self, forKey: .color)
+        font = try? container.decodeIfPresent(WidgetFont.self, forKey: .font)
     }
 }
 

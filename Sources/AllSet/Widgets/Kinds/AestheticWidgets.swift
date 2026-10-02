@@ -494,7 +494,7 @@ struct CountdownWidget: View {
                     .lineLimit(2)
                 Spacer(minLength: 0)
                 if days == 0 {
-                    Text("Today!")
+                    WidgetWord("Today!")
                         .font(.system(size: numberSize * 0.6, weight: .bold, design: .rounded))
                 } else {
                     Text("\(abs(days))")

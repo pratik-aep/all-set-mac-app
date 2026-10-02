@@ -502,7 +502,7 @@ struct TarotWidget: View {
 
     private func reading(_ card: TarotCard, gold: Color) -> some View {
         VStack(alignment: instance.size == .medium ? .leading : .center, spacing: 6) {
-            Text("card of the day")
+            WidgetWord("card of the day")
                 .font(.system(size: 10, weight: .semibold))
                 .tracking(2)
                 .textCase(.uppercase)
@@ -758,7 +758,7 @@ struct EightBallWidget: View {
                 HStack(spacing: 20) {
                     ball(window).padding(14)
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("magic ball")
+                        WidgetWord("magic ball")
                             .font(.system(size: 10, weight: .semibold))
                             .tracking(2)
                             .textCase(.uppercase)

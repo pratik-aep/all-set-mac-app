@@ -7,6 +7,8 @@ import SwiftUI
 struct WidgetOptionsEditor: View {
     let id: UUID
     let services: AppServices
+    /// The built-in words the preview is showing, offered for renaming.
+    var words: [String] = []
 
     @State private var isPickingImages = false
     @State private var isPickingBackground = false
@@ -43,6 +45,7 @@ struct WidgetOptionsEditor: View {
             }
 
             themeSections(instance)
+            textSections(instance)
 
             if instance.material == .photo, showsStylePicker(instance), instance.designTheme == nil {
                 Section("Background Photo") {
@@ -106,6 +109,96 @@ struct WidgetOptionsEditor: View {
                 }
             }
         }
+    }
+
+    /// Font, letters, corners, the widget's own words and a caption under it.
+    @ViewBuilder
+    private func textSections(_ instance: WidgetInstance) -> some View {
+        Section {
+            Picker("Font", selection: binding(\.options.font, instance)) {
+                Text("Desktop\u{2019}s").tag(WidgetFont?.none)
+                ForEach(WidgetFont.allCases) { font in
+                    Text(font.title).tag(Optional(font))
+                }
+            }
+            Picker("Letters", selection: binding(\.options.textCase, instance)) {
+                ForEach(WidgetTextCase.allCases) { textCase in
+                    Text(textCase.title).tag(textCase)
+                }
+            }
+            if instance.designTheme == nil, !instance.kind.isFreeform {
+                Toggle("Own corner roundness", isOn: Binding(
+                    get: { services.widgets.instance(id)?.options.cornerRadius != nil },
+                    set: { own in
+                        services.widgets.update(id) { $0.options.cornerRadius = own ? services.settings.widgetCornerRadius : nil }
+                    }
+                ))
+                if let radius = instance.options.cornerRadius {
+                    LabeledContent("Corners") {
+                        Slider(value: Binding(
+                            get: { services.widgets.instance(id)?.options.cornerRadius ?? radius },
+                            set: { value in services.widgets.update(id) { $0.options.cornerRadius = value } }
+                        ), in: 0...40)
+                        .frame(width: 200)
+                    }
+                }
+            }
+            ForEach(words, id: \.self) { word in
+                LabeledContent(word) {
+                    TextField("", text: renameBinding(word, instance), prompt: Text("Rename"))
+                        .labelsHidden()
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 200)
+                }
+            }
+        } header: {
+            Text("Text")
+        } footer: {
+            Text(words.isEmpty
+                 ? "Its words come from your own data, like events or song titles."
+                 : "Rename any of the widget\u{2019}s own words; leave one empty to keep it.")
+        }
+
+        Section("Caption Below") {
+            TextField("Caption", text: binding(\.options.footnote, instance), prompt: Text("A line of your own under the widget"))
+            if !instance.options.footnote.trimmingCharacters(in: .whitespaces).isEmpty {
+                Picker("Size", selection: binding(\.options.footnoteStyle.size, instance)) {
+                    ForEach(FootnoteStyle.Size.allCases) { size in
+                        Text(size.title).tag(size)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Picker("Align", selection: binding(\.options.footnoteStyle.alignment, instance)) {
+                    ForEach(FootnoteStyle.Alignment.allCases) { alignment in
+                        Text(alignment.title).tag(alignment)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Toggle("Bold", isOn: binding(\.options.footnoteStyle.bold, instance))
+                Picker("Font", selection: binding(\.options.footnoteStyle.font, instance)) {
+                    Text("Default").tag(WidgetFont?.none)
+                    ForEach(WidgetFont.allCases) { font in
+                        Text(font.title).tag(Optional(font))
+                    }
+                }
+                OptionalColorRow(title: "Color", selection: binding(\.options.footnoteStyle.color, instance))
+            }
+        }
+    }
+
+    private func renameBinding(_ word: String, _ instance: WidgetInstance) -> Binding<String> {
+        Binding(
+            get: { services.widgets.instance(id)?.options.renamedText[word] ?? "" },
+            set: { text in
+                services.widgets.update(id) { widget in
+                    if text.isEmpty {
+                        widget.options.renamedText[word] = nil
+                    } else {
+                        widget.options.renamedText[word] = text
+                    }
+                }
+            }
+        )
     }
 
     /// Photos cover their background unless framed; Live Scenes are always art.

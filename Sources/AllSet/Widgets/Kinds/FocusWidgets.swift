@@ -325,7 +325,7 @@ struct StopwatchWidget: View {
     private var medium: some View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("stopwatch")
+                WidgetWord("stopwatch")
                     .font(.system(size: 11, weight: .semibold))
                     .textCase(.uppercase)
                     .tracking(2)
@@ -337,7 +337,7 @@ struct StopwatchWidget: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             VStack(alignment: .leading, spacing: 5) {
-                Text("laps")
+                WidgetWord("laps")
                     .font(.system(size: 11, weight: .semibold))
                     .textCase(.uppercase)
                     .tracking(2)

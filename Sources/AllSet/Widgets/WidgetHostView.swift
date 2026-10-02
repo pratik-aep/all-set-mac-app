@@ -143,7 +143,7 @@ struct WidgetHostView: View {
     var body: some View {
         if let instance = services.widgets.instance(id) {
             let arranging = services.ui.isArrangingWidgets
-            let radius = instance.designTheme?.cornerRadius ?? services.settings.widgetCornerRadius
+            let radius = instance.designTheme?.cornerRadius ?? instance.options.cornerRadius ?? services.settings.widgetCornerRadius
             let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
 
             WidgetBody(instance: instance, services: services, onConfigure: onConfigure)
@@ -232,10 +232,24 @@ struct WidgetBody: View {
     @Environment(\.colorScheme) private var systemScheme
 
     var body: some View {
-        if let theme = instance.designTheme {
-            themed(theme)
-        } else {
-            classic
+        Group {
+            if let theme = instance.designTheme {
+                themed(theme)
+            } else {
+                classic
+            }
+        }
+        .textCase(instance.options.textCase.swiftUI)
+        .environment(\.widgetRenames, instance.options.renamedText)
+        // In the margin under the card, so it never takes a slot of its own.
+        .overlay(alignment: Alignment(horizontal: instance.options.footnoteStyle.alignment.swiftUI, vertical: .bottom)) {
+            let footnote = instance.options.footnote.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !footnote.isEmpty {
+                WidgetFootnote(text: footnote, style: instance.options.footnoteStyle)
+                    .frame(maxWidth: instance.size.dimensions.width, alignment: Alignment(horizontal: instance.options.footnoteStyle.alignment.swiftUI, vertical: .top))
+                    .offset(y: instance.options.footnoteStyle.size.points + 3)
+                    .allowsHitTesting(false)
+            }
         }
     }
 
@@ -249,15 +263,15 @@ struct WidgetBody: View {
             WidgetContent(instance: instance, services: services, onConfigure: onConfigure)
         }
         .frame(width: instance.size.dimensions.width, height: instance.size.dimensions.height)
-        .fontDesign(theme.typography.font.design)
-        .fontWidth(theme.typography.font.width)
+        .fontDesign((instance.options.font ?? theme.typography.font).design)
+        .fontWidth((instance.options.font ?? theme.typography.font).width)
         .environment(\.widgetStyle, .themed(theme, palette: palette, isDark: isDark, accent: accent))
         .environment(\.widgetAccent, accent)
     }
 
     private var classic: some View {
-        let radius = cornerOverride ?? services.settings.widgetCornerRadius
-        let font = fontOverride ?? services.settings.widgetFont
+        let radius = instance.options.cornerRadius ?? cornerOverride ?? services.settings.widgetCornerRadius
+        let font = instance.options.font ?? fontOverride ?? services.settings.widgetFont
         let accent = Self.accent(for: instance)
         return WidgetSurface(instance: instance, cornerRadius: radius, library: services.images) {
             WidgetContent(instance: instance, services: services, onConfigure: onConfigure)

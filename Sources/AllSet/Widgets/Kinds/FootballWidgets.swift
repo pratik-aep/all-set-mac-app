@@ -829,7 +829,7 @@ struct ScoreboardWidget: View {
             HStack(spacing: 6) {
                 if live {
                     BlinkingLight(color: Color(hex: 0xFF3B30), period: 1.1).frame(width: 7, height: 7)
-                    Text("LIVE").font(.system(size: 10, weight: .black)).foregroundStyle(Color(hex: 0xFF3B30))
+                    WidgetWord("LIVE").font(.system(size: 10, weight: .black)).foregroundStyle(Color(hex: 0xFF3B30))
                 }
                 Text(match.competition.uppercased())
                     .font(.system(size: 10, weight: .bold))

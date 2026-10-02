@@ -19,6 +19,11 @@ struct GalleryPage: View {
     let services: AppServices
 
     @State private var query = ""
+    /// Showing every theme's widgets instead of the catalog.
+    private var fromThemes: Bool {
+        get { services.ui.galleryFromThemes }
+        nonmutating set { services.ui.galleryFromThemes = newValue }
+    }
 
     private var entries: [CatalogEntry] {
         category.map(WidgetCatalog.entries(in:)) ?? WidgetCatalog.entries
@@ -36,9 +41,12 @@ struct GalleryPage: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.section) {
                     VStack(alignment: .leading, spacing: DS.Space.m) {
-                        PageHeader(eyebrow: "\(entries.count) widgets",
-                                   title: category?.title ?? "Widget Gallery",
-                                   subtitle: category == .aesthetic
+                        PageHeader(eyebrow: fromThemes ? "\(ThemeWidgetCatalog.all.count) widgets from \(ThemeLibrary.all.count) themes"
+                                       : category == nil ? "\(entries.count + ThemeWidgetCatalog.all.count) widgets" : "\(entries.count) widgets",
+                                   title: fromThemes ? "From Themes" : category?.title ?? "Widget Gallery",
+                                   subtitle: fromThemes
+                                       ? "Every theme\u{2019}s widgets, each dressed as its theme has it. Add one, or drag it onto the desktop."
+                                       : category == .aesthetic
                                        ? "Decorative pieces for the desktop: signs, stickers, prints and scenes."
                                        : "Pick a size, add it, then make it yours with a theme, colors and settings.") {
                             SearchField(text: $query, prompt: "Search widgets")
@@ -46,13 +54,18 @@ struct GalleryPage: View {
                         }
                         categoryPills
                     }
-                    if !SearchMatch.normalize(query).isEmpty {
-                        if matches.isEmpty {
+                    if fromThemes {
+                        ThemeWidgetRails(services: services, query: query)
+                    } else if !SearchMatch.normalize(query).isEmpty {
+                        if matches.isEmpty && category != nil {
                             EmptyState(symbol: "magnifyingglass", title: "No widgets match \u{201C}\(query)\u{201D}",
                                        message: "Try another word, or clear the search.",
                                        actionTitle: "Clear Search", action: { query = "" })
                         } else {
-                            grid(matches)
+                            if !matches.isEmpty { grid(matches) }
+                            if category == nil {
+                                ThemeWidgetRails(services: services, query: query)
+                            }
                         }
                     } else {
                         ForEach(category.map { [$0] } ?? WidgetCategory.allCases) { section in
@@ -63,6 +76,14 @@ struct GalleryPage: View {
                                                   actionTitle: "See All", action: { services.ui.page = .gallery(section) })
                                 }
                                 grid(WidgetCatalog.entries(in: section))
+                            }
+                        }
+                        if category == nil {
+                            VStack(alignment: .leading, spacing: DS.Space.m) {
+                                SectionHeader(title: "From Themes",
+                                              subtitle: "\(ThemeWidgetCatalog.all.count) widgets, each as its theme dresses it",
+                                              actionTitle: "See All", action: { withMotion(Motion.standard) { fromThemes = true } })
+                                ThemeWidgetRails(services: services, limit: 3)
                             }
                         }
                     }
@@ -77,11 +98,17 @@ struct GalleryPage: View {
     private var categoryPills: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: DS.Space.xs) {
-                FilterPill(title: "All", symbol: "square.grid.2x2.fill", isSelected: category == nil) {
+                FilterPill(title: "All", symbol: "square.grid.2x2.fill", isSelected: category == nil && !fromThemes) {
+                    fromThemes = false
                     services.ui.page = .gallery(nil)
                 }
+                FilterPill(title: "From Themes", symbol: "paintpalette.fill", isSelected: fromThemes) {
+                    services.ui.page = .gallery(nil)
+                    fromThemes = true
+                }
                 ForEach(WidgetCategory.allCases) { item in
-                    FilterPill(title: item.title, symbol: item.symbol, isSelected: category == item) {
+                    FilterPill(title: item.title, symbol: item.symbol, isSelected: category == item && !fromThemes) {
+                        fromThemes = false
                         services.ui.page = .gallery(item)
                     }
                 }
@@ -300,6 +327,7 @@ struct GalleryCard: View {
 struct WidgetInspector: View {
     let id: UUID
     let services: AppServices
+    @State private var words: [String] = []
 
     var body: some View {
         if let instance = services.widgets.instance(id) {
@@ -309,6 +337,9 @@ struct WidgetInspector: View {
                     VStack(spacing: DS.Space.m) {
                         WidgetPreview(instance: instance, services: services, fit: CGSize(width: 360, height: 360))
                             .motion(Motion.responsive, value: instance.size)
+                            .onPreferenceChange(WidgetWordsKey.self) { found in
+                                if found != words { words = found }
+                            }
                         Text("Live preview").dsText(.eyebrow, color: .white.opacity(0.7))
                     }
                 }
@@ -339,7 +370,7 @@ struct WidgetInspector: View {
                 .padding([.leading, .bottom], DS.Space.l)
 
                 Form {
-                    WidgetOptionsEditor(id: id, services: services)
+                    WidgetOptionsEditor(id: id, services: services, words: words)
                 }
                 .dsFormStyle()
             }

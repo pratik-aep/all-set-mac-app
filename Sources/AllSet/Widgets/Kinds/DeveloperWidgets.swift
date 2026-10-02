@@ -159,7 +159,7 @@ struct GitHubWidget: View {
                         VStack(alignment: .leading, spacing: 1) {
                             HStack(spacing: 5) {
                                 if item.isDraft {
-                                    Text("Draft").font(style.label(9)).padding(.horizontal, 4).padding(.vertical, 1)
+                                    WidgetWord("Draft").font(style.label(9)).padding(.horizontal, 4).padding(.vertical, 1)
                                         .background(Capsule().strokeBorder(style.ink.opacity(0.3)))
                                 }
                                 Text(item.title).font(style.body(12, weight: .semibold)).lineLimit(1)

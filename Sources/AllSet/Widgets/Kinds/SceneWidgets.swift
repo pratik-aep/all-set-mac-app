@@ -485,7 +485,7 @@ struct MoonWidget: View {
                         MoonDisc(phase: phase).frame(width: 126, height: 126)
                         VStack(alignment: .leading, spacing: 8) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("TONIGHT").font(.system(size: 10, weight: .bold)).opacity(0.6)
+                                WidgetWord("TONIGHT").font(.system(size: 10, weight: .bold)).opacity(0.6)
                                 Text(phase.name.rawValue).font(.system(size: 19, weight: .semibold, design: .serif))
                                 Text("\(Int((phase.illumination * 100).rounded()))% lit · \(Int(phase.age.rounded())) days old")
                                     .font(.system(size: 11)).opacity(0.7)

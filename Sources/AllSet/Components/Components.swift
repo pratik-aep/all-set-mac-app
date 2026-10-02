@@ -24,7 +24,7 @@ struct StatRing: View {
                 if let symbol {
                     Image(systemName: symbol).font(.system(size: 8, weight: .bold))
                 }
-                Text(title)
+                WidgetWord(title)
             }
             .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(.secondary)
@@ -46,7 +46,7 @@ struct StatCard<Content: View>: View {
                 Image(systemName: symbol)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(color)
-                Text(title)
+                WidgetWord(title)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 4)

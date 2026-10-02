@@ -156,9 +156,9 @@ struct NextEventWidget: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Later").font(style.label()).foregroundStyle(style.secondary)
+                        WidgetWord("Later").font(style.label()).foregroundStyle(style.secondary)
                         if rest.isEmpty {
-                            Text("Nothing else this week").font(style.body(12)).foregroundStyle(style.secondary)
+                            WidgetWord("Nothing else this week").font(style.body(12)).foregroundStyle(style.secondary)
                         }
                         ForEach(rest) { eventRow($0, now: now) }
                         Spacer(minLength: 0)

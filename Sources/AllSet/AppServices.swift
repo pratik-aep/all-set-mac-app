@@ -28,6 +28,8 @@ final class UIState {
     var removedWidget: RemovedWidget?
     /// A gallery widget being dragged toward the desktop.
     var widgetDrop: WidgetInstance?
+    /// The Widget Gallery shows every theme's widgets instead of the catalog.
+    var galleryFromThemes = false
     /// How hard All Set may work: from Low Power Mode, the Mac's temperature,
     /// Reduce Motion and the charger. Every subsystem reads its limits here.
     var performance = PerformancePolicy()

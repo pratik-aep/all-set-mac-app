@@ -61,7 +61,7 @@ struct WidgetHeader: View {
     private var standard: some View {
         HStack(spacing: 5) {
             if let symbol { WidgetIcon(symbol: symbol) }
-            Text(title)
+            WidgetWord(title)
                 .font(style.label())
                 .textCase(style.uppercaseLabels ? .uppercase : nil)
                 .tracking(style.labelTracking)
@@ -111,7 +111,7 @@ struct WidgetHeader: View {
     private var editorial: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
-                Text(title)
+                WidgetWord(title)
                     .font(.system(size: 10, weight: .bold, design: .serif))
                     .textCase(.uppercase)
                     .tracking(2)
@@ -153,7 +153,7 @@ struct WidgetMetric: View {
     var body: some View {
         VStack(alignment: alignment, spacing: 1) {
             if let caption {
-                Text(caption)
+                WidgetWord(caption)
                     .font(style.label(max(size * 0.28, 10)))
                     .textCase(style.uppercaseLabels ? .uppercase : nil)
                     .tracking(style.labelTracking)
@@ -166,7 +166,7 @@ struct WidgetMetric: View {
                     .contentTransition(animated ? .numericText() : .identity)
                     .motion(animated ? style.motion.change : nil, value: value)
                 if let unit {
-                    Text(unit)
+                    WidgetWord(unit)
                         .font(style.body(max(size * 0.36, 10), weight: .semibold))
                         .foregroundStyle(style.secondary)
                 }
@@ -269,7 +269,7 @@ struct WidgetStateView: View {
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(kind == .error ? AnyShapeStyle(Color.orange) : AnyShapeStyle(style.accent))
             }
-            Text(title)
+            WidgetWord(title)
                 .font(style.title(13))
                 .multilineTextAlignment(.center)
             if let message {

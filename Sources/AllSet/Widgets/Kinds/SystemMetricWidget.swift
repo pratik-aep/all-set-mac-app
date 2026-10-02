@@ -84,7 +84,7 @@ struct SystemMetricWidget: View {
                 WidgetSparkline(values: history, capacity: SystemMonitor.historyLength, maxValue: 1).frame(height: 54)
                 WidgetCoreBars(loads: s.cpu.perCore, kinds: s.cpu.coreKinds).frame(height: 40)
                 WidgetDivider()
-                Text("Busiest").font(style.label()).foregroundStyle(style.secondary)
+                WidgetWord("Busiest").font(style.label()).foregroundStyle(style.secondary)
                 TopAppsList(apps: Array(s.topApps.prefix(3)), spacing: 7, track: style.ink.opacity(0.12))
                 Spacer(minLength: 0)
             }
@@ -148,7 +148,7 @@ struct SystemMetricWidget: View {
                     tile("Swap", Format.memory(m.swapUsed))
                 }
                 WidgetDivider()
-                Text("Using the most").font(style.label()).foregroundStyle(style.secondary)
+                WidgetWord("Using the most").font(style.label()).foregroundStyle(style.secondary)
                 ForEach(s.memoryApps.prefix(4)) { app in
                     row(app.name, Format.memory(app.bytes))
                 }
@@ -394,7 +394,7 @@ struct SystemMetricWidget: View {
                         Image(systemName: check.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                             .foregroundStyle(check.ok ? style.accent : .orange)
                             .frame(width: 16)
-                        Text(check.title).font(style.body(12))
+                        WidgetWord(check.title).font(style.body(12))
                         Spacer()
                         Text(check.detail).font(style.body(12)).foregroundStyle(style.secondary)
                     }
