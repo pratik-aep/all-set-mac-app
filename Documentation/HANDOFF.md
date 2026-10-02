@@ -16,7 +16,12 @@ _Last updated: 2026-10-02 (widget snap grid, drag from the gallery, right-click 
 2. **Optimise at the core level** with every change: CPU, GPU and WindowServer cost. Measure it; don't assume.
 3. **Copyright:** themes are *original*, inspired by an era, genre or mood. No logos, album art, promo photos or trademarks. Real people's names may appear only in hidden search tags, never in UI text (a test enforces this). The user's player photos stay on their Mac, never in the repo.
 4. **Save tokens:** read this file and the latest report instead of re-reviewing the project. End every session by updating this file and writing a report.
-5. Commit or push only when asked. The remote is `origin` → github.com/pratik-aep/all-set-mac-app.
+5. Commit or push only when asked (the user has approved commits at each verified checkpoint this session; never push without being asked). The remote is `origin` → github.com/pratik-aep/all-set-mac-app.
+
+## Outside the repo (set up 2026-10-02)
+- Claude Code has `ponytail@ponytail` (github.com/DietrichGebert/ponytail, MIT, hooks reviewed: local files only) enabled in `~/.claude/settings.json`, default level full; `/extension [status|on|off|lite|full|ultra]` (`~/.claude/commands/extension.md` → `~/.claude/ponytail-ctl.js`) shows and switches it. Needs a new session to load. Ponytail means: simplest working code, no unrequested abstractions.
+- `.claude/settings.local.json` (git-ignored) allows routine build/test/git commands and denies `git push`, `rm -rf`, `git reset --hard`, `sudo` (a compound command containing `rm -rf` is refused).
+- Testing hotkeys: synthetic `CGEvent` doesn't trigger Carbon hotkeys; use System Events `key code`. Driving the pointer: see the scratchpad `mouse` tool notes in the 2026-10-01/02 sessions (refuses to click unless an All Set window is topmost).
 
 ## Machine quirks
 - The first `python3` on PATH is an empty file that prints nothing: use `/opt/homebrew/bin/python3`, or awk, grep or perl.
@@ -194,6 +199,7 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 
 ## Current state (2026-10-02)
 - **In progress: a 7-step request** (in order): 1 widget snap grid, drag, right-click menu ✅; 2 every theme's widgets in the gallery + editable labels inside widgets and an optional caption below ✅; (extra, asked mid-way) Lid Plane tab ✅; 3 AI Screenshot on ⌘⇧5 ✅ (replaces the system shortcut, restored on quit); 4 analyse this Mac (hardware, sensors, permissions) and adapt; 5 measure and fix choppiness everywhere; 6 window UI toward the user's "Wallspace" reference (big featured hero, filmstrip, curated rows); 7 Island Notes tab: alarms, stopwatch, daily routines with notifications.
+- Done since: Lid Plane tab (`0626efc`), AI Screenshot ⌘⇧5 (`bf59f1f`). Remaining: 4, 5, 6, 7 above, in that order.
 - Step 1 verified in the real app (seeded layout tidied to the predicted slots, Arrange-mode drag landed in the predicted slot with the overlay showing, right-click menu, Remove). **Not yet seen working by a person:** dragging a gallery card onto the desktop, and dragging a widget straight off the desktop outside Arrange mode (the desktop was covered by the user's windows; synthetic clicks pass through the island panel, so don't drive the pointer near the notch).
 
 ## Earlier state (2026-10-01)

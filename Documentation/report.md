@@ -6,56 +6,34 @@ log; it never needs reading in full.
 ---
 
 ## CURRENT STATE
-_(overwritten every checkpoint — 2026-10-01, docs synced after the main-window redesign)_
+_(overwritten every checkpoint — 2026-10-02, widgets, Lid Plane, AI Screenshot shortcut)_
 
 ### Working right now (verified only)
-- **2026-10-01, backdrop and full-bleed heroes:** the Wallpaper page (where
-  My Videos and the Library live) now opens on a full-bleed hero under the
-  navigation, over a navy backdrop with drifting blue light. **No Library
-  code changed**; the sources and Library sit below the hero as before.
-  CI green on `928c3fd` (0 warnings, all tests). Idle CPU of plain pages
-  unchanged with the moving backdrop (0.5–1.4% in the CI probe).
-- **The main-window redesign is merged** (`main` = `e92ba9e`). For the
-  Library it changed **where it lives and how it's dressed, not what it
-  does**: it is the **My Videos** source pill on the Wallpaper page
-  (Desktop → Wallpaper in the floating navigation), under the page's live
-  hero, with the shared design-system header, pills and tile radius.
-- **Checked against the code, feature by feature** (2026-10-01), all still
-  present in `WallpaperPages.swift`: file size on tiles and in
-  `LibraryDetailSheet`, "Tap to preview" when not local (hover never
-  fetches), the Owned filter, `LibraryTile.DeleteKind`
-  (`.offloadOnly` / `.permanent`), `AdminGate` before `deleteEverywhere`,
-  `fetchLibraryVideoRetrying`, Free Up Space.
-- **CI on `e92ba9e`**: build with 0 warnings, **239 tests pass**, and the
-  page renders (`wallpaper-videos-*.jpg` on the `ci-screenshots` branch, at
-  900×600, 1280×800 and 1728×1080). CI has no library catalog, so they show
-  the My Videos source and its empty drop zone, never Library tiles: the
-  Library's look after the redesign is **not yet seen with real wallpapers**.
-- Everything below this line from the 2026-09-29 checkpoint still stands
-  (no Library logic changed since): sizes, the detail sheet's fetch, the
-  Owned filter, and permanent delete reaching this Mac, the server file
-  and the Postgres row, proven end to end then.
-  **Still not personally verified**: the Touch ID/password prompt itself.
-
-### Files touched this checkpoint
-- `Documentation/spec.md` — where the Library lives; the My Photos tab is gone.
-- `Documentation/report.md` — this block and one HISTORY line.
-- No code.
+- **Wallpaper library: unchanged** since the 2026-10-01 docs sync (sizes, detail sheet,
+  Owned filter, two deletes, server fetch/offload, redesign). Not yet seen by a person:
+  the Touch ID prompt, and the redesigned Library with real wallpapers.
+- **Widgets** (`4dec6f5`, `5cb9353`): snap grid, drag to a free slot, gallery drag-to-desktop,
+  right-click menu; "From Themes" gallery (623 widgets, 57 themes); per-widget font, letters,
+  corners, renamed built-in words and a caption below. Verified in the real app (tidy, Arrange
+  drag, right-click, Remove) and offscreen renders. **Not yet seen by a person:** dragging a
+  gallery card onto the desktop, and dragging a widget off the desktop outside Arrange mode.
+- **Lid Plane** (`0626efc`): System → Lid Plane. Renderer checks pass, page renders with the
+  live hinge reading. **Not tried:** a live capture with the effect on.
+- **AI Screenshot shortcut** (`bf59f1f`): Off / ⌘⇧5 / ⌃⌥⌘5; ⌘⇧5 switches macOS's own off and
+  restores it on quit. Verified in the real app with injected key presses. The user's Mac is set to ⌘⇧5.
+- 263 tests, 0 warnings. **Nothing from 2026-10-02 is pushed** (3 commits ahead of `cloud/main`).
+- Outside the repo: Claude Code now has the ponytail plugin enabled by default and a `/extension`
+  command (`~/.claude/commands/extension.md`, `~/.claude/ponytail-ctl.js`); needs a new session.
 
 ### Known issues / blockers
-- `delete_service.py` isn't a launchd service yet — started by hand on the
-  server; can become one later the way Caddy/Postgres were.
-- Deleting the *active* wallpaper via `.permanent` still leaves it as the
-  active source pointing at nothing (matches `deleteLibraryVideo`'s
-  existing behaviour, not changed here) — falls back to default art.
-- Offloaded wallpapers still need Tailscale + server; ~700 older ones still
-  lack the crossfade fix and blank-render check; no settings UI for the
-  server URL; the SSH key has no passphrase.
+- `delete_service.py` isn't a launchd service; ~700 older wallpapers lack the crossfade fix;
+  no settings UI for the server URL; deleting the active wallpaper leaves it pointing at nothing.
+- Gallery scroll has hitches (7-19 over 13,000 pt, 52-58% CPU), predating this work.
 
 ### Next step
-Unchanged, still waiting on the user: try the real delete button once (the
-Touch ID prompt is the one thing not self-verified), or pick one of the known
-issues above.
+The user's 7-step list: **4** analyse this Mac (hardware, sensors, permissions) and adapt;
+**5** measure and fix choppiness everywhere (gallery scroll first); **6** window UI toward the
+"Wallspace" reference; **7** Island Notes tab with alarms, stopwatch and daily routine reminders.
 
 ---
 
