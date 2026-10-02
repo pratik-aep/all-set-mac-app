@@ -131,13 +131,16 @@ final class HotKeyCenter {
     static let shared = HotKeyCenter()
 
     private var references: [UInt32: EventHotKeyRef] = [:]
+    private var groups: [UInt32: String] = [:]
     private var handlers: [UInt32: @MainActor () -> Void] = [:]
     private var nextID: UInt32 = 1
     private var isInstalled = false
 
     /// False when the shortcut is already taken by another app.
+    /// `group` lets a feature drop only its own shortcuts: window snapping
+    /// re-registers its keys whenever they change.
     @discardableResult
-    func register(_ shortcut: Shortcut, handler: @escaping @MainActor () -> Void) -> Bool {
+    func register(_ shortcut: Shortcut, group: String = "windows", handler: @escaping @MainActor () -> Void) -> Bool {
         installHandlerIfNeeded()
         let id = nextID
         nextID += 1
@@ -148,13 +151,16 @@ final class HotKeyCenter {
         guard status == noErr, let reference else { return false }
         references[id] = reference
         handlers[id] = handler
+        groups[id] = group
         return true
     }
 
-    func unregisterAll() {
-        references.values.forEach { UnregisterEventHotKey($0) }
-        references.removeAll()
-        handlers.removeAll()
+    func unregisterAll(group: String = "windows") {
+        for id in groups.filter({ $0.value == group }).keys {
+            if let reference = references.removeValue(forKey: id) { UnregisterEventHotKey(reference) }
+            handlers[id] = nil
+            groups[id] = nil
+        }
     }
 
     fileprivate func fire(_ id: UInt32) {

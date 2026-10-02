@@ -1,5 +1,6 @@
 import AllSetCore
 import AppKit
+import MetalKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -66,6 +67,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 exit(0)
             }
             return
+        }
+        // `-renderLidPlane /folder`: the effect on generated artwork, and the renderer's own checks.
+        if let folder = UserDefaults.standard.string(forKey: "renderLidPlane") {
+            NSApp.setActivationPolicy(.accessory)
+            do {
+                guard let gpu = MTLCreateSystemDefaultDevice() else { print("Metal unavailable"); exit(1) }
+                let renderer = try LidPlaneRenderer(gpu: gpu)
+                let directory = URL(fileURLWithPath: folder)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                func save(_ image: CGImage, _ name: String) {
+                    try? NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent(name))
+                }
+                renderer.perspective = false
+                save(try renderer.preview(to: nil, angle: 0), "open.png")
+                save(try renderer.preview(to: nil, angle: 35 * .pi / 180), "folded.png")
+                renderer.perspective = true
+                save(try renderer.preview(to: nil, angle: 35 * .pi / 180), "perspective.png")
+                try LidPlaneRenderChecks.run(renderer)
+                print("sensor:", LidSensor().diagnostic, "screen access:", CGPreflightScreenCaptureAccess())
+            } catch { print(error); exit(1) }
+            exit(0)
         }
         if let folder = UserDefaults.standard.string(forKey: "renderPhotos") {
             NSApp.setActivationPolicy(.accessory)

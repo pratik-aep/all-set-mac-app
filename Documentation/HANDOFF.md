@@ -32,7 +32,7 @@ _Last updated: 2026-10-02 (widget snap grid, drag from the gallery, right-click 
 | What | Command |
 |---|---|
 | Debug build (expect 0 warnings) | `swift build 2>&1 \| grep -c warning:` |
-| Tests (currently 249 in 73 suites) | `swift test` |
+| Tests (currently 259 in 76 suites) | `swift test` |
 | Optimised build with DEBUG tools | `swift build -c release -Xswiftc -DDEBUG --build-path .build-probe` |
 | Everything, on GitHub | CI (`.github/workflows/ci.yml`, `macos-26`) on every push: `build-and-test` (fails on any warning), `screenshots` (`-renderPages`, published to the `ci-screenshots` branch) and `probe` (`-probe scroll`, `pages`, `galleryparts`, in the run summary). Cloud sessions without a Swift toolchain verify through CI only |
 
@@ -156,6 +156,9 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
   - All **QUARANTINED** (Workshop, no license). Personal use only; never bundle or commit them.
 - Scenes left out after review are listed by Workshop id in `SCENE_REVIEWED_SKIP`, each with its reason. To check new scenes, lay the thumbnails out on a contact sheet and look: the preview hash can't tell.
 
+**Lid Plane** (`AllSet/LidPlane/`, `AllSetCore/LidPlane/`; System → Lid Plane): Jhey's lid-fold effect, GPL-3.0-or-later (notices in `Documentation/third-party/`; **distributing All Set means distributing it under the GPL**, fine for personal use). Core: `LidSensor` (IOHID lid angle, read-only), `AutoAnchor`, `LidMotionFilter`, `AngleActivation`, `CaptureDemand`, `DisplaySafetyGate`, `LidPlaneSettings` (UserDefaults `lidplane.*`), tested in `LidPlaneTests`. App: `LidPlaneController` (30 Hz timer only while enabled; 5 Hz readout while the page is open; none otherwise), `LidPlaneRenderer` (Metal, shader inline), `LidPlaneCapture` (ScreenCaptureKit), `LidPlanePage`. Differences from upstream: the stream excludes only the overlay **window** (upstream excludes its whole app, which would drop All Set's own wallpaper and widgets), and the overlay stays ordered in at alpha 0 while a stream runs so it can be found; shortcuts use `HotKeyCenter` with a `lidplane` group (window snapping's `unregisterAll()` now only drops its own group). Preserve upstream's safety rules (never fall back to an external display, wait 0.5 s of stable display before restarting capture, raw angle above the limit always hides). `-renderLidPlane dir` renders previews and runs the renderer checks. **Not verified by me:** a live capture with the effect on (needs All Set's own Screen Recording approval and a physical lid).
+- **Keychain prompts:** never read Keychain at launch. `WallpaperStore.deleteServiceToken` now reads it only when a permanent delete runs; reading at launch asked for the login password after every rebuild (ad-hoc probe builds especially).
+
 **Other areas**
 - Wallpaper: `Wallpaper/WallpaperController` (plays only if at least 15% of the screen is uncovered; shared video players).
 - Workspace: `Workspace/` (Carbon hotkeys, Accessibility window moves).
@@ -188,7 +191,7 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 - **Measuring on CI:** a nearly invisible probe window gets App Nap (hold it off with `ProcessInfo.beginActivity`), and a GPU-less VM's window server caps frame gaps near 80 ms on every page; compare CPU and the worst stall, not average frame time.
 
 ## Current state (2026-10-02)
-- **In progress: a 7-step request** (in order): 1 widget snap grid, drag, right-click menu ✅; 2 every theme's widgets in the gallery + editable labels inside widgets and an optional caption below ✅; 3 AI Screenshot on ⌘⇧5 (replace the system shortcut, reversible); 4 analyse this Mac (hardware, sensors, permissions) and adapt; 5 measure and fix choppiness everywhere; 6 window UI toward the user's "Wallspace" reference (big featured hero, filmstrip, curated rows); 7 Island Notes tab: alarms, stopwatch, daily routines with notifications.
+- **In progress: a 7-step request** (in order): 1 widget snap grid, drag, right-click menu ✅; 2 every theme's widgets in the gallery + editable labels inside widgets and an optional caption below ✅; (extra, asked mid-way) Lid Plane tab ✅; 3 AI Screenshot on ⌘⇧5 (replace the system shortcut, reversible); 4 analyse this Mac (hardware, sensors, permissions) and adapt; 5 measure and fix choppiness everywhere; 6 window UI toward the user's "Wallspace" reference (big featured hero, filmstrip, curated rows); 7 Island Notes tab: alarms, stopwatch, daily routines with notifications.
 - Step 1 verified in the real app (seeded layout tidied to the predicted slots, Arrange-mode drag landed in the predicted slot with the overlay showing, right-click menu, Remove). **Not yet seen working by a person:** dragging a gallery card onto the desktop, and dragging a widget straight off the desktop outside Arrange mode (the desktop was covered by the user's windows; synthetic clicks pass through the island panel, so don't drive the pointer near the notch).
 
 ## Earlier state (2026-10-01)

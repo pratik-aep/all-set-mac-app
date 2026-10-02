@@ -48,7 +48,7 @@ enum NavSection: String, CaseIterable, Identifiable {
         case .themes, .themeSet, .gallery, .art, .widget, .widgetAppearance, .wallpaper, .wallpaperOptions, .desktop: .desktop
         case .snapping, .workspaces: .workspace
         case .clipboard, .shelf, .mixer, .knocks, .notes, .screenshot: .tools
-        case .monitor, .general, .about: .system
+        case .monitor, .lidPlane, .general, .about: .system
         }
     }
 }
@@ -96,6 +96,7 @@ struct NavItem: Identifiable {
              NavItem(page: .notes, title: "Notes", symbol: "note.text", badge: services.notes.notes.filter { !$0.isDone }.count)]
         case .system:
             [NavItem(page: .monitor, title: "Monitor", symbol: "gauge.with.dots.needle.50percent"),
+             NavItem(page: .lidPlane, title: "Lid Plane", symbol: "laptopcomputer"),
              NavItem(page: .general, title: "General", symbol: "gearshape.fill"),
              NavItem(page: .about, title: "About", symbol: "info.circle.fill")]
         }

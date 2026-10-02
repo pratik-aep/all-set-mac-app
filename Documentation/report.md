@@ -184,3 +184,7 @@ Result: no code changes needed; docs now agree with reality.
   corners, renamed built-in words (listed from the live preview) and a caption below.
   249 tests. Offscreen renders checked; gallery scroll A/B against the previous commit:
   no change (its hitches predate this, kept for the smoothness step).
+- Lid Plane (Jhey's lid-fold effect, GPL) integrated as System → Lid Plane: sensor, safety
+  gates, Metal renderer, capture and a settings tab; ported tests + settings tests (259).
+  Renderer checks pass and the page renders offscreen with the live 128° reading; live capture
+  not yet tried. Also fixed repeated Keychain password prompts (token read at launch).

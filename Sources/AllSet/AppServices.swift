@@ -77,6 +77,7 @@ final class AppServices {
     lazy var mixer = MixerController(store: appVolumes, output: volume)
     let knockStore = KnockStore()
     let notes = NotesStore()
+    let lidPlane = LidPlaneController(settings: LidPlaneSettings())
     lazy var knocks = KnockController(services: self)
     lazy var clipboardMonitor = ClipboardMonitor(services: self)
     lazy var workspaceController = WorkspaceController(services: self)
@@ -99,10 +100,12 @@ final class AppServices {
         power.start()
         calendar.start()
         themes.start(services: self)
+        lidPlane.start()
     }
 
     func stop() {
         knocks.stop()
+        lidPlane.stop()
         notes.save()
         mixer.stop()
         media.stop()
@@ -229,7 +232,7 @@ final class AppServices {
             let pages: [String: AppPage] = [
                 "home": .island, "island": .island, "themes": .themes, "gallery": .gallery(nil), "monitor": .monitor,
                 "wallpaper": .wallpaper, "art": .art, "clipboard": .clipboard, "notes": .notes,
-                "workspaces": .workspaces, "mixer": .mixer, "settings": .general, "desktop": .desktop,
+                "workspaces": .workspaces, "mixer": .mixer, "settings": .general, "desktop": .desktop, "lid": .lidPlane,
             ]
             openWindow(pages[name] ?? WidgetCategory(rawValue: name).map { .gallery($0) } ?? .island)
         case .widget(let id):

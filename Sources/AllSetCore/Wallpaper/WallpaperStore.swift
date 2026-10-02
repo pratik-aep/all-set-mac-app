@@ -632,7 +632,9 @@ public final class WallpaperStore {
     public var deleteServiceURL = URL(string: "http://localhost:8081/wallpaper")!
     /// Instance, not a direct `DeleteAPIKeychain.token` read — so a test
     /// doesn't have to overwrite the real Keychain entry to exercise this.
-    public var deleteServiceToken: String? = DeleteAPIKeychain.token
+    /// Nil reads Keychain, only when a permanent delete actually runs: reading
+    /// it at launch made macOS ask for the login password after every rebuild.
+    public var deleteServiceToken: String?
 
     public enum DeleteEverywhereOutcome: Sendable, Equatable {
         /// Gone here, on the server, and from the database.
@@ -652,7 +654,7 @@ public final class WallpaperStore {
         guard let video = libraryVideo(id) else { return nil }
         let paths = Set([video.playback, video.thumbnail, video.still].compactMap { $0 }).sorted()
         deleteLibraryVideo(id)
-        guard let token = deleteServiceToken else {
+        guard let token = deleteServiceToken ?? DeleteAPIKeychain.token else {
             return .localOnly("No delete-service token in Keychain — see DeleteAPIKeychain.swift.")
         }
         var request = URLRequest(url: deleteServiceURL)

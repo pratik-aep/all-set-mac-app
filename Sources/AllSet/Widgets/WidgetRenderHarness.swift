@@ -560,7 +560,7 @@ extension WidgetRenderHarness {
         ("gallery", .gallery(nil)), ("gallery-themes", .gallery(nil)), ("art", .art), ("look", .widgetAppearance), ("desktop", .desktop), ("widget", .desktop), ("wallpaper", .wallpaper),
         ("wallpaper-art", .wallpaper), ("wallpaper-videos", .wallpaper), ("wallpaper-options", .wallpaperOptions), ("snapping", .snapping), ("workspaces", .workspaces),
         ("clipboard", .clipboard), ("shelf", .shelf), ("mixer", .mixer), ("taptap", .knocks), ("notes", .notes),
-        ("screenshot", .screenshot), ("monitor", .monitor), ("general", .general), ("about", .about),
+        ("screenshot", .screenshot), ("monitor", .monitor), ("lid-plane", .lidPlane), ("general", .general), ("about", .about),
     ]
 
     /// `-renderPages folder [-pages wallpaper,themes] [-pageSizes 900x600,1280x800]`:

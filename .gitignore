@@ -16,3 +16,4 @@ DerivedData/
 # Cloud sync credentials — never commit
 scripts/cloud/.env
 *.env
+.claude/settings.local.json
