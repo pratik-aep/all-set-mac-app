@@ -49,6 +49,9 @@ public final class AppSettings {
     // App
     public var showInDock: Bool { didSet { save(showInDock, Key.showInDock) } }
 
+    /// The chord that starts an AI screenshot from any app.
+    public var screenshotShortcut: ScreenshotShortcut { didSet { save(screenshotShortcut.rawValue, Key.screenshotShortcut) } }
+
     // Menu bar
     public var showMenuBarIcon: Bool { didSet { save(showMenuBarIcon, Key.showMenuBarIcon) } }
     public var showCPUInMenuBar: Bool { didSet { save(showCPUInMenuBar, Key.showCPUInMenuBar) } }
@@ -95,6 +98,7 @@ public final class AppSettings {
         static let widgetFont = "widgets.font"
         static let widgetCornerRadius = "widgets.cornerRadius"
         static let widgetScale = "widgets.scale"
+        static let screenshotShortcut = "screenshot.shortcut"
         static let widgetTheme = "widgets.theme"
         static let widgetDesignTheme = "widgets.designTheme"
         static let refreshInterval = "monitor.refreshInterval"
@@ -114,6 +118,7 @@ public final class AppSettings {
         showVolume = defaults.object(forKey: Key.showVolume) as? Bool ?? true
         showBattery = defaults.object(forKey: Key.showBattery) as? Bool ?? true
         showAudioDevice = defaults.object(forKey: Key.showAudioDevice) as? Bool ?? true
+        screenshotShortcut = defaults.string(forKey: Key.screenshotShortcut).flatMap(ScreenshotShortcut.init) ?? .off
         showMenuBarIcon = defaults.object(forKey: Key.showMenuBarIcon) as? Bool ?? true
         showCPUInMenuBar = defaults.object(forKey: Key.showCPUInMenuBar) as? Bool ?? false
         showWidgets = defaults.object(forKey: Key.showWidgets) as? Bool ?? true

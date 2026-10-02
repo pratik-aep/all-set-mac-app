@@ -79,6 +79,7 @@ final class AppServices {
     let notes = NotesStore()
     let lidPlane = LidPlaneController(settings: LidPlaneSettings())
     lazy var knocks = KnockController(services: self)
+    lazy var screenshotShortcut = ScreenshotShortcutController(services: self)
     lazy var clipboardMonitor = ClipboardMonitor(services: self)
     lazy var workspaceController = WorkspaceController(services: self)
     /// Set by the app delegate.
@@ -101,11 +102,13 @@ final class AppServices {
         calendar.start()
         themes.start(services: self)
         lidPlane.start()
+        screenshotShortcut.start()
     }
 
     func stop() {
         knocks.stop()
         lidPlane.stop()
+        screenshotShortcut.stop()
         notes.save()
         mixer.stop()
         media.stop()

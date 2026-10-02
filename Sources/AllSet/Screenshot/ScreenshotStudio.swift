@@ -432,6 +432,31 @@ private struct AIPanel: View {
 }
 
 /// The main window's page: take a screenshot and open the studio.
+/// Which chord starts an AI screenshot from any app.
+private struct ShortcutPicker: View {
+    let services: AppServices
+
+    var body: some View {
+        let settings = services.settings
+        VStack(alignment: .leading, spacing: DS.Space.s) {
+            SectionHeader(title: "Keyboard shortcut", subtitle: "Start a screenshot from any app, without opening All Set.")
+            HStack(spacing: DS.Space.xs) {
+                ForEach(ScreenshotShortcut.allCases) { choice in
+                    FilterPill(title: choice.title, isSelected: settings.screenshotShortcut == choice) {
+                        withMotion(Motion.responsive) { settings.screenshotShortcut = choice }
+                    }
+                }
+            }
+            if let problem = services.screenshotShortcut.problem {
+                Text(problem).dsText(.meta).foregroundStyle(.red)
+            } else if settings.screenshotShortcut == .commandShift5 {
+                Text("macOS\u{2019}s own screenshot toolbar is switched off while All Set runs, and comes back when you quit All Set or pick another choice. Screen recording from that toolbar isn\u{2019}t available meanwhile.")
+                    .dsText(.meta)
+            }
+        }
+    }
+}
+
 struct ScreenshotPage: View {
     let services: AppServices
 
@@ -468,6 +493,8 @@ struct ScreenshotPage: View {
             .frame(height: 340)
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.hero, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: DS.Radius.hero, style: .continuous).strokeBorder(DS.Surface.hairline))
+
+            ShortcutPicker(services: services)
 
             VStack(alignment: .leading, spacing: DS.Space.m) {
                 SectionHeader(title: "Ask for anything", subtitle: "Also in the Dynamic Island (the camera button) and as a TapTap action.")

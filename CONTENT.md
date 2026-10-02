@@ -196,6 +196,8 @@ Photo search and My Photos no longer have their own pages or Live Wallpaper tabs
 
 ---
 
+- **Shortcut:** Tools → AI Screenshot has a Keyboard shortcut picker: Off, ⌘⇧5 (replaces macOS's own screenshot toolbar while All Set runs; it comes back on quit or when another choice is picked) or ⌃⌥⌘5 (leaves macOS alone). It opens the same area-selection capture as the Island's camera button.
+
 ## 14. System Monitor
 
 The Monitor page shows a tile per resource with its recent history, the heaviest apps, and refresh-rate and °C/°F switches. Live readings, each with history sparklines where relevant:

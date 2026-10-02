@@ -188,3 +188,7 @@ Result: no code changes needed; docs now agree with reality.
   gates, Metal renderer, capture and a settings tab; ported tests + settings tests (259).
   Renderer checks pass and the page renders offscreen with the live 128° reading; live capture
   not yet tried. Also fixed repeated Keychain password prompts (token read at launch).
+- AI Screenshot shortcut (Off / ⌘⇧5 / ⌃⌥⌘5): verified in the real app via injected key presses -
+  ⌘⇧5 starts the capture alone (system toolbar switched off), quitting restores macOS's
+  shortcut. Found that a Carbon hotkey does not stop macOS's own ⌘⇧5, so it is switched off
+  and restored. 263 tests.
