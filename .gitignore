@@ -20,3 +20,6 @@ scripts/cloud/.env
 
 # graphify knowledge graph (generated)
 graphify-out/
+
+# Shareable builds and the handout READMEs (not source)
+/dist
