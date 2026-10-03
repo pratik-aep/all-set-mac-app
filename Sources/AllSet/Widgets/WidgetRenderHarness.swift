@@ -613,7 +613,7 @@ extension WidgetRenderHarness {
 extension WidgetRenderHarness {
     /// Every page of the main window, by the name `-renderPages` files it under.
     static let pages: [(name: String, page: AppPage)] = [
-        ("island", .island), ("activities", .activities), ("home", .home), ("favorites", .favorites), ("themes", .themes), ("theme-seven", .themeSet("setup.seven")),
+        ("island", .island), ("activities", .activities), ("favorites", .favorites), ("themes", .themes), ("theme-seven", .themeSet("setup.seven")),
         ("gallery", .gallery(nil)), ("gallery-themes", .gallery(nil)), ("look", .widgetAppearance), ("desktop", .desktop), ("widget", .desktop), ("wallpaper", .wallpaper),
         ("wallpaper-art", .wallpaper), ("wallpaper-videos", .wallpaper), ("wallpaper-options", .wallpaperOptions), ("snapping", .snapping), ("workspaces", .workspaces),
         ("clipboard", .clipboard), ("shelf", .shelf), ("mixer", .mixer), ("taptap", .knocks), ("notes", .notes),

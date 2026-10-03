@@ -262,7 +262,7 @@ is made by looking. Applied with `wallpaper_library.py remove-duplicates`.
 
 ## Home, ⌘K and toasts (2026-10-03)
 
-- **Home** (`Studio/HomePage.swift`, `AppPage.home`, first Desktop pill and the section's landing page): the active (or featured) theme as the bleed hero, a shortcut strip, then Trending Themes and Popular Widgets rails. It only composes `FeaturedThemeHero`, `ThemeSetCard`, `GalleryCard` and `MediaRail`.
+- **Home** was removed (2026-10-03); the Desktop section lands on Themes.
 - **⌘K** (`Design/SearchOverlay.swift`, `UIState.isSearching`): a glass field over the window that searches themes, widgets and pages and navigates to the hit. Return takes the first result, Esc closes.
 - **Toasts** (`Toast`/`ToastView`, `UIState.toast`): a floating glass capsule that clears itself after 2.5 s. Wired to "Wallpaper applied" in `pickWallpaper`.
 - The hero type role is 52 pt. `-probe pageswitch` and `-renderPages` know the `home` page. `rules_frontend.md` is the visual spec.

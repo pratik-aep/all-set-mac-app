@@ -35,7 +35,7 @@ enum NavSection: String, CaseIterable, Identifiable {
     var home: AppPage {
         switch self {
         case .island: .island
-        case .desktop: .home
+        case .desktop: .themes
         case .workspace: .snapping
         case .tools: .clipboard
         case .system: .monitor
@@ -45,7 +45,7 @@ enum NavSection: String, CaseIterable, Identifiable {
     static func of(_ page: AppPage) -> NavSection {
         switch page {
         case .island, .activities: .island
-        case .home, .favorites, .themes, .themeSet, .gallery, .widget, .widgetAppearance, .wallpaper, .wallpaperOptions, .desktop: .desktop
+        case .favorites, .themes, .themeSet, .gallery, .widget, .widgetAppearance, .wallpaper, .wallpaperOptions, .desktop: .desktop
         case .snapping, .workspaces: .workspace
         case .clipboard, .shelf, .mixer, .knocks, .notes, .screenshot: .tools
         case .monitor, .lidPlane, .general, .about: .system
@@ -77,8 +77,7 @@ struct NavItem: Identifiable {
             [NavItem(page: .island, title: "Dynamic Island", symbol: "capsule.fill"),
              NavItem(page: .activities, title: "Live Activities", symbol: "waveform")]
         case .desktop:
-            [NavItem(page: .home, title: "Home", symbol: "house.fill"),
-             NavItem(page: .themes, title: "Themes", symbol: "wand.and.stars"),
+            [NavItem(page: .themes, title: "Themes", symbol: "wand.and.stars"),
              NavItem(page: .gallery(nil), title: "Widgets", symbol: "square.grid.2x2.fill"),
              NavItem(page: .favorites, title: "Favorites", symbol: "heart.fill"),
              NavItem(page: .wallpaper, title: "Wallpaper", symbol: "photo.artframe"),

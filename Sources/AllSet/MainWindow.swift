@@ -8,8 +8,6 @@ enum AppPage: Hashable {
     case island
     case activities
     // Widgets
-    /// The Desktop section's front page.
-    case home
     case favorites
     /// Whole-desktop looks.
     case themes
@@ -171,8 +169,6 @@ struct MainView: View {
             FormPage(eyebrow: "Island", title: "Live Activities", subtitle: "What the notch shows around itself while things happen.") {
                 ActivitySettings(settings: services.settings, media: services.media)
             }
-        case .home:
-            HomePage(services: services)
         case .favorites:
             FavoritesPage(services: services)
         case .themes:

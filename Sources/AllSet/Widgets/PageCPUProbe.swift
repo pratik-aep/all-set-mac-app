@@ -706,7 +706,7 @@ enum PageCPUProbe {
         // Each page twice: the first pass pays for first sight (previews
         // drawn, tiles made); the second is what scrolling feels like after.
         let onlyScroll = ProcessInfo.processInfo.environment["ONLY"]
-        for (name, page) in [("home", AppPage.home), ("themes", AppPage.themes), ("gallery", .gallery(nil)), ("wallpaper", .wallpaper)]
+        for (name, page) in [("themes", AppPage.themes), ("gallery", .gallery(nil)), ("wallpaper", .wallpaper)]
             .flatMap({ [($0.0 + " 1st", $0.1), ($0.0 + " 2nd", $0.1)] }) {
             if let onlyScroll, !name.hasPrefix(onlyScroll) { continue }
             if services.ui.page != page {
@@ -770,7 +770,7 @@ enum PageCPUProbe {
         window.orderFrontRegardless()
         services.ui.page = .about
         try? await Task.sleep(for: .seconds(2))
-        let pages: [(String, AppPage)] = [("island", .island), ("home", .home), ("favorites", .favorites), ("themes", .themes), ("gallery", .gallery(nil)), ("wallpaper", .wallpaper),
+        let pages: [(String, AppPage)] = [("island", .island), ("favorites", .favorites), ("themes", .themes), ("gallery", .gallery(nil)), ("wallpaper", .wallpaper),
                                           ("desktop", .desktop), ("monitor", .monitor), ("mixer", .mixer), ("notes", .notes), ("general", .general)]
         let only = ProcessInfo.processInfo.environment["ONLY"]
         let repeats = Int(ProcessInfo.processInfo.environment["REPEAT"] ?? "") ?? 1

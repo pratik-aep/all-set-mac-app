@@ -9,7 +9,14 @@ log; it never needs reading in full.
 _(overwritten every checkpoint — 2026-10-03 wrap-up; full log in Reports/2026-10-03-wrap-up.md)_
 
 
-### 2026-10-03 (uncommitted, 293 tests, 0 warnings)
+### 2026-10-03 later (pushed to cloud main and perf-audit, 293 tests, 0 warnings)
+- Home, Collections and Art pages removed; Desktop opens on Themes; art stays as the Wallpaper page's Art source. The overnight redesign (`redesign/ui`) was not taken and stays local.
+- Theme previews: saving one no longer deletes other builds' cached previews (debug runs were wiping the Dock app's cache, so Themes redrew everything); photos and forecasts are fetched in parallel, only drawing is serial.
+- Fixed from the app's error log: duplicate ForEach ids (music widget), cancelled-screenshot file read, preview-cache misses, Core Audio listener removal on gone devices.
+- `Deferred` below-the-fold building (worst switch frame Themes ~110→70 ms, Wallpaper ~90→70); aerial previews, clipboard and My Photos thumbnails decode off main, cached. See Reports/2026-10-03-wrap-up.md.
+- Open: Gallery scroll hitches, ~100 ms Island/Gallery switches.
+
+### 2026-10-03 (earlier)
 - Page switches 330-990 ms -> 45-106 ms held (`PageVeil` Core Animation fade, no SwiftUI cross-fade); Gallery is flat exact-height rows; `PageScaffold` lazy.
 - Grid is quarter cells; swap-on-drop; per-display widget size (`screenFits`) with refit on resolution/monitor change; themes spread to the screen's edges.
 - Themes banner = active theme (`activeThemeSet`), Turn Off Theme (undoable); Liquid Glass tabs (not yet seen live); disk/energy rates fixed after idle gaps.
