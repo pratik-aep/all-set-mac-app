@@ -236,7 +236,10 @@ final class ThemePreviewCache {
                 return
             }
             guard asked == generation else { return }
-            queue.append((name, set, dark))
+            // Photos, cut-outs and forecasts are fetched now, for every card at
+            // once; only the drawing itself waits its turn.
+            let prepared = Task { await prepare(set, dark: dark, services: services) }
+            queue.append((name, set, dark, prepared))
             drawQueued(services: services)
         }
     }
@@ -246,7 +249,7 @@ final class ThemePreviewCache {
         let name = key(set, dark: dark)
         if let count = showing[name] { showing[name] = count > 1 ? count - 1 : nil }
         guard let index = queue.firstIndex(where: { $0.name == name }) else { return }
-        queue.remove(at: index)
+        queue.remove(at: index).prepared.cancel()
         inFlight.remove(name)
     }
 
@@ -259,7 +262,7 @@ final class ThemePreviewCache {
         scrollsUnderWay > 0 || CACurrentMediaTime() - lastScrollEnd < 0.35
     }
 
-    @ObservationIgnored private var queue: [(name: String, set: ThemeSet, dark: Bool)] = []
+    @ObservationIgnored private var queue: [(name: String, set: ThemeSet, dark: Bool, prepared: Task<[WidgetInstance], Never>)] = []
     @ObservationIgnored private var drawing: Task<Void, Never>?
 
     private func drawQueued(services: AppServices) {
@@ -268,18 +271,21 @@ final class ThemePreviewCache {
             while !queue.isEmpty {
                 while isScrolling { try? await Task.sleep(for: .milliseconds(120)) }
                 guard !queue.isEmpty else { break }
-                let (name, set, dark) = queue.removeFirst()
+                let (name, set, dark, prepared) = queue.removeFirst()
                 let asked = generation
-                if let image = await render(set, dark: dark, services: services) {
+                if let image = await render(set, dark: dark, widgets: await prepared.value, services: services) {
                     if asked == generation { keep(image, as: name) }
                     let file = folder.appendingPathComponent(name + ".png"), folder = folder
                     let picture = SendableImage(image)
-                    let older = "\(set.id)-\(dark ? "dark" : "light")-"
+                    // Stale: this set's older pictures from this same build. Another
+                    // build's (a debug run beside the Dock app) are left alone, or the
+                    // two would delete each other's whole cache.
+                    let older = "\(set.id)-\(dark ? "dark" : "light")-", build = "-\(Self.appVersion)-d\(Self.drawingVersion)-"
                     Task.detached(priority: .utility) {
                         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                         // Earlier pictures of this set are stale now.
                         for stale in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-                        where stale.hasPrefix(older) && stale != file.lastPathComponent {
+                        where stale.hasPrefix(older) && stale.contains(build) && stale != file.lastPathComponent {
                             try? FileManager.default.removeItem(at: folder.appendingPathComponent(stale))
                         }
                         guard let destination = CGImageDestinationCreateWithURL(file as CFURL, "public.png" as CFString, 1, nil) else { return }
@@ -295,9 +301,9 @@ final class ThemePreviewCache {
         }
     }
 
-    /// Draws after fetching what the widgets show (photos, the forecast), so
-    /// the picture never catches them still loading.
-    private func render(_ set: ThemeSet, dark: Bool, services: AppServices) async -> CGImage? {
+    /// Fetches what the widgets show (photos, the forecast), so the picture
+    /// never catches them still loading. Runs alongside other cards' fetches.
+    private func prepare(_ set: ThemeSet, dark: Bool, services: AppServices) async -> [WidgetInstance] {
         let widgets = ThemeComposition.widgets(for: set, dark: dark, services: services)
         for widget in widgets {
             for image in widget.options.images { _ = await services.images.image(for: image, maxPixels: 768) }
@@ -320,6 +326,10 @@ final class ThemePreviewCache {
         }) {
             try? await Task.sleep(for: .milliseconds(150))
         }
+        return widgets
+    }
+
+    private func render(_ set: ThemeSet, dark: Bool, widgets: [WidgetInstance], services: AppServices) async -> CGImage? {
         // Its pictures may have arrived mid-scroll; the drawing itself waits.
         while isScrolling { try? await Task.sleep(for: .milliseconds(120)) }
         let size = CGSize(width: 568, height: 384)
