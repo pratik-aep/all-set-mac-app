@@ -10,7 +10,6 @@ enum AppPage: Hashable {
     // Widgets
     /// The Desktop section's front page.
     case home
-    case collections
     case favorites
     /// Whole-desktop looks.
     case themes
@@ -18,7 +17,6 @@ enum AppPage: Hashable {
     case themeSet(String)
     /// The widget gallery, for one category or (nil) all of them.
     case gallery(WidgetCategory?)
-    case art
     /// Customizing a widget that's on the desktop.
     case widget(UUID)
     case widgetAppearance
@@ -175,8 +173,6 @@ struct MainView: View {
             }
         case .home:
             HomePage(services: services)
-        case .collections:
-            CollectionsPage(services: services)
         case .favorites:
             FavoritesPage(services: services)
         case .themes:
@@ -186,8 +182,6 @@ struct MainView: View {
                 .id(id)
         case .gallery(let category):
             GalleryPage(category: category, services: services)
-        case .art:
-            ArtLibraryPage(services: services)
         case .widget(let id):
             WidgetInspector(id: id, services: services)
         case .widgetAppearance:

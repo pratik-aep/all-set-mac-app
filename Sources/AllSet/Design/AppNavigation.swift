@@ -45,7 +45,7 @@ enum NavSection: String, CaseIterable, Identifiable {
     static func of(_ page: AppPage) -> NavSection {
         switch page {
         case .island, .activities: .island
-        case .home, .collections, .favorites, .themes, .themeSet, .gallery, .art, .widget, .widgetAppearance, .wallpaper, .wallpaperOptions, .desktop: .desktop
+        case .home, .favorites, .themes, .themeSet, .gallery, .widget, .widgetAppearance, .wallpaper, .wallpaperOptions, .desktop: .desktop
         case .snapping, .workspaces: .workspace
         case .clipboard, .shelf, .mixer, .knocks, .notes, .screenshot: .tools
         case .monitor, .lidPlane, .general, .about: .system
@@ -80,8 +80,6 @@ struct NavItem: Identifiable {
             [NavItem(page: .home, title: "Home", symbol: "house.fill"),
              NavItem(page: .themes, title: "Themes", symbol: "wand.and.stars"),
              NavItem(page: .gallery(nil), title: "Widgets", symbol: "square.grid.2x2.fill"),
-             NavItem(page: .collections, title: "Collections", symbol: "rectangle.stack.fill"),
-             NavItem(page: .art, title: "Art", symbol: "paintpalette.fill"),
              NavItem(page: .favorites, title: "Favorites", symbol: "heart.fill"),
              NavItem(page: .wallpaper, title: "Wallpaper", symbol: "photo.artframe"),
              NavItem(page: .widgetAppearance, title: "Look & Layout", symbol: "paintbrush.fill"),

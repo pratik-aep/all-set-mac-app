@@ -119,8 +119,8 @@ struct CassetteArt: View {
                                       startPoint: .topLeading, endPoint: .bottomTrailing))
             shape.strokeBorder(.white.opacity(0.18), lineWidth: 1)
             // Screws in the corners and the middle of the foot.
-            ForEach([CGPoint(x: 0.04, y: 0.06), CGPoint(x: 0.96, y: 0.06), CGPoint(x: 0.04, y: 0.94),
-                     CGPoint(x: 0.96, y: 0.94), CGPoint(x: 0.5, y: 0.9)], id: \.x) { point in
+            ForEach(Array([CGPoint(x: 0.04, y: 0.06), CGPoint(x: 0.96, y: 0.06), CGPoint(x: 0.04, y: 0.94),
+                           CGPoint(x: 0.96, y: 0.94), CGPoint(x: 0.5, y: 0.9)].enumerated()), id: \.offset) { _, point in
                 Circle().fill(Color(white: 0.55)).frame(width: w * 0.022)
                     .overlay(Rectangle().fill(.black.opacity(0.6)).frame(width: w * 0.016, height: 0.8))
                     .position(x: w * point.x, y: h * point.y)

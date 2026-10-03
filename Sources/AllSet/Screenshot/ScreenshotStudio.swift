@@ -174,7 +174,8 @@ final class ScreenshotStudioController {
     }
 
     private static func image(at url: URL) -> CGImage? {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        // Esc during the capture leaves no file; opening it anyway logs an error.
+        guard FileManager.default.fileExists(atPath: url.path), let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 }

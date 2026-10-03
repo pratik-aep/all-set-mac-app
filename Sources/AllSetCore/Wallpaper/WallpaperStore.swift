@@ -338,7 +338,7 @@ public final class WallpaperStore {
             } catch {
                 let video = libraryVideo(id)
                 if config.libraryServerURL == nil || (hasLoadedLibrary && (video?.playback ?? video?.still) == nil) { return nil }
-                if !(error is CancellationError) {
+                if !(error is CancellationError), (error as? URLError)?.code != .cancelled {
                     log.error("Fetch of library wallpaper \(id, privacy: .public) failed (attempt \(attempt + 1)): \(error.localizedDescription, privacy: .public)")
                 }
             }

@@ -613,8 +613,8 @@ extension WidgetRenderHarness {
 extension WidgetRenderHarness {
     /// Every page of the main window, by the name `-renderPages` files it under.
     static let pages: [(name: String, page: AppPage)] = [
-        ("island", .island), ("activities", .activities), ("home", .home), ("collections", .collections), ("favorites", .favorites), ("themes", .themes), ("theme-seven", .themeSet("setup.seven")),
-        ("gallery", .gallery(nil)), ("gallery-themes", .gallery(nil)), ("art", .art), ("look", .widgetAppearance), ("desktop", .desktop), ("widget", .desktop), ("wallpaper", .wallpaper),
+        ("island", .island), ("activities", .activities), ("home", .home), ("favorites", .favorites), ("themes", .themes), ("theme-seven", .themeSet("setup.seven")),
+        ("gallery", .gallery(nil)), ("gallery-themes", .gallery(nil)), ("look", .widgetAppearance), ("desktop", .desktop), ("widget", .desktop), ("wallpaper", .wallpaper),
         ("wallpaper-art", .wallpaper), ("wallpaper-videos", .wallpaper), ("wallpaper-options", .wallpaperOptions), ("snapping", .snapping), ("workspaces", .workspaces),
         ("clipboard", .clipboard), ("shelf", .shelf), ("mixer", .mixer), ("taptap", .knocks), ("notes", .notes),
         ("screenshot", .screenshot), ("monitor", .monitor), ("lid-plane", .lidPlane), ("general", .general), ("about", .about),
@@ -687,7 +687,7 @@ extension WidgetRenderHarness {
                 // Theme previews are drawn one at a time, photos and cut-outs
                 // first, which takes a CI machine a while.
                 let settle = name == "themes" ? 8000
-                    : ["theme-seven", "gallery", "gallery-themes", "art", "wallpaper", "wallpaper-art", "wallpaper-videos"].contains(name) ? 6000 : 1800
+                    : ["theme-seven", "gallery", "gallery-themes", "wallpaper", "wallpaper-art", "wallpaper-videos"].contains(name) ? 6000 : 1800
                 try? await Task.sleep(for: .milliseconds(settle))
                 if let image = captureOwnWindow(window),
                    let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {

@@ -236,9 +236,11 @@ final class AppServices {
     func handle(_ link: DeepLink) {
         switch link {
         case .page(let name):
+            // Art is a source on the Wallpaper page now.
+            if name == "art" { ui.wallpaperTab = .art }
             let pages: [String: AppPage] = [
                 "home": .island, "island": .island, "themes": .themes, "gallery": .gallery(nil), "monitor": .monitor,
-                "wallpaper": .wallpaper, "art": .art, "clipboard": .clipboard, "notes": .notes,
+                "wallpaper": .wallpaper, "art": .wallpaper, "clipboard": .clipboard, "notes": .notes,
                 "workspaces": .workspaces, "mixer": .mixer, "settings": .general, "desktop": .desktop, "lid": .lidPlane,
             ]
             openWindow(pages[name] ?? WidgetCategory(rawValue: name).map { .gallery($0) } ?? .island)

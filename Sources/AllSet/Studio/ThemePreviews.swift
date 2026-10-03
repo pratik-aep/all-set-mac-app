@@ -337,7 +337,9 @@ final class ThemePreviewCache {
 
     private static func load(_ file: URL) async -> CGImage? {
         await Task.detached(priority: .userInitiated) { () -> CGImage? in
-            guard let source = CGImageSourceCreateWithURL(file as CFURL, nil),
+            // Not drawn yet is the usual case: check first, or ImageIO logs an error per miss.
+            guard FileManager.default.fileExists(atPath: file.path),
+                  let source = CGImageSourceCreateWithURL(file as CFURL, nil),
                   let image = CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
             else { return nil }
             return ImageLibrary.displayReady(image)

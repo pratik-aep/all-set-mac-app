@@ -48,8 +48,10 @@ public final class AudioPropertyListener {
 
     public func invalidate() {
         guard let block else { return }
-        AudioObjectRemovePropertyListenerBlock(objectID, &address, .main, block)
         self.block = nil
+        // A process or device that has gone took its listeners with it.
+        guard AudioObjectExists(objectID) else { return }
+        AudioObjectRemovePropertyListenerBlock(objectID, &address, .main, block)
     }
 
     deinit {
@@ -111,4 +113,11 @@ enum AudioProperty {
     static func streamCount(_ device: AudioObjectID, _ scope: AudioObjectPropertyScope) -> Int {
         objectIDs(device, kAudioDevicePropertyStreams, scope: scope).count
     }
+}
+
+/// Whether a Core Audio object (a device, a process) still exists.
+func AudioObjectExists(_ id: AudioObjectID) -> Bool {
+    var address = AudioObjectPropertyAddress(mSelector: kAudioObjectPropertyClass, mScope: kAudioObjectPropertyScopeGlobal,
+                                             mElement: kAudioObjectPropertyElementMain)
+    return AudioObjectHasProperty(id, &address)
 }

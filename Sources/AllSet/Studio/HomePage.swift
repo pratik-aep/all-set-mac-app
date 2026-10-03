@@ -36,15 +36,6 @@ struct HomePage: View {
                         .frame(height: GalleryCard.height)
                 }
             }
-            rail("Art", subtitle: "Generative, and every piece can move", more: .art) {
-                MediaRail(items: Self.artPicks, cardWidth: 200) { piece in
-                    ShortcutArt(piece: piece)
-                        .aspectRatio(4 / 3, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous).strokeBorder(DS.Surface.hairline))
-                        .onTapGesture { services.ui.page = .art }
-                }
-            }
         }
     }
 
@@ -58,8 +49,7 @@ struct HomePage: View {
             ("Themes", "\(ThemeLibrary.all.count) desktops", "wand.and.stars", .themes, 0),
             ("Widgets", "\(WidgetCatalog.entries.count) widgets", "square.grid.2x2.fill", .gallery(nil), 1),
             ("Wallpaper", "Live and still", "photo.artframe", .wallpaper, 2),
-            ("Art", "\(ArtStyle.allCases.count * ArtPalette.allCases.count) pieces", "paintpalette.fill", .art, 3),
-            ("On Your Desktop", "\(services.widgets.widgets.count) placed", "rectangle.on.rectangle", .desktop, 4),
+            ("On Your Desktop", "\(services.widgets.widgets.count) placed", "rectangle.on.rectangle", .desktop, 3),
         ]
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: DS.Space.m) {

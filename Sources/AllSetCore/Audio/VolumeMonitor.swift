@@ -166,7 +166,8 @@ public final class VolumeMonitor {
     }
 
     private func bind(to id: AudioObjectID) {
-        if let deviceListener, deviceID != kAudioObjectUnknown {
+        // A device that has gone (headphones unplugged) has no listeners left to remove.
+        if let deviceListener, deviceID != kAudioObjectUnknown, AudioObjectExists(deviceID) {
             var volume = Self.volumeAddress
             var mute = Self.muteAddress
             AudioObjectRemovePropertyListenerBlock(deviceID, &volume, .main, deviceListener)
