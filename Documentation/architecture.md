@@ -4,7 +4,7 @@ _Living document. The moment implementation forces a deviation, this file is
 updated in the same checkpoint and the deviation is logged in `report.md`.
 Code and docs are never allowed to disagree._
 
-_Last updated: 2026-09-29 (fetch from a personal server when missing locally)._
+_Last updated: 2026-10-03 (Home removed; Collections and Art pages removed; the app-wide sections are at the end of this file)._
 
 ## Stack, and why
 | Piece | Choice | Why |
@@ -260,13 +260,10 @@ is made by looking. Applied with `wallpaper_library.py remove-duplicates`.
 - **Themes**: `AppSettings.activeThemeSet` (set by `adopt`, cleared by `resetWidgetLook`, part of `DesktopSnapshot`); `AppServices.turnOffTheme()`.
 - **Stats**: `DiskReader` and `ProcessEnergyReader` ignore gaps over 8 s (nothing was watching); `SystemMonitor.setViewer` takes a second sample 1 s after a viewer appears.
 
-## Home, ⌘K and toasts (2026-10-03)
-
-- **Home** was removed (2026-10-03); the Desktop section lands on Themes.
-- **⌘K** (`Design/SearchOverlay.swift`, `UIState.isSearching`): a glass field over the window that searches themes, widgets and pages and navigates to the hit. Return takes the first result, Esc closes.
-- **Toasts** (`Toast`/`ToastView`, `UIState.toast`): a floating glass capsule that clears itself after 2.5 s. Wired to "Wallpaper applied" in `pickWallpaper`.
-- The hero type role is 52 pt. `-probe pageswitch` and `-renderPages` know the `home` page. `rules_frontend.md` is the visual spec.
-- **Favorites** (`Studio/FavoritesPage.swift`): hearted themes, and Recent (themes by `lastUsed`). A Desktop pill. The Collections and Art pages were removed (2026-10-03); generative art lives on as the Wallpaper page's Art source (`ArtLibraryPage`, embedded), and `allset://page/art` opens it there.
+## ⌘K and toasts (2026-10-03)
+- **⌘K** (`Design/SearchOverlay.swift`, `UIState.isSearching`): a glass field over the window that searches themes, widgets, library wallpapers, aerials, art, collections and pages, with ↑/↓ and Return; Esc closes. Recent searches live in `SearchRecents` (core, tested).
+- **Toasts** (`Toast`/`ToastView`, `UIState.toast`): a floating glass capsule that clears itself after 2.5 s. Used by wallpaper changes, aerial download failures and theme operations.
+- The Desktop section opens on Themes (the Home page was removed, 2026-10-03).
 
 ## Wrap-up (2026-10-03)
 - `Deferred` (Design/DesignComponents.swift) builds below-the-fold content a frame after a page appears, under `PageVeil`. Used on Themes (shelves), Home (Favorites and Popular Widgets rails) and the Wallpaper page (aerial rails after the first). `BleedScrollPage` stays eager: a lazy one tripled Themes' scroll CPU.

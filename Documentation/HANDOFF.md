@@ -204,7 +204,13 @@ SwiftPM, macOS 14.2+, Swift 6. The targets are:
 - **Size heroes by their frame, not their media**: `Color.clear.overlay { media }`. A filling picture otherwise grows the stack and pushes the words out of view.
 - **Measuring on CI:** a nearly invisible probe window gets App Nap (hold it off with `ProcessInfo.beginActivity`), and a GPU-less VM's window server caps frame gaps near 80 ms on every page; compare CPU and the worst stall, not average frame time.
 
-## Current state (2026-10-02)
+## Current state (2026-10-03)
+- **Shipped and pushed** to `cloud` main and `perf-audit` (`0191b97`): Home, Collections and Art tabs removed (Art lives on the Wallpaper page; `allset://page/art` opens it there); the logged runtime errors fixed; page builds deferred (`Deferred`); aerial, clipboard and My Photos thumbnails decoded off the main thread; theme previews no longer wiped by other builds. 293 tests, 0 warnings.
+- **Not taken:** the overnight redesign (`redesign/ui`, local only, unpushed). Its analysis and report are in `REDESIGN_REPORT.md` / `DECISIONS.md` on that branch.
+- **Open:** Gallery scroll hitches (p95 33–38 ms, 14–21 dropped frames a pass, live widget previews); Island and Gallery pages take ~100 ms to open; Island tab switches lose 15–38 ms (re-measure with the Dock app quit). See `Reports/2026-10-03-wrap-up.md`.
+- Git: push to `cloud`, not `origin` (dead URL): `git push cloud perf-audit:main perf-audit:perf-audit`.
+
+## Previous state (2026-10-02)
 - **In progress: a 7-step request** (in order): 1 widget snap grid, drag, right-click menu ✅; 2 every theme's widgets in the gallery + editable labels inside widgets and an optional caption below ✅; (extra, asked mid-way) Lid Plane tab ✅; 3 AI Screenshot on ⌘⇧5 ✅ (replaces the system shortcut, restored on quit); 4 analyse this Mac (hardware, sensors, permissions) and adapt; 5 measure and fix choppiness everywhere; 6 window UI toward the user's "Wallspace" reference (big featured hero, filmstrip, curated rows); 7 Island Notes tab: alarms, stopwatch, daily routines with notifications.
 - Done since: Lid Plane tab (`0626efc`), AI Screenshot ⌘⇧5 (`bf59f1f`). Remaining: 4, 5, 6, 7 above, in that order.
 - Step 1 verified in the real app (seeded layout tidied to the predicted slots, Arrange-mode drag landed in the predicted slot with the overlay showing, right-click menu, Remove). **Not yet seen working by a person:** dragging a gallery card onto the desktop, and dragging a widget straight off the desktop outside Arrange mode (the desktop was covered by the user's windows; synthetic clicks pass through the island panel, so don't drive the pointer near the notch).
