@@ -267,3 +267,9 @@ is made by looking. Applied with `wallpaper_library.py remove-duplicates`.
 - **Toasts** (`Toast`/`ToastView`, `UIState.toast`): a floating glass capsule that clears itself after 2.5 s. Wired to "Wallpaper applied" in `pickWallpaper`.
 - The hero type role is 52 pt. `-probe pageswitch` and `-renderPages` know the `home` page. `rules_frontend.md` is the visual spec.
 - **Favorites** (`Studio/FavoritesPage.swift`): hearted themes, and Recent (themes by `lastUsed`). A Desktop pill. The Collections and Art pages were removed (2026-10-03); generative art lives on as the Wallpaper page's Art source (`ArtLibraryPage`, embedded), and `allset://page/art` opens it there.
+
+## Wrap-up (2026-10-03)
+- `Deferred` (Design/DesignComponents.swift) builds below-the-fold content a frame after a page appears, under `PageVeil`. Used on Themes (shelves), Home (Favorites and Popular Widgets rails) and the Wallpaper page (aerial rails after the first). `BleedScrollPage` stays eager: a lazy one tripled Themes' scroll CPU.
+- `FileThumbnail` (Components/Components.swift): a local picture file shown small, via `ImageLibrary.thumbnail(at:maxPixels:)`. Use it, not `AsyncImage`, for local files.
+- `AerialCatalog.preview(for:)` decodes off main with `ImageLibrary.displayReady` and caches 60 previews (`trimPreviews` on memory pressure).
+- `AppIconCache` caches bundle-id lookups and display names.

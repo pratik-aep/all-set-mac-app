@@ -6,7 +6,8 @@ log; it never needs reading in full.
 ---
 
 ## CURRENT STATE
-_(overwritten every checkpoint — 2026-10-03, smoothness pass; full log in Reports/2026-10-03-smoothness-grid-themes.md)_
+_(overwritten every checkpoint — 2026-10-03 wrap-up; full log in Reports/2026-10-03-wrap-up.md)_
+
 
 ### 2026-10-03 (uncommitted, 293 tests, 0 warnings)
 - Page switches 330-990 ms -> 45-106 ms held (`PageVeil` Core Animation fade, no SwiftUI cross-fade); Gallery is flat exact-height rows; `PageScaffold` lazy.

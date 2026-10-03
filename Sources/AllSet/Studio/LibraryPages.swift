@@ -693,11 +693,7 @@ struct MyPhotosPage: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
                         ForEach(library.userImages, id: \.self) { name in
                             LibraryTile(source: .file(name), context: pageContext) { _ in
-                                AsyncImage(url: library.userImageURL(name)) { image in
-                                    image.resizable().aspectRatio(contentMode: .fill)
-                                } placeholder: {
-                                    Rectangle().fill(.quaternary)
-                                }
+                                FileThumbnail(url: library.userImageURL(name), images: library, maxPixels: 400)
                             } actions: {
                                 if let action = context.action {
                                     TileButton(title: action.title, symbol: action.symbol) { action.run(.file(name)) }

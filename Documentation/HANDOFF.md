@@ -2,7 +2,7 @@
 
 **Read this first at the start of every session, instead of reviewing the codebase.** It's rewritten at the end of every session. Dated session logs are in `Documentation/Reports/` (newest last). For what the app contains (widgets, themes, pages), see `CONTENT.md`. Only open the source files that the task at hand needs.
 
-_Last updated: 2026-10-03 (smoothness pass, quarter-cell grid, per-display widget size, active-theme banner; see Reports/2026-10-03-smoothness-grid-themes.md). For the wallpaper library, read Documentation/spec.md, architecture.md and report.md's CURRENT STATE first._
+_Last updated: 2026-10-03 (wrap-up: Collections and Art pages removed, logged-error fixes, deferred page building; see Reports/2026-10-03-wrap-up.md, and the earlier Reports/2026-10-03-smoothness-grid-themes.md). For the wallpaper library, read Documentation/spec.md, architecture.md and report.md's CURRENT STATE first._
 
 ---
 
@@ -16,7 +16,7 @@ _Last updated: 2026-10-03 (smoothness pass, quarter-cell grid, per-display widge
 2. **Optimise at the core level** with every change: CPU, GPU and WindowServer cost. Measure it; don't assume.
 3. **Copyright:** themes are *original*, inspired by an era, genre or mood. No logos, album art, promo photos or trademarks. Real people's names may appear only in hidden search tags, never in UI text (a test enforces this). The user's player photos stay on their Mac, never in the repo.
 4. **Save tokens:** read this file and the latest report instead of re-reviewing the project. End every session by updating this file and writing a report.
-5. Commit or push only when asked (the user has approved commits at each verified checkpoint this session; never push without being asked). The remote is `origin` → github.com/pratik-aep/all-set-mac-app.
+5. Commit or push only when asked (the user has approved commits at each verified checkpoint this session; never push without being asked). The remote is `cloud` → github.com/pratik-aep/all-set-mac-app (`origin` points at a repo that no longer exists).
 
 ## Outside the repo (set up 2026-10-02)
 - Claude Code has `ponytail@ponytail` (github.com/DietrichGebert/ponytail, MIT, hooks reviewed: local files only) enabled in `~/.claude/settings.json`, default level full; `/extension [status|on|off|lite|full|ultra]` (`~/.claude/commands/extension.md` → `~/.claude/ponytail-ctl.js`) shows and switches it. Needs a new session to load. Ponytail means: simplest working code, no unrequested abstractions.
@@ -37,7 +37,7 @@ _Last updated: 2026-10-03 (smoothness pass, quarter-cell grid, per-display widge
 | What | Command |
 |---|---|
 | Debug build (expect 0 warnings) | `swift build 2>&1 \| grep -c warning:` |
-| Tests (currently 263 in 78 suites) | `swift test` |
+| Tests (currently 293 in 82 suites) | `swift test` |
 | Optimised build with DEBUG tools | `swift build -c release -Xswiftc -DDEBUG --build-path .build-probe` |
 | Everything, on GitHub | CI (`.github/workflows/ci.yml`, `macos-26`) on every push: `build-and-test` (fails on any warning), `screenshots` (`-renderPages`, published to the `ci-screenshots` branch) and `probe` (`-probe scroll`, `pages`, `galleryparts`, in the run summary). Cloud sessions without a Swift toolchain verify through CI only |
 

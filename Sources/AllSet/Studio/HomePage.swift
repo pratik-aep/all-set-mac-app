@@ -23,17 +23,20 @@ struct HomePage: View {
                     ThemeSetCard(set: set, services: services)
                 }
             }
-            if !favorites.isEmpty {
-                rail("Your Favorites", subtitle: "\(favorites.count) themes", more: .themes) {
-                    MediaRail(items: favorites, cardWidth: 300) { set in
-                        ThemeSetCard(set: set, services: services)
+            // Below the fold on the switch frame: built a moment later.
+            Deferred {
+                if !favorites.isEmpty {
+                    rail("Your Favorites", subtitle: "\(favorites.count) themes", more: .themes) {
+                        MediaRail(items: favorites, cardWidth: 300) { set in
+                            ThemeSetCard(set: set, services: services)
+                        }
                     }
                 }
-            }
-            rail("Popular Widgets", subtitle: "\(WidgetCatalog.entries.count) in the gallery", more: .gallery(nil)) {
-                MediaRail(items: Array(WidgetCatalog.entries.prefix(12)), cardWidth: 220) { entry in
-                    GalleryCard(entry: entry, services: services)
-                        .frame(height: GalleryCard.height)
+                rail("Popular Widgets", subtitle: "\(WidgetCatalog.entries.count) in the gallery", more: .gallery(nil)) {
+                    MediaRail(items: Array(WidgetCatalog.entries.prefix(12)), cardWidth: 220) { entry in
+                        GalleryCard(entry: entry, services: services)
+                            .frame(height: GalleryCard.height)
+                    }
                 }
             }
         }

@@ -311,10 +311,20 @@ struct AppIcon: View {
 @MainActor
 enum AppIconCache {
     private static var icons: [String: NSImage] = [:]
+    /// Launch Services lookups by bundle id (nil: not installed), and display
+    /// names: both asked for on every redraw of a list row otherwise.
+    private static var paths: [String: String?] = [:]
+    private static var names: [String: String?] = [:]
+
+    private static func path(for bundleIdentifier: String) -> String? {
+        if let known = paths[bundleIdentifier] { return known }
+        let path = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)?.path
+        paths[bundleIdentifier] = .some(path)
+        return path
+    }
 
     static func icon(for bundleIdentifier: String) -> NSImage? {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else { return nil }
-        return icon(forPath: url.path)
+        path(for: bundleIdentifier).map(icon(forPath:))
     }
 
     /// The Finder icon for an app bundle or executable.
@@ -326,9 +336,11 @@ enum AppIconCache {
     }
 
     static func name(for bundleIdentifier: String?) -> String? {
-        guard let bundleIdentifier,
-              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else { return nil }
-        return FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
+        guard let bundleIdentifier else { return nil }
+        if let known = names[bundleIdentifier] { return known }
+        let name = path(for: bundleIdentifier).map { FileManager.default.displayName(atPath: $0).replacingOccurrences(of: ".app", with: "") }
+        names[bundleIdentifier] = .some(name)
+        return name
     }
 }
 
@@ -408,5 +420,26 @@ struct PressableStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .motion(Motion.bouncy, value: configuration.isPressed)
+    }
+}
+
+/// A picture file shown small: decoded off the main thread at the size it's
+/// drawn and cached, instead of loaded whole for every cell it scrolls past.
+struct FileThumbnail: View {
+    let url: URL
+    let images: ImageLibrary
+    var maxPixels = 256
+
+    @State private var image: NSImage?
+
+    var body: some View {
+        ZStack {
+            Color.primary.opacity(0.08)
+            if let image { Image(nsImage: image).resizable().aspectRatio(contentMode: .fill) }
+        }
+        .task(id: url) {
+            image = images.cachedThumbnail(at: url, maxPixels: maxPixels)
+            if image == nil { image = await images.thumbnail(at: url, maxPixels: maxPixels) }
+        }
     }
 }

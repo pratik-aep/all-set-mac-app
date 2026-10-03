@@ -119,8 +119,11 @@ struct ThemesPage: View {
                 chips
             }
             if filter == .all && SearchMatch.normalize(query).isEmpty {
-                ForEach(sections.shelves, id: \.title) { shelf in
-                    self.shelf(shelf.title, sets: shelf.sets, more: shelf.more)
+                // Fifteen rails of desktop previews: only what's in view on the switch frame.
+                Deferred {
+                    ForEach(sections.shelves, id: \.title) { shelf in
+                        self.shelf(shelf.title, sets: shelf.sets, more: shelf.more)
+                    }
                 }
             } else {
                 grid(results)

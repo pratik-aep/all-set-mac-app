@@ -255,11 +255,7 @@ struct ClipboardRow: View {
     @ViewBuilder
     private var thumbnail: some View {
         if item.kind == .image, let url = services.clipboard.imageURL(item) {
-            AsyncImage(url: url) { image in
-                image.resizable().aspectRatio(contentMode: .fill)
-            } placeholder: {
-                Color.primary.opacity(0.08)
-            }
+            FileThumbnail(url: url, images: services.images, maxPixels: 160)
         } else if item.kind == .files, let url = item.fileURLs?.first {
             Image(nsImage: AppIconCache.icon(forPath: url.path)).resizable()
         } else {
@@ -271,3 +267,4 @@ struct ClipboardRow: View {
         }
     }
 }
+

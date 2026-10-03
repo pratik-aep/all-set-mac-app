@@ -580,3 +580,22 @@ struct CardGridMetrics {
         stride(from: 0, to: items.count, by: columns).map { Array(items[$0..<min($0 + columns, items.count)]) }
     }
 }
+
+/// Content below the fold, built a moment after the page appears instead of
+/// in the same frame as the switch. The page shows at once (its hero and
+/// first rows), and the rest arrives under `PageVeil`'s fade, which runs in
+/// Core Animation and so keeps moving while the main thread builds it.
+struct Deferred<Content: View>: View {
+    @ViewBuilder var content: Content
+    @State private var isReady = false
+
+    var body: some View {
+        if isReady {
+            content
+        } else {
+            Color.clear
+                .frame(height: 1)
+                .task { isReady = true }
+        }
+    }
+}

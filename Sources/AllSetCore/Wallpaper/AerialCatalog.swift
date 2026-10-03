@@ -80,6 +80,8 @@ public final class AerialCatalog {
 
     @ObservationIgnored private let cacheDirectory: URL
     @ObservationIgnored private var tasks: [String: URLSessionDownloadTask] = [:]
+    /// Decoded previews, so a card scrolled back into view draws at once.
+    @ObservationIgnored private var previews = CostCache<String, CGImage>(costLimit: 48 << 20, countLimit: 60)
     @ObservationIgnored private let log = Logger(subsystem: "com.pratik.allset", category: "aerials")
 
     public init(cacheDirectory: URL? = nil) {
@@ -128,21 +130,37 @@ public final class AerialCatalog {
     // MARK: Previews
 
     /// A still from the video, cached; only the bytes around that moment are downloaded.
+    /// Lets go of decoded previews down to `fraction` of the cache's limit.
+    public func trimPreviews(to fraction: Double) {
+        previews.trim(toCost: Int(Double(previews.costLimit) * fraction))
+    }
+
     public func preview(for aerial: Aerial) async -> CGImage? {
+        if let cached = previews.value(forKey: aerial.id) { return cached }
         let file = cacheDirectory.appendingPathComponent("\(aerial.id).jpg")
-        if let source = CGImageSourceCreateWithURL(file as CFURL, nil),
-           let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
-            return image
+        // Read and decoded off the main thread, ready to draw: decoding as the
+        // card first drew it cost a scroll a frame per card.
+        var image = await Task.detached(priority: .userInitiated) { () -> CGImage? in
+            guard FileManager.default.fileExists(atPath: file.path),
+                  let source = CGImageSourceCreateWithURL(file as CFURL, nil),
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+            return ImageLibrary.displayReady(image)
+        }.value
+        if image == nil {
+            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: aerial.hdURL))
+            generator.maximumSize = CGSize(width: 640, height: 640)
+            generator.requestedTimeToleranceBefore = CMTime(seconds: 4, preferredTimescale: 600)
+            generator.requestedTimeToleranceAfter = CMTime(seconds: 4, preferredTimescale: 600)
+            guard let (frame, _) = try? await generator.image(at: CMTime(seconds: 12, preferredTimescale: 600)) else { return nil }
+            image = await Task.detached(priority: .utility) { () -> CGImage in
+                if let destination = CGImageDestinationCreateWithURL(file as CFURL, "public.jpeg" as CFString, 1, nil) {
+                    CGImageDestinationAddImage(destination, frame, [kCGImageDestinationLossyCompressionQuality: 0.8] as CFDictionary)
+                    CGImageDestinationFinalize(destination)
+                }
+                return ImageLibrary.displayReady(frame)
+            }.value
         }
-        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: aerial.hdURL))
-        generator.maximumSize = CGSize(width: 640, height: 640)
-        generator.requestedTimeToleranceBefore = CMTime(seconds: 4, preferredTimescale: 600)
-        generator.requestedTimeToleranceAfter = CMTime(seconds: 4, preferredTimescale: 600)
-        guard let (image, _) = try? await generator.image(at: CMTime(seconds: 12, preferredTimescale: 600)) else { return nil }
-        if let destination = CGImageDestinationCreateWithURL(file as CFURL, "public.jpeg" as CFString, 1, nil) {
-            CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.8] as CFDictionary)
-            CGImageDestinationFinalize(destination)
-        }
+        if let image { previews.insert(image, forKey: aerial.id, cost: image.bytesPerRow * image.height) }
         return image
     }
 

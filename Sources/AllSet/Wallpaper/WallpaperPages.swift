@@ -1002,19 +1002,25 @@ private struct AerialsSection: View {
                     }
                 }
             } else {
-                ForEach(kinds) { kind in
-                    VStack(alignment: .leading, spacing: DS.Space.s) {
-                        SectionHeader(title: kind.title, actionTitle: "See All") {
-                            withMotion(Motion.quick) { category = kind }
-                        }
-                        MediaRail(items: catalog.aerials.filter { $0.category == kind }, cardWidth: 300) { aerial in
-                            tile(aerial, downloaded: downloaded)
-                        }
-                    }
+                ForEach(kinds.prefix(1)) { kind in rail(kind, downloaded: downloaded) }
+                // The rest are below the fold: built a moment after the page shows.
+                Deferred {
+                    ForEach(kinds.dropFirst()) { kind in rail(kind, downloaded: downloaded) }
                 }
             }
         }
         .task { await catalog.load() }
+    }
+
+    private func rail(_ kind: Aerial.Category, downloaded: Set<String>) -> some View {
+        VStack(alignment: .leading, spacing: DS.Space.s) {
+            SectionHeader(title: kind.title, actionTitle: "See All") {
+                withMotion(Motion.quick) { category = kind }
+            }
+            MediaRail(items: services.aerials.aerials.filter { $0.category == kind }, cardWidth: 300) { aerial in
+                tile(aerial, downloaded: downloaded)
+            }
+        }
     }
 
     private func tile(_ aerial: Aerial, downloaded: Set<String>) -> some View {

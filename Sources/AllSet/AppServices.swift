@@ -146,6 +146,7 @@ final class AppServices {
     func releaseCachedPictures(keeping fraction: Double) {
         if hasThemePreviews { themePreviews.purge() }
         images.trimCaches(to: fraction)
+        aerials.trimPreviews(to: fraction)
         ArtworkCache.trim(to: fraction)
     }
 
