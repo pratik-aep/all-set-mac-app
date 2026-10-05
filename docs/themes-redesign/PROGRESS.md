@@ -33,3 +33,6 @@ Skipped (no toolchain): build, test run, baseline probes, baseline screenshots.
 ## Phase 2 — page structure and filter bar (done)
 Themes page now starts on the pinned filter bar (46 pt, glass finish, 13 icon-less pills with a sliding `matchedGeometryEffect` indicator on a 0.18 s ease, search 120–200 wide, sort menu, 34 pt square layout toggle rails ↔ grid). Rows scroll under it beneath a canvas fade. "Change the wallpaper too" + undo banner is the slim right-aligned row above the first section. `ui.mediaUnderNavigation` is never set by this page, so the nav scrim stays on. `BleedScrollPage` untouched.
 Note: this commit already references `ThemeRow` / `ThemeCategory` / new `ThemeCategoryCard(category:)` introduced in phases 3–4; nothing compiles here anyway.
+
+## Phase 3 — headers, rows, cards (done)
+`ThemeSectionHeader` (40 pt tile, 20 semibold title, meta line, square glass `‹ ›`, See All pill). New generic `ThemeRow` (252 pt cards, gap 16, `scrollPosition(id:)` so arrows follow drags, `viewAligned` snap, ←/→ keys on a focused row, bleed so lift/ring/shadow aren't clipped); `ThemeRail` wraps it for themes. `ThemeTile`: press 0.98, hover lift 1.03 (off with Reduce Motion or saver tier), accent edge + three-stroke static glow behind the card (opacity only, off in saver tier), active ring + "On your desktop" badge, per-theme VoiceOver labels.

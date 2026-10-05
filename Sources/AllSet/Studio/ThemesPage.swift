@@ -398,7 +398,7 @@ struct ThemeChromeButtonStyle: ButtonStyle {
 }
 
 /// A row's heading: a symbol tile, the title and a line about it, and the
-/// controls on the trailing edge.
+/// controls on the trailing edge. The same for every section.
 struct ThemeSectionHeader: View {
     let symbol: String
     let title: String
@@ -414,31 +414,88 @@ struct ThemeSectionHeader: View {
                 .foregroundStyle(DS.Ink.primary)
                 .frame(width: 40, height: 40)
                 .background(RoundedRectangle(cornerRadius: DS.Radius.control + 2, style: .continuous).fill(DS.Surface.hover))
+                .overlay(RoundedRectangle(cornerRadius: DS.Radius.control + 2, style: .continuous).strokeBorder(DS.Surface.hairline))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).dsText(.section)
+                Text(title).dsText(.section).accessibilityAddTraits(.isHeader)
                 if let subtitle { Text(subtitle).dsText(.meta).lineLimit(1) }
             }
             Spacer(minLength: DS.Space.s)
             if let onPrevious, let onNext {
                 HStack(spacing: DS.Space.xs) {
                     Button(action: onPrevious) { Image(systemName: "chevron.left") }
-                        .buttonStyle(FloatingButtonStyle(diameter: 32))
-                        .accessibilityLabel("Previous")
+                        .buttonStyle(ThemeChromeButtonStyle(size: 32))
+                        .accessibilityLabel("Previous \(title)")
                     Button(action: onNext) { Image(systemName: "chevron.right") }
-                        .buttonStyle(FloatingButtonStyle(diameter: 32))
-                        .accessibilityLabel("Next")
+                        .buttonStyle(ThemeChromeButtonStyle(size: 32))
+                        .accessibilityLabel("Next \(title)")
                 }
             }
             if let seeAll {
                 Button("See All", action: seeAll)
                     .buttonStyle(.pill)
+                    .accessibilityLabel("See all \(title)")
             }
         }
     }
 }
 
-/// One row of themes: a header with arrows, then a scrolling line of tiles.
+/// One row: a header with arrows, then a scrolling line of equal cards that
+/// settle on a card edge. Themes and categories share it, so every section
+/// reads the same. The arrows (and the keyboard's) move three cards.
+struct ThemeRow<Item: Identifiable, Card: View>: View where Item.ID == String {
+    let symbol: String
+    let title: String
+    var subtitle: String?
+    let items: [Item]
+    /// Names the row for the scroll position; unique on the page.
+    let rowID: String
+    var seeAll: (@MainActor () -> Void)?
+    @ViewBuilder let card: (Item, CGFloat) -> Card
+
+    /// Five across at 1400 pt: 5 × 252 + 4 × 16 = 1324.
+    static var cardWidth: CGFloat { 252 }
+    private let step = 3
+    /// Room around the cards so a lift, a ring and a shadow aren't clipped
+    /// by the scroll view. Handed back to the layout as negative padding.
+    private let bleed = EdgeInsets(top: DS.Space.xs, leading: DS.Space.xs, bottom: DS.Space.l, trailing: DS.Space.xs)
+    @State private var leading: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s) {
+            ThemeSectionHeader(symbol: symbol, title: title, subtitle: subtitle,
+                               onPrevious: { move(-step) }, onNext: { move(step) }, seeAll: seeAll)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: DS.Space.m) {
+                    ForEach(items) { item in
+                        card(item, Self.cardWidth).id(item.id)
+                    }
+                }
+                .scrollTargetLayout()
+                .padding(bleed)
+            }
+            .scrollPosition(id: $leading)
+            .scrollTargetBehavior(.viewAligned)
+            .padding(EdgeInsets(top: -bleed.top, leading: -bleed.leading, bottom: -bleed.bottom, trailing: -bleed.trailing))
+        }
+        // An arrow key moves a focused row.
+        .focusable()
+        .focusEffectDisabled()
+        .onKeyPress(.leftArrow) { move(-1); return .handled }
+        .onKeyPress(.rightArrow) { move(1); return .handled }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(title)
+    }
+
+    private func move(_ delta: Int) {
+        guard !items.isEmpty else { return }
+        let current = leading.flatMap { id in items.firstIndex { $0.id == id } } ?? 0
+        let target = min(max(current + delta, 0), items.count - 1)
+        withMotion(Motion.standard) { leading = items[target].id }
+    }
+}
+
+/// A row of themes.
 struct ThemeRail: View {
     let symbol: String
     let title: String
@@ -447,36 +504,10 @@ struct ThemeRail: View {
     var seeAll: (@MainActor () -> Void)?
     let services: AppServices
 
-    private let cardWidth: CGFloat = 252
-    private let step = 3
-    @State private var position = 0
-
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s) {
-            ScrollViewReader { proxy in
-                VStack(alignment: .leading, spacing: DS.Space.s) {
-                    ThemeSectionHeader(symbol: symbol, title: title, subtitle: subtitle,
-                                       onPrevious: { move(-step, proxy) }, onNext: { move(step, proxy) }, seeAll: seeAll)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: DS.Space.m) {
-                            ForEach(sets) { set in
-                                ThemeTile(set: set, services: services)
-                                    .frame(width: cardWidth)
-                                    .id(set.id)
-                            }
-                        }
-                        .scrollTargetLayout()
-                        .padding(.vertical, DS.Space.xs)
-                    }
-                    .scrollTargetBehavior(.viewAligned)
-                }
-            }
+        ThemeRow(symbol: symbol, title: title, subtitle: subtitle, items: sets, rowID: title, seeAll: seeAll) { set, width in
+            ThemeTile(set: set, services: services).frame(width: width)
         }
-    }
-
-    private func move(_ delta: Int, _ proxy: ScrollViewProxy) {
-        position = min(max(position + delta, 0), max(sets.count - 1, 0))
-        withMotion(Motion.standard) { proxy.scrollTo(sets[position].id, anchor: .leading) }
     }
 }
 
@@ -488,6 +519,15 @@ extension ThemeSet {
     }
 }
 
+/// A card that gives a little under a click.
+private struct CardPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .motion(Motion.press, value: configuration.isPressed)
+    }
+}
+
 /// A theme as a picture of its desktop with its name over the bottom and a
 /// heart in the corner. Opens its detail page.
 struct ThemeTile: View {
@@ -495,11 +535,17 @@ struct ThemeTile: View {
     let services: AppServices
 
     @State private var isHovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let stats = services.themeStats
         let favorite = stats.isFavorite(set.id)
         let isActive = services.settings.activeThemeSet == set.id
+        let accent = set.accentColor ?? .white
+        // A Mac that's saving power or running hot keeps its cards still.
+        let saving = services.ui.performance.tier >= .saver
+        let lifts = isHovering && !reduceMotion && !saving
+        let glows = isHovering && !saving
         let shape = RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous)
         ZStack(alignment: .bottomTrailing) {
             Button {
@@ -516,6 +562,7 @@ struct ThemeTile: View {
                             Text("\(set.includedWidgets.count) widgets").dsText(.meta)
                         }
                         .padding(DS.Space.s)
+                        // Keeps clear of the heart.
                         .padding(.trailing, 36)
                     }
                     .overlay(alignment: .topLeading) {
@@ -531,12 +578,16 @@ struct ThemeTile: View {
                         }
                     }
                     .clipShape(shape)
-                    .overlay(shape.strokeBorder(isActive ? (set.accentColor ?? DS.Ink.primary).opacity(0.9) : DS.Surface.hairline, lineWidth: isActive ? 2 : 1))
-                    // Hover: the accent edge comes up. Opacity only, no live shadow.
-                    .overlay(shape.strokeBorder((set.accentColor ?? .white).opacity(isHovering ? 0.7 : 0), lineWidth: 1.5))
+                    .overlay(shape.strokeBorder(isActive ? accent.opacity(0.9) : DS.Surface.hairline, lineWidth: isActive ? 2 : 1))
+                    // Hover: the accent edge comes up. Opacity only.
+                    .overlay(shape.strokeBorder(accent.opacity(isHovering ? 0.7 : 0), lineWidth: 1.5))
                     .contentShape(shape)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CardPressStyle())
+            .accessibilityLabel("\(set.name) theme, \(set.includedWidgets.count) widgets")
+            .accessibilityValue(isActive ? "On your desktop" : set.tagline)
+            .accessibilityHint("Opens the theme")
+            .accessibilityAddTraits(isActive ? .isSelected : [])
             Button {
                 withMotion(Motion.bouncy) { stats.toggleFavorite(set.id) }
             } label: {
@@ -545,13 +596,23 @@ struct ThemeTile: View {
             }
             .buttonStyle(FloatingButtonStyle(diameter: 28))
             .padding(DS.Space.s)
-            .accessibilityLabel(favorite ? "Remove from favorites" : "Add to favorites")
+            .accessibilityLabel(favorite ? "Remove \(set.name) from favorites" : "Add \(set.name) to favorites")
         }
-        .scaleEffect(isHovering ? 1.03 : 1)
+        // The glow sits behind the card, around its edge, never over its words:
+        // three strokes of falling strength stand in for a blur, so only
+        // opacity ever changes.
+        .background {
+            ZStack {
+                shape.stroke(accent.opacity(0.30), lineWidth: 4)
+                shape.stroke(accent.opacity(0.14), lineWidth: 10)
+                shape.stroke(accent.opacity(0.06), lineWidth: 18)
+            }
+            .opacity(glows ? 1 : 0)
+        }
+        .scaleEffect(lifts ? 1.03 : 1)
         .dsElevated()
         .onHover { hovering in withMotion(Motion.responsive) { isHovering = hovering } }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(set.name) theme, \(set.includedWidgets.count) widgets. \(set.tagline)")
     }
 }
 
