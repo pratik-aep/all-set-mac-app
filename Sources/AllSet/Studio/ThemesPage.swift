@@ -82,90 +82,139 @@ enum ThemeDiscovery: String, CaseIterable, Identifiable {
 
 // MARK: Library
 
+/// How a filtered list is ordered.
+enum ThemeSort: String, CaseIterable, Identifiable {
+    case suggested, newest, popular, name
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .suggested: "Suggested"
+        case .newest: "Newest"
+        case .popular: "Most Popular"
+        case .name: "A to Z"
+        }
+    }
+}
+
 /// The theme library: complete widget worlds to browse, preview and install.
+/// A sticky filter bar over rows of themes, one row per idea, each laid out
+/// the same way.
 struct ThemesPage: View {
     let services: AppServices
 
     @AppStorage("themes.setsWallpaper") private var setsWallpaper = true
     @AppStorage("themes.discovery") private var discovery = ThemeDiscovery.all.rawValue
+    @AppStorage("themes.sort") private var sortRaw = ThemeSort.suggested.rawValue
     @State private var query = ""
 
     private var filter: ThemeDiscovery { ThemeDiscovery(rawValue: discovery) ?? .all }
+    private var sort: ThemeSort { ThemeSort(rawValue: sortRaw) ?? .suggested }
+    private var showsRails: Bool { filter == .all && SearchMatch.normalize(query).isEmpty }
 
     private var results: [ThemeSet] {
         let base = filter.sets(stats: services.themeStats)
-        guard !SearchMatch.normalize(query).isEmpty else { return base }
-        let matches = Set(ThemeLibrary.search(query).map(\.id))
-        return ThemeLibrary.search(query).filter { set in base.contains { $0.id == set.id } && matches.contains(set.id) }
+        var found = base
+        if !SearchMatch.normalize(query).isEmpty {
+            let ids = Set(base.map(\.id))
+            found = ThemeLibrary.search(query).filter { ids.contains($0.id) }
+        }
+        let stats = services.themeStats
+        switch sort {
+        case .suggested: return found
+        case .newest: return found.sorted { $0.added > $1.added }
+        case .popular: return found.sorted { stats.popularity($0) > stats.popularity($1) }
+        case .name: return found.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        }
     }
 
     var body: some View {
-        let sections = self.sections
-        // The banner is the theme on the desktop now; with none, the best-liked one.
-        let active = services.settings.activeThemeSet.flatMap { ThemeLibrary.set($0) }
-        let lead = active ?? sections.featured.first
-        // The lead theme fills the top of the window; the rest of the
-        // featured row climbs onto its faded bottom. Always shown, so a
-        // search or a filter never moves the search field.
-        BleedScrollPage(showsHero: lead != nil) { layout in
-            if let lead {
-                FeaturedThemeHero(set: lead, isActive: active != nil, services: services, layout: layout)
-            }
-        } content: { _ in
-            shelf("Featured", sets: sections.featured.filter { $0.id != lead?.id }, more: .featured)
-            VStack(alignment: .leading, spacing: DS.Space.l) {
-                header
-                banners
-                chips
-            }
-            if filter == .all && SearchMatch.normalize(query).isEmpty {
-                // Fifteen rails of desktop previews: only what's in view on the switch frame.
-                Deferred {
-                    ForEach(sections.shelves, id: \.title) { shelf in
-                        self.shelf(shelf.title, sets: shelf.sets, more: shelf.more)
+        GeometryReader { geometry in
+            let margin = DS.Space.pageMargin(for: geometry.size.width)
+            VStack(spacing: 0) {
+                filterBar
+                    .padding(.horizontal, margin)
+                    .padding(.top, geometry.safeAreaInsets.top)
+                    .padding(.bottom, DS.Space.s)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: DS.Space.section) {
+                        VStack(alignment: .leading, spacing: DS.Space.s) {
+                            DesktopUndoBanner(services: services)
+                            HStack {
+                                Spacer()
+                                Toggle("Change the wallpaper too", isOn: $setsWallpaper)
+                                    .toggleStyle(.switch)
+                                    .controlSize(.small)
+                                    .foregroundStyle(DS.Ink.secondary)
+                            }
+                        }
+                        if showsRails {
+                            rails
+                        } else {
+                            grid(results)
+                        }
                     }
-                }
-            } else {
-                grid(results)
-            }
-        }
-    }
-
-    private var header: some View {
-        PageHeader(eyebrow: "\(ThemeLibrary.all.count) complete desktops", title: "Themes",
-                   subtitle: "Pick one and your whole desktop follows: the widgets, their look and the wallpaper.") {
-            VStack(alignment: .trailing, spacing: DS.Space.s) {
-                SearchField(text: $query, prompt: "Search themes: night, pink, developer…")
-                    .frame(width: 280)
-                Toggle("Change the wallpaper too", isOn: $setsWallpaper)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .foregroundStyle(DS.Ink.secondary)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var banners: some View {
-        DesktopUndoBanner(services: services)
-    }
-
-    private var chips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: DS.Space.xs) {
-                ForEach(ThemeDiscovery.allCases) { item in
-                    FilterPill(title: item.title, symbol: item.symbol, isSelected: filter == item) {
-                        withMotion(Motion.quick) { discovery = item.rawValue }
-                    }
+                    .padding(.horizontal, margin)
+                    .padding(.top, DS.Space.xs)
+                    .padding(.bottom, DS.Space.xxl)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .padding(.vertical, 2)
+            .ignoresSafeArea(edges: .top)
         }
     }
 
-    /// The library split so every theme shows up exactly once: each shelf
-    /// takes only what the ones above it haven't shown.
-    private var sections: (featured: [ThemeSet], shelves: [(title: String, sets: [ThemeSet], more: ThemeDiscovery?)]) {
+    // MARK: Filter bar
+
+    /// Stays at the top while the page scrolls: categories, search, order.
+    private var filterBar: some View {
+        HStack(spacing: DS.Space.s) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: DS.Space.xs) {
+                    ForEach(ThemeDiscovery.allCases) { item in
+                        FilterPill(title: item.title, isSelected: filter == item) {
+                            withMotion(Motion.quick) { discovery = item.rawValue }
+                        }
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            SearchField(text: $query, prompt: "Search themes…")
+                .frame(width: 200)
+            Menu {
+                Picker("Sort", selection: $sortRaw) {
+                    ForEach(ThemeSort.allCases) { Text($0.title).tag($0.rawValue) }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                HStack(spacing: DS.Space.xs) {
+                    Text(sort.title)
+                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(DS.Ink.primary)
+                .padding(.horizontal, DS.Space.s)
+                .frame(height: 34)
+                .background(Capsule().fill(DS.Surface.raised))
+                .overlay(Capsule().strokeBorder(DS.Surface.hairline))
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .accessibilityLabel("Sort themes")
+        }
+        .padding(.horizontal, DS.Space.xs)
+        .padding(.vertical, DS.Space.xs)
+        .background(RoundedRectangle(cornerRadius: DS.Radius.panel, style: .continuous).fill(Color.black.opacity(0.28)))
+        .overlay(RoundedRectangle(cornerRadius: DS.Radius.panel, style: .continuous).strokeBorder(DS.Surface.hairline))
+    }
+
+    // MARK: Rails
+
+    /// Each theme shows once: a row takes only what the ones above it haven't.
+    private var rails: some View {
         let stats = services.themeStats
         var shown = Set<String>()
         func claim(_ sets: [ThemeSet]) -> [ThemeSet] {
@@ -173,38 +222,63 @@ struct ThemesPage: View {
             shown.formUnion(fresh.map(\.id))
             return fresh
         }
-        let featured = claim(Array(ThemeDiscovery.featured.sets(stats: stats).prefix(4)))
-        var shelves: [(title: String, sets: [ThemeSet], more: ThemeDiscovery?)] = [
-            ("Colour & Light", claim(ThemeLibrary.sets(in: .colourAndLight)), nil),
-            ("Football", claim(ThemeDiscovery.football.sets(stats: stats)), .football),
-            ("Music Icons", claim(ThemeDiscovery.music.sets(stats: stats)), .music),
-            ("Moodboards", claim(ThemeDiscovery.artist.sets(stats: stats)), .artist),
-            ("Night", claim(ThemeLibrary.sets(in: .night)), nil),
-            ("Dreamy", claim(ThemeLibrary.sets(in: .dreamy)), nil),
-            ("Minimal & Designer", claim(ThemeLibrary.sets(in: .designer) + ThemeLibrary.sets(in: .minimal)), nil),
-            ("Developer", claim(ThemeDiscovery.developer.sets(stats: stats)), .developer),
+        let featured = claim(Array(ThemeDiscovery.featured.sets(stats: stats).prefix(8)))
+        let trending = claim(Array(ThemeDiscovery.trending.sets(stats: stats).prefix(10)))
+        let football = claim(ThemeDiscovery.football.sets(stats: stats))
+        let music = claim(ThemeDiscovery.music.sets(stats: stats))
+        let others: [(symbol: String, title: String, sets: [ThemeSet], more: ThemeDiscovery?)] = [
+            ("sun.max", "Colour & Light", claim(ThemeLibrary.sets(in: .colourAndLight)), nil),
+            ("moon.stars", "Night", claim(ThemeLibrary.sets(in: .night)), nil),
+            ("cloud", "Dreamy", claim(ThemeLibrary.sets(in: .dreamy)), nil),
+            ("circle.dashed", "Minimal & Designer", claim(ThemeLibrary.sets(in: .designer) + ThemeLibrary.sets(in: .minimal)), nil),
+            ("chevron.left.forwardslash.chevron.right", "Developer", claim(ThemeDiscovery.developer.sets(stats: stats)), .developer),
+            ("square.grid.2x2", "More Setups", claim(ThemeLibrary.all), nil),
         ]
-        shelves.append(("More Setups", claim(ThemeLibrary.all), nil))
-        return (featured, shelves)
-    }
-
-    private func shelf(_ title: String, _ discovery: ThemeDiscovery) -> some View {
-        shelf(title, sets: discovery.sets(stats: services.themeStats), more: discovery)
+        return VStack(alignment: .leading, spacing: DS.Space.section) {
+            rail("star.fill", "Featured", "Handpicked themes you'll love. Bold, beautiful and ready to apply.", featured, more: .featured)
+            rail("flame.fill", "Trending", "Popular right now in the community.", trending, more: .trending)
+            // The rest is below the fold: built a moment after the switch.
+            Deferred {
+                VStack(alignment: .leading, spacing: DS.Space.section) {
+                    categories
+                    rail("soccerball", "Football", "For the beautiful game.", football, more: .football)
+                    rail("music.mic", "Music Icons", "Desktops with a soundtrack.", music, more: .music)
+                    ForEach(Array(others.enumerated()), id: \.offset) { _, row in
+                        rail(row.symbol, row.title, "\(row.sets.count) themes", row.sets, more: row.more)
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
-    private func shelf(_ title: String, sets: [ThemeSet], more: ThemeDiscovery? = nil) -> some View {
+    private func rail(_ symbol: String, _ title: String, _ subtitle: String, _ sets: [ThemeSet], more: ThemeDiscovery?) -> some View {
         if !sets.isEmpty {
-            VStack(alignment: .leading, spacing: DS.Space.s) {
-                if let more {
-                    SectionHeader(title: title, subtitle: "\(sets.count) themes", actionTitle: "See All") {
-                        withMotion(Motion.quick) { discovery = more.rawValue }
+            let seeAll: (@MainActor () -> Void)? = more.map { target in
+                { @MainActor in withMotion(Motion.quick) { discovery = target.rawValue } }
+            }
+            ThemeRail(symbol: symbol, title: title, subtitle: subtitle, sets: sets, seeAll: seeAll, services: services)
+        }
+    }
+
+    /// Big visual cards, one per way of browsing, each previewing its first theme.
+    private var categories: some View {
+        let stats = services.themeStats
+        let items: [(title: String, kind: ThemeDiscovery, badge: String?)] = [
+            ("Minimal", .minimal, nil), ("Dark", .dark, nil), ("Colorful", .colorful, nil),
+            ("Aesthetic", .artist, "Most Popular"), ("Developer", .developer, nil),
+        ]
+        return VStack(alignment: .leading, spacing: DS.Space.s) {
+            ThemeSectionHeader(symbol: "shippingbox", title: "Moodboards", subtitle: "Theme collections for different vibes.",
+                               seeAll: { withMotion(Motion.quick) { discovery = ThemeDiscovery.artist.rawValue } })
+            HStack(spacing: DS.Space.m) {
+                ForEach(items, id: \.title) { item in
+                    let sets = item.kind.sets(stats: stats)
+                    if let lead = sets.first {
+                        ThemeCategoryCard(title: item.title, count: sets.count, badge: item.badge, lead: lead, services: services) {
+                            withMotion(Motion.quick) { discovery = item.kind.rawValue }
+                        }
                     }
-                } else {
-                    SectionHeader(title: title, subtitle: "\(sets.count) themes")
-                }
-                MediaRail(items: sets, cardWidth: 300) { set in
-                    ThemeSetCard(set: set, services: services)
                 }
             }
         }
@@ -217,10 +291,235 @@ struct ThemesPage: View {
                        title: filter == .favorites ? "No favorites yet" : "No themes found",
                        message: filter == .favorites ? "Tap the heart on any theme to keep it here." : "Try another word or filter.")
         } else {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: DS.Space.m)], spacing: DS.Space.l) {
-                ForEach(sets) { set in ThemeSetCard(set: set, services: services) }
+            VStack(alignment: .leading, spacing: DS.Space.m) {
+                ThemeSectionHeader(symbol: filter.symbol, title: filter.title, subtitle: "\(sets.count) themes")
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: DS.Space.m)], spacing: DS.Space.m) {
+                    ForEach(sets) { set in ThemeTile(set: set, services: services) }
+                }
             }
         }
+    }
+}
+
+/// A row's heading: a symbol tile, the title and a line about it, and the
+/// controls on the trailing edge.
+struct ThemeSectionHeader: View {
+    let symbol: String
+    let title: String
+    var subtitle: String?
+    var onPrevious: (@MainActor () -> Void)?
+    var onNext: (@MainActor () -> Void)?
+    var seeAll: (@MainActor () -> Void)?
+
+    var body: some View {
+        HStack(spacing: DS.Space.s) {
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(DS.Ink.primary)
+                .frame(width: 40, height: 40)
+                .background(RoundedRectangle(cornerRadius: DS.Radius.control + 2, style: .continuous).fill(DS.Surface.hover))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).dsText(.section)
+                if let subtitle { Text(subtitle).dsText(.meta).lineLimit(1) }
+            }
+            Spacer(minLength: DS.Space.s)
+            if let onPrevious, let onNext {
+                HStack(spacing: DS.Space.xs) {
+                    Button(action: onPrevious) { Image(systemName: "chevron.left") }
+                        .buttonStyle(FloatingButtonStyle(diameter: 32))
+                        .accessibilityLabel("Previous")
+                    Button(action: onNext) { Image(systemName: "chevron.right") }
+                        .buttonStyle(FloatingButtonStyle(diameter: 32))
+                        .accessibilityLabel("Next")
+                }
+            }
+            if let seeAll {
+                Button("See All", action: seeAll)
+                    .buttonStyle(.pill)
+            }
+        }
+    }
+}
+
+/// One row of themes: a header with arrows, then a scrolling line of tiles.
+struct ThemeRail: View {
+    let symbol: String
+    let title: String
+    var subtitle: String?
+    let sets: [ThemeSet]
+    var seeAll: (@MainActor () -> Void)?
+    let services: AppServices
+
+    private let cardWidth: CGFloat = 252
+    private let step = 3
+    @State private var position = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s) {
+            ScrollViewReader { proxy in
+                VStack(alignment: .leading, spacing: DS.Space.s) {
+                    ThemeSectionHeader(symbol: symbol, title: title, subtitle: subtitle,
+                                       onPrevious: { move(-step, proxy) }, onNext: { move(step, proxy) }, seeAll: seeAll)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(spacing: DS.Space.m) {
+                            ForEach(sets) { set in
+                                ThemeTile(set: set, services: services)
+                                    .frame(width: cardWidth)
+                                    .id(set.id)
+                            }
+                        }
+                        .scrollTargetLayout()
+                        .padding(.vertical, DS.Space.xs)
+                    }
+                    .scrollTargetBehavior(.viewAligned)
+                }
+            }
+        }
+    }
+
+    private func move(_ delta: Int, _ proxy: ScrollViewProxy) {
+        position = min(max(position + delta, 0), max(sets.count - 1, 0))
+        withMotion(Motion.standard) { proxy.scrollTo(sets[position].id, anchor: .leading) }
+    }
+}
+
+extension ThemeSet {
+    /// The theme's own accent, for edges and glows.
+    var accentColor: Color? {
+        if let theme = designTheme { return Color(theme.palette(dark: isDark).accent) }
+        return setup.map { Color($0.wallpaperAccent) }
+    }
+}
+
+/// A theme as a picture of its desktop with its name over the bottom and a
+/// heart in the corner. Opens its detail page.
+struct ThemeTile: View {
+    let set: ThemeSet
+    let services: AppServices
+
+    @State private var isHovering = false
+
+    var body: some View {
+        let stats = services.themeStats
+        let favorite = stats.isFavorite(set.id)
+        let isActive = services.settings.activeThemeSet == set.id
+        let shape = RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous)
+        ZStack(alignment: .bottomTrailing) {
+            Button {
+                services.ui.page = .themeSet(set.id)
+            } label: {
+                ThemeSnapshot(set: set, dark: set.isDark, services: services)
+                    .overlay {
+                        LinearGradient(stops: [.init(color: .clear, location: 0.5), .init(color: .black.opacity(0.72), location: 1)],
+                                       startPoint: .top, endPoint: .bottom)
+                    }
+                    .overlay(alignment: .bottomLeading) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(set.name).dsText(.headline).lineLimit(1)
+                            Text("\(set.includedWidgets.count) widgets").dsText(.meta)
+                        }
+                        .padding(DS.Space.s)
+                        .padding(.trailing, 36)
+                    }
+                    .overlay(alignment: .topLeading) {
+                        if isActive {
+                            Text("On your desktop")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(DS.Ink.primary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(.black.opacity(0.5)))
+                                .overlay(Capsule().strokeBorder(.white.opacity(0.24)))
+                                .padding(DS.Space.s)
+                        }
+                    }
+                    .clipShape(shape)
+                    .overlay(shape.strokeBorder(isActive ? (set.accentColor ?? DS.Ink.primary).opacity(0.9) : DS.Surface.hairline, lineWidth: isActive ? 2 : 1))
+                    // Hover: the accent edge comes up. Opacity only, no live shadow.
+                    .overlay(shape.strokeBorder((set.accentColor ?? .white).opacity(isHovering ? 0.7 : 0), lineWidth: 1.5))
+                    .contentShape(shape)
+            }
+            .buttonStyle(.plain)
+            Button {
+                withMotion(Motion.bouncy) { stats.toggleFavorite(set.id) }
+            } label: {
+                Image(systemName: favorite ? "heart.fill" : "heart")
+                    .foregroundStyle(favorite ? Color.pink : DS.Ink.primary)
+            }
+            .buttonStyle(FloatingButtonStyle(diameter: 28))
+            .padding(DS.Space.s)
+            .accessibilityLabel(favorite ? "Remove from favorites" : "Add to favorites")
+        }
+        .scaleEffect(isHovering ? 1.03 : 1)
+        .dsElevated()
+        .onHover { hovering in withMotion(Motion.responsive) { isHovering = hovering } }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(set.name) theme, \(set.includedWidgets.count) widgets. \(set.tagline)")
+    }
+}
+
+/// A way of browsing as a large card: its first theme behind its name, how
+/// many themes it holds, and an arrow to open it.
+struct ThemeCategoryCard: View {
+    let title: String
+    let count: Int
+    var badge: String?
+    let lead: ThemeSet
+    let services: AppServices
+    let action: @MainActor () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous)
+        Button(action: action) {
+            Color.clear
+                .frame(height: 124)
+                .overlay {
+                    ThemeSnapshot(set: lead, dark: lead.isDark, services: services, fills: true)
+                }
+                .overlay {
+                    LinearGradient(colors: [.black.opacity(0.1), .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
+                }
+                .overlay(alignment: .bottomLeading) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title).dsText(.headline).lineLimit(1)
+                        Text("\(count) themes").dsText(.meta)
+                    }
+                    .padding(DS.Space.s)
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(DS.Ink.primary)
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(.black.opacity(0.42)))
+                        .overlay(Circle().strokeBorder(DS.Surface.hairline))
+                        .padding(DS.Space.s)
+                }
+                .overlay(alignment: .topTrailing) {
+                    if let badge {
+                        Text(badge)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(DS.Ink.primary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(.black.opacity(0.5)))
+                            .overlay(Capsule().strokeBorder(.white.opacity(0.24)))
+                            .padding(DS.Space.s)
+                    }
+                }
+                .clipShape(shape)
+                .overlay(shape.strokeBorder(isHovering ? Color.white.opacity(0.3) : DS.Surface.hairline))
+                .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .scaleEffect(isHovering ? 1.02 : 1)
+        .dsElevated()
+        .onHover { hovering in withMotion(Motion.responsive) { isHovering = hovering } }
+        .accessibilityLabel("\(title), \(count) themes")
     }
 }
 
@@ -314,62 +613,6 @@ struct ThemeSetCard: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(set.name) theme, \(set.includedWidgets.count) widgets. \(set.tagline)")
         .accessibilityHint("Opens the theme")
-    }
-}
-
-/// The lead featured theme, large: its desktop fills the hero.
-struct FeaturedThemeHero: View {
-    let set: ThemeSet
-    /// This is the theme on the desktop now.
-    var isActive = false
-    let services: AppServices
-    let layout: BleedLayout
-
-    var body: some View {
-        let favorite = services.themeStats.isFavorite(set.id)
-        HeroSection(eyebrow: isActive ? "On your desktop" : "Featured theme", title: set.name,
-                    metadata: [set.inspiration ?? set.tagline, "\(set.includedWidgets.count) widgets"], bleed: layout) {
-            // Wide windows show the desktop whole, as a card on the right
-            // between the navigation and the row below, over its own colors;
-            // narrow ones crop it to fill.
-            GeometryReader { geometry in
-                let cardHeight = layout.visibleHeight - layout.overlap - DS.Space.xl * 2
-                let ratio = ThemeComposition.canvas.width / ThemeComposition.canvas.height
-                let showsCard = geometry.size.width - cardHeight * ratio - layout.margin > 620
-                ZStack(alignment: .bottomTrailing) {
-                    ThemeSnapshot(set: set, dark: set.isDark, services: services, fills: true)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .clipped()
-                    // Busy widgets behind the words: dim them, more so when
-                    // the card carries the picture.
-                    Color.black.opacity(showsCard ? 0.72 : 0.6)
-                    if showsCard {
-                        ThemeSnapshot(set: set, dark: set.isDark, services: services)
-                            .frame(width: cardHeight * ratio, height: cardHeight)
-                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous).strokeBorder(DS.Surface.hairline))
-                            .dsElevated()
-                            .padding(.trailing, layout.margin)
-                            .padding(.bottom, layout.overlap + DS.Space.xl)
-                    }
-                }
-            }
-        } actions: {
-            Button("View Theme") { services.ui.page = .themeSet(set.id) }
-                .buttonStyle(.pillProminent)
-            if isActive {
-                Button("Turn Off Theme") { withMotion(Motion.standard) { services.turnOffTheme() } }
-                    .buttonStyle(.pill)
-            }
-            Button {
-                withMotion(Motion.bouncy) { services.themeStats.toggleFavorite(set.id) }
-            } label: {
-                Image(systemName: favorite ? "heart.fill" : "heart")
-                    .foregroundStyle(favorite ? Color.pink : DS.Ink.primary)
-            }
-            .buttonStyle(.floating)
-            .accessibilityLabel(favorite ? "Remove from favorites" : "Add to favorites")
-        }
     }
 }
 
