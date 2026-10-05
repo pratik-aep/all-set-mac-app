@@ -264,8 +264,9 @@ struct ThemesPage: View {
     }
 }
 
-/// Offers to take back the last whole-desktop change: a theme going on, or
-/// the widgets a newly picked wallpaper cleared away.
+/// Offers to take back the last whole-desktop change: a theme going on, a new
+/// wallpaper or a theme turned off. After it's gone, Widgets > Restore Previous
+/// Desktop still can.
 struct DesktopUndoBanner: View {
     let services: AppServices
 
@@ -275,7 +276,7 @@ struct DesktopUndoBanner: View {
                 Image(systemName: "arrow.uturn.backward.circle.fill").font(.title2).foregroundStyle(.tint)
                 Text(message(for: undo.change))
                 Spacer()
-                Button(undo.change == .clearedForWallpaper ? "Bring Widgets Back" : "Undo") {
+                Button("Undo") {
                     withMotion(Motion.standard) { services.undoDesktopChange() }
                 }
                 Button("Keep It") { withMotion(Motion.standard) { services.ui.desktopUndo = nil } }
@@ -283,8 +284,9 @@ struct DesktopUndoBanner: View {
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.tint.opacity(0.12)))
             .task(id: undo.id) {
-                // Clearing for a wallpaper is expected; the offer doesn't linger.
-                guard undo.change == .clearedForWallpaper else { return }
+                // A new wallpaper is expected; the offer doesn't linger (the previous
+                // desktop stays on disk for Restore Previous Desktop).
+                guard undo.change == .wallpaper else { return }
                 try? await Task.sleep(for: .seconds(12))
                 if services.ui.desktopUndo?.id == undo.id {
                     withMotion(Motion.standard) { services.ui.desktopUndo = nil }
@@ -296,7 +298,7 @@ struct DesktopUndoBanner: View {
     private func message(for change: DesktopUndo.Change) -> String {
         switch change {
         case .theme(let name): "\(name) is on your desktop. Undo puts back your widgets, their look and your wallpaper."
-        case .clearedForWallpaper: "Your widgets were cleared for the new wallpaper."
+        case .wallpaper: "New wallpaper. Your widgets are unchanged."
         case .turnedOff(let name): "\(name) is off. Undo brings back its widgets and look."
         }
     }

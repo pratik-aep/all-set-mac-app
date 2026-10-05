@@ -5,7 +5,7 @@ import Foundation
 /// which theme they're dressed in, whether they show, and the wallpaper.
 /// Undo and a desktop preview's Go Back both restore one of these, so neither
 /// can leave half of a theme behind.
-public struct DesktopSnapshot: Equatable, Sendable {
+public struct DesktopSnapshot: Codable, Equatable, Sendable {
     public var widgets: [WidgetInstance]
     public var scale: Double
     public var screenFits: [String: ScreenFit]

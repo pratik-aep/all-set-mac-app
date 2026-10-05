@@ -55,6 +55,8 @@ final class AppServices {
     let volume = VolumeMonitor()
     let power = PowerSourceMonitor()
     let widgets = WidgetStore(fileURL: AppServices.widgetsFileURL)
+    /// Durable records of desktop changes: an unfinished preview, the previous desktop.
+    let desktopJournal = DesktopJournal(directory: AppServices.widgetsFileURL.deletingLastPathComponent())
     let weather = WeatherService()
     let themeStats = ThemeStats()
     /// The person's own photos for each theme set.
@@ -92,6 +94,8 @@ final class AppServices {
     weak var notch: NotchController?
 
     func start() {
+        // A preview the app quit or crashed in the middle of: the real desktop comes back.
+        recoverInterruptedPreview()
         startWatchingEnergy()
         startWatchingMemory()
         applyMonitorPace()
@@ -109,6 +113,8 @@ final class AppServices {
     }
 
     func stop() {
+        // A preview nobody kept isn't the desktop: quitting puts the real one back.
+        if ui.themePreview != nil { endThemePreview(keep: false) }
         knocks.stop()
         lidPlane.stop()
         screenshotShortcut.stop()

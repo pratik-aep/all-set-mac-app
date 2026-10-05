@@ -43,6 +43,11 @@ private struct AppCommands: Commands {
                 services.settings.showWidgets.toggle()
             }
             .keyboardShortcut("d", modifiers: [.command, .shift])
+            Divider()
+            // The desktop from before the last theme, wallpaper or Turn Off, kept on
+            // disk: works after the Undo offer has gone and after a relaunch.
+            Button("Restore Previous Desktop") { services.restorePreviousDesktop() }
+                .disabled(services.previousDesktop == nil)
         }
         CommandGroup(before: .windowList) {
             Button("All Set Window") { services.openWindow() }

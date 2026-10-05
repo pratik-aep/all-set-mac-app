@@ -13,9 +13,9 @@ struct DesktopUndo: Equatable {
     enum Change: Equatable {
         /// A theme set, by name, went on.
         case theme(String)
-        /// The widgets were cleared because a wallpaper was picked. Taking
-        /// it back keeps the new wallpaper.
-        case clearedForWallpaper
+        /// A wallpaper was picked. The widgets stay; taking it back puts the
+        /// previous wallpaper back.
+        case wallpaper
         /// The theme, by name, was turned off: widgets cleared, look reset.
         case turnedOff(String)
     }
@@ -69,7 +69,7 @@ extension AppServices {
         }
         if setsWallpaper, let source = set.wallpaper { wallpaper.set(source) }
         settings.adopt(set)
-        ui.desktopUndo = DesktopUndo(change: .theme(set.name), before: before)
+        recordChange(.theme(set.name), before: before)
         ui.toast = Toast(message: "\(set.name) is on your desktop", symbol: "wand.and.stars")
         return true
     }
@@ -79,7 +79,14 @@ extension AppServices {
     func previewOnDesktop(_ set: ThemeSet, wallpaper setsWallpaper: Bool) {
         guard let target = chooseThemeScreen(for: set) else { return }
         if ui.themePreview != nil { endThemePreview(keep: false) }
-        ui.themePreview = ThemePreview(setID: set.id, before: desktopSnapshot)
+        let before = desktopSnapshot
+        // Written down before anything changes: quitting or a crash mid-trial
+        // then puts this desktop back rather than keeping the trial.
+        guard desktopJournal.beginPreview(PendingPreview(setID: set.id, before: before)) else {
+            ui.toast = Toast(message: "Couldn't start the preview: your desktop couldn't be saved first", symbol: "exclamationmark.triangle")
+            return
+        }
+        ui.themePreview = ThemePreview(setID: set.id, before: before)
         replaceWidgets(on: target, with: themeWidgets(set, on: target))
         if setsWallpaper, let source = set.wallpaper { wallpaper.set(source) }
         settings.adopt(set)
@@ -92,12 +99,53 @@ extension AppServices {
         if keep {
             // Undo goes back to the desktop from before the preview.
             if let set = ThemeLibrary.set(preview.setID) {
-                ui.desktopUndo = DesktopUndo(change: .theme(set.name), before: preview.before)
+                recordChange(.theme(set.name), before: preview.before)
                 themeStats.record(.install, for: set.id)
             }
         } else {
             preview.before.restore(settings: settings, widgets: widgets, wallpaper: wallpaper)
+            widgets.saveNow()
         }
+        desktopJournal.endPreview()
+    }
+
+    /// A preview the app quit or crashed during: puts back the desktop from before it.
+    /// Called at launch, before any window shows.
+    func recoverInterruptedPreview() {
+        guard let pending = desktopJournal.pendingPreview else { return }
+        pending.before.restore(settings: settings, widgets: widgets, wallpaper: wallpaper)
+        widgets.saveNow()
+        desktopJournal.endPreview()
+        let name = ThemeLibrary.set(pending.setID)?.name ?? "A theme"
+        ui.toast = Toast(message: "\(name) was only a preview: your desktop is back", symbol: "arrow.uturn.backward")
+    }
+
+    /// The desktop before the last whole-desktop change, kept on disk: what
+    /// Restore Previous Desktop brings back, long after the Undo offer is gone.
+    var previousDesktop: PreviousDesktop? { desktopJournal.previous }
+
+    /// Brings back the desktop from before the last change. The desktop it replaces
+    /// becomes the previous one, so doing it twice returns to where you were.
+    func restorePreviousDesktop() {
+        if ui.themePreview != nil { endThemePreview(keep: false) }
+        guard let previous = desktopJournal.previous else { return }
+        let current = desktopSnapshot
+        previous.before.restore(settings: settings, widgets: widgets, wallpaper: wallpaper)
+        widgets.saveNow()
+        desktopJournal.remember(PreviousDesktop(change: "Restored the previous desktop", before: current))
+        ui.desktopUndo = nil
+        ui.toast = Toast(message: "Previous desktop restored", symbol: "arrow.uturn.backward")
+    }
+
+    /// Offers Undo for a change and keeps the desktop from before it on disk.
+    private func recordChange(_ change: DesktopUndo.Change, before: DesktopSnapshot) {
+        ui.desktopUndo = DesktopUndo(change: change, before: before)
+        let words = switch change {
+        case .theme(let name): "\(name) went on"
+        case .wallpaper: "New wallpaper"
+        case .turnedOff(let name): "\(name) was turned off"
+        }
+        desktopJournal.remember(PreviousDesktop(change: words, before: before))
     }
 
     /// Puts back the desktop from before the last theme (widgets, size,
@@ -107,9 +155,8 @@ extension AppServices {
         guard let undo = ui.desktopUndo else { return }
         // The undo reaches further back than any preview on top of it.
         ui.themePreview = nil
-        var before = undo.before
-        if undo.change == .clearedForWallpaper { before.wallpaper = wallpaper.config }
-        before.restore(settings: settings, widgets: widgets, wallpaper: wallpaper)
+        undo.before.restore(settings: settings, widgets: widgets, wallpaper: wallpaper)
+        widgets.saveNow()
         ui.desktopUndo = nil
     }
 
@@ -122,23 +169,20 @@ extension AppServices {
         widgets.replaceAll(with: [])
         settings.resetWidgetLook()
         ui.isArrangingWidgets = false
-        ui.desktopUndo = DesktopUndo(change: .turnedOff(name), before: before)
+        recordChange(.turnedOff(name), before: before)
         ui.toast = Toast(message: "\(name) is off", symbol: "power")
     }
 
-    /// A wallpaper the person picked, as opposed to one a theme brought: the
-    /// desktop starts clean, with no widgets and no theme's look, and Undo
-    /// brings the widgets back for a slip.
+    /// A wallpaper the person picked. Only the wallpaper changes: the widgets and
+    /// their look stay (clearing them is its own action, Turn Off on a theme).
+    /// Undo, and Restore Previous Desktop later, put the old wallpaper back.
     func pickWallpaper(_ source: WallpaperSource) {
         if ui.themePreview != nil { endThemePreview(keep: false) }
         let before = desktopSnapshot
         wallpaper.set(source)
         ui.toast = Toast(message: "Wallpaper applied", symbol: "photo.artframe")
-        guard !widgets.widgets.isEmpty || settings.widgetTheme != nil || settings.widgetDesignTheme != nil else { return }
-        widgets.replaceAll(with: [])
-        settings.resetWidgetLook()
-        ui.isArrangingWidgets = false
-        ui.desktopUndo = DesktopUndo(change: .clearedForWallpaper, before: before)
+        guard wallpaper.config != before.wallpaper else { return }
+        recordChange(.wallpaper, before: before)
     }
 
     private var desktopSnapshot: DesktopSnapshot {
