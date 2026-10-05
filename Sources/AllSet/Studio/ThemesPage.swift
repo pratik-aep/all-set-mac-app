@@ -109,6 +109,8 @@ struct ThemesPage: View {
     @AppStorage("themes.sort") private var sortRaw = ThemeSort.suggested.rawValue
     @AppStorage("themes.grid") private var showsGrid = false
     @State private var query = ""
+    /// A row's "See All" where the row has no filter of its own.
+    @State private var focus: ThemeFocus?
     @Namespace private var pillSelection
 
     /// The pinned bar's height; the page's first row starts below it.
@@ -118,10 +120,10 @@ struct ThemesPage: View {
 
     private var filter: ThemeDiscovery { ThemeDiscovery(rawValue: discovery) ?? .all }
     private var sort: ThemeSort { ThemeSort(rawValue: sortRaw) ?? .suggested }
-    private var showsRails: Bool { filter == .all && !showsGrid && SearchMatch.normalize(query).isEmpty }
+    private var showsRails: Bool { filter == .all && focus == nil && !showsGrid && SearchMatch.normalize(query).isEmpty }
 
     private var results: [ThemeSet] {
-        let base = filter.sets(stats: services.themeStats)
+        let base = focus.map { $0.ids.compactMap(ThemeLibrary.set) } ?? filter.sets(stats: services.themeStats)
         var found = base
         if !SearchMatch.normalize(query).isEmpty {
             let ids = Set(base.map(\.id))
@@ -189,8 +191,8 @@ struct ThemesPage: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: DS.Space.xxs) {
                     ForEach(ThemeDiscovery.allCases) { item in
-                        ThemeFilterPill(title: item.title, isSelected: filter == item, namespace: pillSelection) {
-                            withMotion(Self.indicatorMotion) { discovery = item.rawValue }
+                        ThemeFilterPill(title: item.title, isSelected: focus == nil && filter == item, namespace: pillSelection) {
+                            withMotion(Self.indicatorMotion) { select(item) }
                         }
                     }
                 }
@@ -236,6 +238,12 @@ struct ThemesPage: View {
         .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
     }
 
+    /// Browse by `target`, dropping any row's "See All".
+    private func select(_ target: ThemeDiscovery) {
+        discovery = target.rawValue
+        focus = nil
+    }
+
     // MARK: Rails
 
     /// Each theme shows once: a row takes only what the ones above it haven't.
@@ -279,8 +287,14 @@ struct ThemesPage: View {
     @ViewBuilder
     private func rail(_ symbol: String, _ title: String, _ subtitle: String, _ sets: [ThemeSet], more: ThemeDiscovery?) -> some View {
         if !sets.isEmpty {
-            let seeAll: (@MainActor () -> Void)? = more.map { target in
-                { @MainActor in withMotion(Motion.quick) { discovery = target.rawValue } }
+            let seeAll: @MainActor () -> Void = {
+                withMotion(Motion.quick) {
+                    if let more {
+                        select(more)
+                    } else {
+                        focus = ThemeFocus(title: title, symbol: symbol, ids: sets.map(\.id))
+                    }
+                }
             }
             ThemeRail(symbol: symbol, title: title, subtitle: subtitle, sets: sets, seeAll: seeAll, services: services)
         }
@@ -299,10 +313,10 @@ struct ThemesPage: View {
             return ThemeCategory(title: item.title, kind: item.kind, count: sets.count, badge: item.badge, lead: lead)
         }
         return ThemeRow(symbol: "shippingbox", title: "Moodboards", subtitle: "Theme collections for different vibes.",
-                        items: cards, rowID: "moodboards",
-                        seeAll: { withMotion(Motion.quick) { discovery = ThemeDiscovery.artist.rawValue } }) { card, width in
+                        items: cards,
+                        seeAll: { withMotion(Motion.quick) { select(.artist) } }) { card, width in
             ThemeCategoryCard(category: card, services: services) {
-                withMotion(Motion.quick) { discovery = card.kind.rawValue }
+                withMotion(Motion.quick) { select(card.kind) }
             }
             .frame(width: width)
         }
@@ -316,7 +330,8 @@ struct ThemesPage: View {
                        message: filter == .favorites ? "Tap the heart on any theme to keep it here." : "Try another word or filter.")
         } else {
             VStack(alignment: .leading, spacing: DS.Space.m) {
-                ThemeSectionHeader(symbol: filter.symbol, title: filter.title, subtitle: "\(sets.count) themes")
+                ThemeSectionHeader(symbol: focus?.symbol ?? filter.symbol, title: focus?.title ?? filter.title,
+                                   subtitle: "\(sets.count) themes")
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: DS.Space.m)], spacing: DS.Space.m) {
                     ForEach(sets) { set in ThemeTile(set: set, services: services) }
                 }
@@ -448,8 +463,6 @@ struct ThemeRow<Item: Identifiable, Card: View>: View where Item.ID == String {
     let title: String
     var subtitle: String?
     let items: [Item]
-    /// Names the row for the scroll position; unique on the page.
-    let rowID: String
     var seeAll: (@MainActor () -> Void)?
     @ViewBuilder let card: (Item, CGFloat) -> Card
 
@@ -505,7 +518,7 @@ struct ThemeRail: View {
     let services: AppServices
 
     var body: some View {
-        ThemeRow(symbol: symbol, title: title, subtitle: subtitle, items: sets, rowID: title, seeAll: seeAll) { set, width in
+        ThemeRow(symbol: symbol, title: title, subtitle: subtitle, items: sets, seeAll: seeAll) { set, width in
             ThemeTile(set: set, services: services).frame(width: width)
         }
     }
@@ -616,35 +629,55 @@ struct ThemeTile: View {
     }
 }
 
-/// A way of browsing as a large card: its first theme behind its name, how
-/// many themes it holds, and an arrow to open it.
-struct ThemeCategoryCard: View {
+/// A way of browsing, as shown on a category card.
+struct ThemeCategory: Identifiable {
     let title: String
+    let kind: ThemeDiscovery
     let count: Int
     var badge: String?
+    /// Its first theme, shown behind the words.
     let lead: ThemeSet
+
+    var id: String { title }
+}
+
+/// Where a row's "See All" leads when the row has no filter: its themes.
+struct ThemeFocus: Equatable {
+    let title: String
+    let symbol: String
+    let ids: [String]
+}
+
+/// A way of browsing as a large card, twice as wide as it is tall: its first
+/// theme behind its name, how many themes it holds, and a round arrow.
+struct ThemeCategoryCard: View {
+    let category: ThemeCategory
     let services: AppServices
     let action: @MainActor () -> Void
 
     @State private var isHovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous)
+        let lifts = isHovering && !reduceMotion && services.ui.performance.tier < .saver
         Button(action: action) {
             Color.clear
-                .frame(height: 124)
+                .aspectRatio(2, contentMode: .fit)
                 .overlay {
-                    ThemeSnapshot(set: lead, dark: lead.isDark, services: services, fills: true)
+                    ThemeSnapshot(set: category.lead, dark: category.lead.isDark, services: services, fills: true)
                 }
                 .overlay {
                     LinearGradient(colors: [.black.opacity(0.1), .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
                 }
                 .overlay(alignment: .bottomLeading) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(title).dsText(.headline).lineLimit(1)
-                        Text("\(count) themes").dsText(.meta)
+                        Text(category.title).dsText(.headline).lineLimit(1)
+                        Text("\(category.count) themes").dsText(.meta)
                     }
                     .padding(DS.Space.s)
+                    // Keeps clear of the arrow.
+                    .padding(.trailing, 36)
                 }
                 .overlay(alignment: .bottomTrailing) {
                     Image(systemName: "chevron.right")
@@ -654,9 +687,10 @@ struct ThemeCategoryCard: View {
                         .background(Circle().fill(.black.opacity(0.42)))
                         .overlay(Circle().strokeBorder(DS.Surface.hairline))
                         .padding(DS.Space.s)
+                        .accessibilityHidden(true)
                 }
                 .overlay(alignment: .topTrailing) {
-                    if let badge {
+                    if let badge = category.badge {
                         Text(badge)
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(DS.Ink.primary)
@@ -671,12 +705,13 @@ struct ThemeCategoryCard: View {
                 .overlay(shape.strokeBorder(isHovering ? Color.white.opacity(0.3) : DS.Surface.hairline))
                 .contentShape(shape)
         }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
-        .scaleEffect(isHovering ? 1.02 : 1)
+        .buttonStyle(CardPressStyle())
+        .scaleEffect(lifts ? 1.02 : 1)
         .dsElevated()
         .onHover { hovering in withMotion(Motion.responsive) { isHovering = hovering } }
-        .accessibilityLabel("\(title), \(count) themes")
+        .accessibilityLabel("\(category.title), \(category.count) themes")
+        .accessibilityValue(category.badge ?? "")
+        .accessibilityHint("Shows these themes")
     }
 }
 
