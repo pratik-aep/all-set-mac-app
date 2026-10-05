@@ -99,7 +99,7 @@ enum ThemeSort: String, CaseIterable, Identifiable {
 }
 
 /// The theme library: complete widget worlds to browse, preview and install.
-/// A sticky filter bar over rows of themes, one row per idea, each laid out
+/// A filter bar pinned over rows of themes, one row per idea, each laid out
 /// the same way.
 struct ThemesPage: View {
     let services: AppServices
@@ -107,11 +107,18 @@ struct ThemesPage: View {
     @AppStorage("themes.setsWallpaper") private var setsWallpaper = true
     @AppStorage("themes.discovery") private var discovery = ThemeDiscovery.all.rawValue
     @AppStorage("themes.sort") private var sortRaw = ThemeSort.suggested.rawValue
+    @AppStorage("themes.grid") private var showsGrid = false
     @State private var query = ""
+    @Namespace private var pillSelection
+
+    /// The pinned bar's height; the page's first row starts below it.
+    private static let barHeight: CGFloat = 46
+    /// The selected pill sliding to its new place.
+    private static let indicatorMotion = Animation.easeInOut(duration: 0.18)
 
     private var filter: ThemeDiscovery { ThemeDiscovery(rawValue: discovery) ?? .all }
     private var sort: ThemeSort { ThemeSort(rawValue: sortRaw) ?? .suggested }
-    private var showsRails: Bool { filter == .all && SearchMatch.normalize(query).isEmpty }
+    private var showsRails: Bool { filter == .all && !showsGrid && SearchMatch.normalize(query).isEmpty }
 
     private var results: [ThemeSet] {
         let base = filter.sets(stats: services.themeStats)
@@ -132,11 +139,8 @@ struct ThemesPage: View {
     var body: some View {
         GeometryReader { geometry in
             let margin = DS.Space.pageMargin(for: geometry.size.width)
-            VStack(spacing: 0) {
-                filterBar
-                    .padding(.horizontal, margin)
-                    .padding(.top, geometry.safeAreaInsets.top)
-                    .padding(.bottom, DS.Space.s)
+            let inset = geometry.safeAreaInsets.top
+            ZStack(alignment: .top) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: DS.Space.section) {
                         VStack(alignment: .leading, spacing: DS.Space.s) {
@@ -156,10 +160,22 @@ struct ThemesPage: View {
                         }
                     }
                     .padding(.horizontal, margin)
-                    .padding(.top, DS.Space.xs)
+                    .padding(.top, inset + Self.barHeight + DS.Space.m)
                     .padding(.bottom, DS.Space.xxl)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                // Pinned: rows scroll away beneath it, under a canvas fade.
+                filterBar
+                    .padding(.horizontal, margin)
+                    .padding(.top, inset)
+                    .padding(.bottom, DS.Space.m)
+                    .background {
+                        LinearGradient(stops: [.init(color: DS.Surface.canvasLift.opacity(0.9), location: 0),
+                                               .init(color: DS.Surface.canvasLift.opacity(0.9), location: 0.65),
+                                               .init(color: DS.Surface.canvasLift.opacity(0), location: 1)],
+                                       startPoint: .top, endPoint: .bottom)
+                            .ignoresSafeArea(edges: .top)
+                    }
             }
             .ignoresSafeArea(edges: .top)
         }
@@ -167,21 +183,21 @@ struct ThemesPage: View {
 
     // MARK: Filter bar
 
-    /// Stays at the top while the page scrolls: categories, search, order.
+    /// Stays at the top while the page scrolls: categories, search, order, layout.
     private var filterBar: some View {
         HStack(spacing: DS.Space.s) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: DS.Space.xs) {
+                HStack(spacing: DS.Space.xxs) {
                     ForEach(ThemeDiscovery.allCases) { item in
-                        FilterPill(title: item.title, isSelected: filter == item) {
-                            withMotion(Motion.quick) { discovery = item.rawValue }
+                        ThemeFilterPill(title: item.title, isSelected: filter == item, namespace: pillSelection) {
+                            withMotion(Self.indicatorMotion) { discovery = item.rawValue }
                         }
                     }
                 }
                 .padding(.vertical, 2)
             }
             SearchField(text: $query, prompt: "Search themes…")
-                .frame(width: 200)
+                .frame(minWidth: 120, idealWidth: 200, maxWidth: 200)
             Menu {
                 Picker("Sort", selection: $sortRaw) {
                     ForEach(ThemeSort.allCases) { Text($0.title).tag($0.rawValue) }
@@ -196,19 +212,28 @@ struct ThemesPage: View {
                 .foregroundStyle(DS.Ink.primary)
                 .padding(.horizontal, DS.Space.s)
                 .frame(height: 34)
-                .background(Capsule().fill(DS.Surface.raised))
-                .overlay(Capsule().strokeBorder(DS.Surface.hairline))
+                .themeGlass(RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous))
             }
             .menuStyle(.button)
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
             .fixedSize()
             .accessibilityLabel("Sort themes")
+            .accessibilityValue(sort.title)
+            Button {
+                withMotion(Motion.quick) { showsGrid.toggle() }
+            } label: {
+                Image(systemName: showsGrid ? "rectangle.split.1x2" : "square.grid.2x2")
+            }
+            .buttonStyle(ThemeChromeButtonStyle())
+            .help(showsGrid ? "Show themes in rows" : "Show themes in a grid")
+            .accessibilityLabel(showsGrid ? "Show themes in rows" : "Show themes in a grid")
         }
         .padding(.horizontal, DS.Space.xs)
-        .padding(.vertical, DS.Space.xs)
-        .background(RoundedRectangle(cornerRadius: DS.Radius.panel, style: .continuous).fill(Color.black.opacity(0.28)))
-        .overlay(RoundedRectangle(cornerRadius: DS.Radius.panel, style: .continuous).strokeBorder(DS.Surface.hairline))
+        .frame(height: Self.barHeight)
+        .themeGlass(RoundedRectangle(cornerRadius: DS.Radius.panel, style: .continuous))
+        // Static: the bar never moves, so its shadow is drawn once.
+        .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
     }
 
     // MARK: Rails
@@ -226,13 +251,13 @@ struct ThemesPage: View {
         let trending = claim(Array(ThemeDiscovery.trending.sets(stats: stats).prefix(10)))
         let football = claim(ThemeDiscovery.football.sets(stats: stats))
         let music = claim(ThemeDiscovery.music.sets(stats: stats))
-        let others: [(symbol: String, title: String, sets: [ThemeSet], more: ThemeDiscovery?)] = [
-            ("sun.max", "Colour & Light", claim(ThemeLibrary.sets(in: .colourAndLight)), nil),
-            ("moon.stars", "Night", claim(ThemeLibrary.sets(in: .night)), nil),
-            ("cloud", "Dreamy", claim(ThemeLibrary.sets(in: .dreamy)), nil),
-            ("circle.dashed", "Minimal & Designer", claim(ThemeLibrary.sets(in: .designer) + ThemeLibrary.sets(in: .minimal)), nil),
-            ("chevron.left.forwardslash.chevron.right", "Developer", claim(ThemeDiscovery.developer.sets(stats: stats)), .developer),
-            ("square.grid.2x2", "More Setups", claim(ThemeLibrary.all), nil),
+        let others: [(symbol: String, title: String, subtitle: String, sets: [ThemeSet], more: ThemeDiscovery?)] = [
+            ("sun.max", "Colour & Light", "Bright, airy and full of colour.", claim(ThemeLibrary.sets(in: .colourAndLight)), nil),
+            ("moon.stars", "Night", "Deep, dark and easy on the eyes.", claim(ThemeLibrary.sets(in: .night)), nil),
+            ("cloud", "Dreamy", "Soft light and slow mornings.", claim(ThemeLibrary.sets(in: .dreamy)), nil),
+            ("circle.dashed", "Minimal & Designer", "Quiet, considered and clean.", claim(ThemeLibrary.sets(in: .designer) + ThemeLibrary.sets(in: .minimal)), nil),
+            ("chevron.left.forwardslash.chevron.right", "Developer", "Terminals, code and focus.", claim(ThemeDiscovery.developer.sets(stats: stats)), .developer),
+            ("square.grid.2x2", "More Setups", "Everything else in the library.", claim(ThemeLibrary.all), nil),
         ]
         return VStack(alignment: .leading, spacing: DS.Space.section) {
             rail("star.fill", "Featured", "Handpicked themes you'll love. Bold, beautiful and ready to apply.", featured, more: .featured)
@@ -244,7 +269,7 @@ struct ThemesPage: View {
                     rail("soccerball", "Football", "For the beautiful game.", football, more: .football)
                     rail("music.mic", "Music Icons", "Desktops with a soundtrack.", music, more: .music)
                     ForEach(Array(others.enumerated()), id: \.offset) { _, row in
-                        rail(row.symbol, row.title, "\(row.sets.count) themes", row.sets, more: row.more)
+                        rail(row.symbol, row.title, row.subtitle, row.sets, more: row.more)
                     }
                 }
             }
@@ -268,19 +293,18 @@ struct ThemesPage: View {
             ("Minimal", .minimal, nil), ("Dark", .dark, nil), ("Colorful", .colorful, nil),
             ("Aesthetic", .artist, "Most Popular"), ("Developer", .developer, nil),
         ]
-        return VStack(alignment: .leading, spacing: DS.Space.s) {
-            ThemeSectionHeader(symbol: "shippingbox", title: "Moodboards", subtitle: "Theme collections for different vibes.",
-                               seeAll: { withMotion(Motion.quick) { discovery = ThemeDiscovery.artist.rawValue } })
-            HStack(spacing: DS.Space.m) {
-                ForEach(items, id: \.title) { item in
-                    let sets = item.kind.sets(stats: stats)
-                    if let lead = sets.first {
-                        ThemeCategoryCard(title: item.title, count: sets.count, badge: item.badge, lead: lead, services: services) {
-                            withMotion(Motion.quick) { discovery = item.kind.rawValue }
-                        }
-                    }
-                }
+        let cards = items.compactMap { item -> ThemeCategory? in
+            let sets = item.kind.sets(stats: stats)
+            guard let lead = sets.first else { return nil }
+            return ThemeCategory(title: item.title, kind: item.kind, count: sets.count, badge: item.badge, lead: lead)
+        }
+        return ThemeRow(symbol: "shippingbox", title: "Moodboards", subtitle: "Theme collections for different vibes.",
+                        items: cards, rowID: "moodboards",
+                        seeAll: { withMotion(Motion.quick) { discovery = ThemeDiscovery.artist.rawValue } }) { card, width in
+            ThemeCategoryCard(category: card, services: services) {
+                withMotion(Motion.quick) { discovery = card.kind.rawValue }
             }
+            .frame(width: width)
         }
     }
 
@@ -298,6 +322,78 @@ struct ThemesPage: View {
                 }
             }
         }
+    }
+}
+
+/// A category pill in the filter bar. The selected one's white fill slides
+/// to the next on a short ease.
+private struct ThemeFilterPill: View {
+    let title: String
+    let isSelected: Bool
+    let namespace: Namespace.ID
+    let action: @MainActor () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(isSelected ? Color.black.opacity(0.88) : isHovering ? DS.Ink.primary : DS.Ink.secondary)
+                .padding(.horizontal, DS.Space.s)
+                .frame(height: 28)
+                .background {
+                    if isSelected {
+                        Capsule().fill(Color.white.opacity(0.92))
+                            .matchedGeometryEffect(id: "indicator", in: namespace)
+                    }
+                }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// Glass chrome, drawn once: a plain dark fill (no material over scrolling
+/// content), a 1 pt rim lit from the top left, and a faint highlight inside
+/// the top edge.
+private struct GlassFinish<S: InsettableShape>: ViewModifier {
+    let shape: S
+
+    func body(content: Content) -> some View {
+        content
+            .background(shape.fill(Color.black.opacity(0.28)))
+            .overlay(shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.18), .white.opacity(0.04)],
+                                                       startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1))
+            .overlay(shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.10), .clear],
+                                                       startPoint: .top, endPoint: .center), lineWidth: 1)
+                .padding(1))
+            .contentShape(shape)
+    }
+}
+
+extension View {
+    /// The Themes page's glass finish on `shape`.
+    fileprivate func themeGlass<S: InsettableShape>(_ shape: S) -> some View {
+        modifier(GlassFinish(shape: shape))
+    }
+}
+
+/// A square glass button for the page's chrome: layout toggle, row arrows.
+struct ThemeChromeButtonStyle: ButtonStyle {
+    var size: CGFloat = 34
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(DS.Ink.primary)
+            .frame(width: size, height: size)
+            .themeGlass(RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous))
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .motion(Motion.press, value: configuration.isPressed)
     }
 }
 

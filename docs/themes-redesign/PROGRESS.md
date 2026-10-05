@@ -29,3 +29,7 @@ Skipped (no toolchain): build, test run, baseline probes, baseline screenshots.
 
 ## Phase 1 — audit (done)
 `AUDIT.md` written (22 rows). Biggest gaps: no layout toggle, sliding indicator, scrolling-under bar, glass rims, atmosphere, row position tracking, narrow category cards, See All on every row.
+
+## Phase 2 — page structure and filter bar (done)
+Themes page now starts on the pinned filter bar (46 pt, glass finish, 13 icon-less pills with a sliding `matchedGeometryEffect` indicator on a 0.18 s ease, search 120–200 wide, sort menu, 34 pt square layout toggle rails ↔ grid). Rows scroll under it beneath a canvas fade. "Change the wallpaper too" + undo banner is the slim right-aligned row above the first section. `ui.mediaUnderNavigation` is never set by this page, so the nav scrim stays on. `BleedScrollPage` untouched.
+Note: this commit already references `ThemeRow` / `ThemeCategory` / new `ThemeCategoryCard(category:)` introduced in phases 3–4; nothing compiles here anyway.
