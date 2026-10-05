@@ -1,0 +1,111 @@
+name: CI
+
+# Builds the app and runs the tests on every push and pull request, on the
+# same macOS and Xcode generation the app is developed on (the code uses the
+# macOS 26 SDK). Tests that read this Mac's own sensors skip themselves here:
+# a CI virtual machine has no temperature sensors or Now Playing.
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Build (0 warnings)
+        run: |
+          set -o pipefail
+          swift build 2>&1 | tee build.log
+          count=$(grep -c "warning:" build.log || true)
+          echo "Warnings: $count"
+          # The project keeps to zero warnings, so a new one fails the build.
+          if [ "$count" -gt 0 ]; then
+            grep "warning:" build.log | sort -u | head -40
+            echo "::error::swift build reported $count warning(s); the project keeps to 0"
+            exit 1
+          fi
+
+      - name: Test
+        run: swift test
+
+  screenshots:
+    # Every main-window page at three window sizes, from the real app
+    # (DEBUG `-renderPages`), uploaded as an artifact to review UI changes
+    # without sitting at the Mac.
+    runs-on: macos-26
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build
+        run: swift build
+
+      - name: Render pages
+        run: |
+          mkdir -p screenshots
+          # Watchdog: the harness quits by itself; this only guards a hang.
+          ( sleep 900; pkill -f ".build/debug/AllSet" ) &
+          .build/debug/AllSet -renderPages "$PWD/screenshots" -AppleLanguages '(en)'
+          ls screenshots | head -80
+          test "$(ls screenshots | wc -l)" -gt 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: page-screenshots
+          path: screenshots/*.png
+          if-no-files-found: error
+          retention-days: 14
+
+      # The same pictures as small JPEGs on a `ci-screenshots` branch that only
+      # ever holds the latest set (force-pushed, one commit), for reviewers who
+      # can reach github.com but not the artifact store.
+      - name: Publish to the ci-screenshots branch
+        if: github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/publish && cd /tmp/publish
+          for f in "$GITHUB_WORKSPACE"/screenshots/*.png; do
+            sips -s format jpeg -s formatOptions 72 "$f" --out "$(basename "${f%.png}").jpg" >/dev/null
+          done
+          printf 'Screenshots of %s (%s)\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > README.md
+          git init -q -b ci-screenshots
+          git add .
+          git -c user.name="All Set CI" -c user.email="ci@users.noreply.github.com" commit -qm "Screenshots of ${GITHUB_SHA::7} on $GITHUB_REF_NAME"
+          git push -qf "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-screenshots
+
+  probe:
+    # Idle CPU per page and scroll smoothness (missed frames while scrolling
+    # the busiest pages), from the real app (DEBUG `-probe`). Numbers only:
+    # compare runs to catch a page that got heavier.
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build
+        run: swift build
+
+      - name: Probe
+        run: |
+          ( sleep 600; pkill -f ".build/debug/AllSet" ) &
+          .build/debug/AllSet -probe scroll -AppleLanguages '(en)' | tee probe.txt
+          .build/debug/AllSet -probe pages -AppleLanguages '(en)' | tee -a probe.txt
+          .build/debug/AllSet -probe galleryparts -AppleLanguages '(en)' | tee -a probe.txt
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat probe.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
