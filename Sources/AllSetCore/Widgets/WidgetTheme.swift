@@ -40,6 +40,8 @@ public struct WidgetTheme: Identifiable, Sendable {
     /// backgrounds keep them; widgets with no card stay that way.
     public func styled(_ original: WidgetInstance) -> WidgetInstance {
         var widget = original
+        widget.options.cinematicClock = false
+        widget.options.cinematicStyle = false
         widget.options.photoFilter = photoFilter
         switch widget.kind {
         case .note:

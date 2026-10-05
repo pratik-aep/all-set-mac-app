@@ -3,7 +3,17 @@ import Testing
 @testable import AllSetCore
 
 @Suite struct WallpaperLibraryTests {
-    private func video(_ id: String, _ title: String, category: Aerial.Category = .games, tags: [String] = [],
+    @Test func legacyCategoriesSurviveRemovingTheAerialCatalog() throws {
+        for raw in ["landscapes", "cities", "underwater", "space", "games", "abstract"] {
+            let data = Data("{\"id\":\"legacy\",\"title\":\"Saved wallpaper\",\"category\":\"\(raw)\",\"root\":\"disk\",\"file\":\"saved.mp4\"}".utf8)
+            let saved = try JSONDecoder().decode(LibraryVideo.self, from: data)
+            #expect(saved.category.rawValue == raw)
+            let copy = try JSONDecoder().decode(LibraryVideo.self, from: JSONEncoder().encode(saved))
+            #expect(copy.category == saved.category)
+            #expect(copy.id == saved.id && copy.file == saved.file)
+        }
+    }
+    private func video(_ id: String, _ title: String, category: WallpaperCategory = .games, tags: [String] = [],
                        width: Int = 1920, duration: Double = 10, added: String = "2026-09-27T10:00:00") -> LibraryVideo {
         LibraryVideo(id: id, title: title, category: category, tags: tags, root: "r1", file: "\(id).mp4",
                      duration: duration, width: width, height: width * 9 / 16, addedAt: added)
@@ -625,4 +635,3 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         #expect(store.libraryVideo(id) == nil)
     }
 }
-

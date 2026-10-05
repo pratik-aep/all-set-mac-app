@@ -35,7 +35,7 @@ public struct LibraryVideo: Codable, Identifiable, Hashable, Sendable {
     public var id: String
     public var title: String
     public var kind: Kind
-    public var category: Aerial.Category
+    public var category: WallpaperCategory
     public var tags: [String]
     /// Which library folder it's in (`WallpaperLibraryCatalog.roots`).
     public var root: String
@@ -74,7 +74,7 @@ public struct LibraryVideo: Codable, Identifiable, Hashable, Sendable {
         case status, statusReason, provenance, contentRating, addedAt
     }
 
-    public init(id: String, title: String, kind: Kind = .video, category: Aerial.Category, tags: [String] = [], root: String, file: String,
+    public init(id: String, title: String, kind: Kind = .video, category: WallpaperCategory, tags: [String] = [], root: String, file: String,
                 thumbnail: String? = nil, playback: String? = nil, still: String? = nil, duration: Double? = nil, width: Int? = nil,
                 height: Int? = nil, fps: Double? = nil, size: Int64? = nil, status: Status = .quarantined,
                 statusReason: String? = nil, provenance: Provenance? = nil, contentRating: String? = nil, addedAt: String? = nil) {
@@ -107,7 +107,7 @@ public struct LibraryVideo: Codable, Identifiable, Hashable, Sendable {
         id = try c.decode(String.self, forKey: .id)
         title = (try? c.decodeIfPresent(String.self, forKey: .title)) ?? "Untitled video"
         kind = (try? c.decodeIfPresent(Kind.self, forKey: .kind)) ?? .video
-        category = (try? c.decodeIfPresent(Aerial.Category.self, forKey: .category)) ?? .abstract
+        category = (try? c.decodeIfPresent(WallpaperCategory.self, forKey: .category)) ?? .abstract
         tags = (try? c.decodeIfPresent([String].self, forKey: .tags)) ?? []
         root = try c.decode(String.self, forKey: .root)
         file = try c.decode(String.self, forKey: .file)

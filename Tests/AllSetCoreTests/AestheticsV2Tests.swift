@@ -63,52 +63,6 @@ import Testing
     }
 }
 
-@Suite struct AerialCatalogTests {
-    /// A one-file tar, built by hand the way `tar` lays it out.
-    private func tar(name: String, contents: Data) -> Data {
-        var header = [UInt8](repeating: 0, count: 512)
-        func put(_ text: String, at offset: Int) {
-            for (index, byte) in text.utf8.enumerated() { header[offset + index] = byte }
-        }
-        put(name, at: 0)
-        put(String(format: "%011o", contents.count), at: 124)
-        put("ustar", at: 257)
-        var archive = Data(header)
-        archive.append(contents)
-        archive.append(Data(count: (512 - contents.count % 512) % 512))
-        archive.append(Data(count: 1024))
-        return archive
-    }
-
-    @Test func findsTheManifestInsideTheTar() {
-        let json = Data(#"{"assets": []}"#.utf8)
-        var archive = tar(name: "TVIdleScreenStrings.bundle/en.lproj/x.strings", contents: Data("hello".utf8))
-        archive.removeLast(1024)
-        archive.append(tar(name: "entries.json", contents: json))
-        #expect(AerialCatalog.file(named: "entries.json", inTar: archive) == json)
-        #expect(AerialCatalog.file(named: "missing.json", inTar: archive) == nil)
-    }
-
-    @Test func readsApplesManifest() throws {
-        let json = """
-        {"assets": [
-          {"id": "A1", "accessibilityLabel": "Seals", "categories": ["U"],
-           "url-1080-SDR": "https://sylvan.apple.com/a_2K.mov", "url-4K-SDR": "https://sylvan.apple.com/a_4K.mov"},
-          {"id": "A2", "accessibilityLabel": "London", "categories": ["C"], "url-1080-SDR": "https://sylvan.apple.com/b_2K.mov"},
-          {"id": "A3", "accessibilityLabel": "No video"}
-        ],
-        "categories": [{"id": "U", "localizedNameKey": "AerialCategoryUnderwater"}, {"id": "C", "localizedNameKey": "AerialCategoryCities"}]}
-        """
-        let aerials = try AerialCatalog.decode(Data(json.utf8))
-        #expect(aerials.map(\.id) == ["A1", "A2"])
-        #expect(aerials[0].category == .underwater && aerials[1].category == .cities)
-        #expect(aerials[0].url(.uhd).absoluteString.hasSuffix("a_4K.mov"))
-        // No 4K version: the HD one stands in.
-        #expect(aerials[1].url(.uhd) == aerials[1].hdURL)
-        #expect(aerials[0].fileName(.hd) == "aerial-A1-hd.mov")
-    }
-}
-
 @Suite struct WidgetMathTests {
     @Test func moonPhasesMatchKnownDates() throws {
         let formatter = ISO8601DateFormatter()

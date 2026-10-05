@@ -328,7 +328,7 @@ public enum WidgetKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .label, .eightBall: [.small, .medium]
         case .pitch: [.medium, .large, .extraLarge]
         // Designed for the extra-large size too.
-        case .weather, .system, .github: [.small, .medium, .large, .extraLarge]
+        case .clock, .weather, .system, .github: [.small, .medium, .large, .extraLarge]
         default: [.small, .medium, .large]
         }
     }
@@ -726,6 +726,9 @@ public struct WidgetOptions: Codable, Equatable, Sendable {
     public var clockFace: ClockFace = .digital
     public var use24Hour = false
     public var showSeconds = false
+    /// The scenic clock offered by the cinematic Widgets studio.
+    public var cinematicClock = false
+    public var cinematicStyle = false
     /// Nil for the Mac's own time zone.
     public var timeZoneID: String?
     public var location: WeatherLocation?
@@ -843,6 +846,8 @@ public struct WidgetOptions: Codable, Equatable, Sendable {
         clockFace = (try? container.decodeIfPresent(ClockFace.self, forKey: .clockFace)) ?? defaults.clockFace
         use24Hour = (try? container.decodeIfPresent(Bool.self, forKey: .use24Hour)) ?? defaults.use24Hour
         showSeconds = (try? container.decodeIfPresent(Bool.self, forKey: .showSeconds)) ?? defaults.showSeconds
+        cinematicClock = (try? container.decodeIfPresent(Bool.self, forKey: .cinematicClock)) ?? defaults.cinematicClock
+        cinematicStyle = (try? container.decodeIfPresent(Bool.self, forKey: .cinematicStyle)) ?? defaults.cinematicStyle
         timeZoneID = try? container.decodeIfPresent(String.self, forKey: .timeZoneID)
         location = try? container.decodeIfPresent(WeatherLocation.self, forKey: .location)
         showEvents = (try? container.decodeIfPresent(Bool.self, forKey: .showEvents)) ?? defaults.showEvents
