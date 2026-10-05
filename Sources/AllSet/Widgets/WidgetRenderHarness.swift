@@ -634,8 +634,21 @@ extension WidgetRenderHarness {
     /// Low Power Mode, whatever this Mac is set to. `-pageScroll 90` saves
     /// each page a second time, scrolled that far (`…-scrolled.png`), to see
     /// what passes under the navigation.
-    static func renderPages(to folder: URL, services: AppServices) async {
+    /// Returns the pictures it meant to save but couldn't (empty when all were
+    /// saved), and lists them in `render-report.txt`, so CI can fail on a partial set.
+    @discardableResult
+    static func renderPages(to folder: URL, services: AppServices) async -> [String] {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var expected: [String] = []
+        var missing: [String] = []
+        func save(_ image: CGImage?, as name: String) {
+            expected.append(name)
+            guard let image, let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]),
+                  (try? png.write(to: folder.appendingPathComponent(name))) != nil else {
+                missing.append(name)
+                return
+            }
+        }
         if UserDefaults.standard.bool(forKey: "reduceMotion") { services.ui.performance.reducesMotion = true }
         if UserDefaults.standard.bool(forKey: "lowPower") { services.ui.performance.isLowPower = true }
         let scrolled = UserDefaults.standard.double(forKey: "pageScroll")
@@ -706,25 +719,23 @@ extension WidgetRenderHarness {
                 let settle = name == "themes" ? 8000
                     : ["theme-seven", "gallery", "gallery-themes", "wallpaper"].contains(name) ? 6000 : 1800
                 try? await Task.sleep(for: .milliseconds(settle))
-                if let image = captureOwnWindow(window),
-                   let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
-                    try? png.write(to: folder.appendingPathComponent("\(name)-\(Int(size.width))x\(Int(size.height)).png"))
-                }
+                save(captureOwnWindow(window), as: "\(name)-\(Int(size.width))x\(Int(size.height)).png")
                 if scrolled > 0, let scroll = PageCPUProbe.tallestScrollView(in: window.contentView) {
                     let clip = scroll.contentView, top = clip.bounds.origin
                     clip.scroll(to: NSPoint(x: top.x, y: top.y + scrolled))
                     scroll.reflectScrolledClipView(clip)
                     try? await Task.sleep(for: .milliseconds(600))
-                    if let image = captureOwnWindow(window),
-                       let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
-                        try? png.write(to: folder.appendingPathComponent("\(name)-\(Int(size.width))x\(Int(size.height))-scrolled.png"))
-                    }
+                    save(captureOwnWindow(window), as: "\(name)-\(Int(size.width))x\(Int(size.height))-scrolled.png")
                     clip.scroll(to: top)
                     scroll.reflectScrolledClipView(clip)
                 }
             }
         }
         window.close()
+        let report = "expected \(expected.count), saved \(expected.count - missing.count)\n" + missing.map { "missing \($0)\n" }.joined()
+        try? report.write(to: folder.appendingPathComponent("render-report.txt"), atomically: true, encoding: .utf8)
+        print(report, terminator: "")
+        return missing
     }
 }
 

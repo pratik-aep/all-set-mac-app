@@ -25,6 +25,9 @@ final class MixerController {
     /// Every app with sound set up, by name.
     private(set) var apps: [AudioApp] = []
     private(set) var permission = AudioCapturePermission.Status.unknown
+    /// Whether to route app audio: granted, or this macOS can't say (then
+    /// macOS itself asks on first use).
+    var canRoute: Bool { permission == .authorized || permission == .unverifiable }
     /// Apps whose sound couldn't be routed, and why.
     private(set) var failures: [String: String] = [:]
 
@@ -131,13 +134,13 @@ final class MixerController {
 
     /// Changed volumes need permission that hasn't been given.
     var needsPermission: Bool {
-        permission != .authorized && hasChanges
+        !canRoute && hasChanges
     }
 
     private func update(_ volume: AppVolume, for id: String) {
         store.set(volume, for: id)
         gains[id]?.gain = volume.gain
-        if !volume.isUnchanged, permission != .authorized {
+        if !volume.isUnchanged, !canRoute {
             askPermission()
         }
         route()
@@ -261,7 +264,7 @@ final class MixerController {
     private func route() {
         guard let outputUID = VolumeMonitor.uid(of: output.deviceID) else { return }
         var requests: [AppAudioRouter.Request] = []
-        if permission == .authorized {
+        if canRoute {
             for app in apps where !app.processes.isEmpty {
                 let volume = store.volume(for: app.id)
                 guard !volume.isUnchanged else { continue }

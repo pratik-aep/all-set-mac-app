@@ -59,9 +59,11 @@ jobs:
           mkdir -p screenshots
           # Watchdog: the harness quits by itself; this only guards a hang.
           ( sleep 900; pkill -f ".build/debug/AllSet" ) &
+          # Exits non-zero, and lists what's missing in render-report.txt, unless every
+          # page was saved at every size: a partial set fails rather than passes.
           .build/debug/AllSet -renderPages "$PWD/screenshots" -AppleLanguages '(en)'
+          cat screenshots/render-report.txt
           ls screenshots | head -80
-          test "$(ls screenshots | wc -l)" -gt 0
 
       - uses: actions/upload-artifact@v4
         with:
@@ -102,6 +104,7 @@ jobs:
 
       - name: Probe
         run: |
+          set -o pipefail  # a probe that fails fails the step, not hidden behind tee
           ( sleep 600; pkill -f ".build/debug/AllSet" ) &
           .build/debug/AllSet -probe scroll -AppleLanguages '(en)' | tee probe.txt
           .build/debug/AllSet -probe pages -AppleLanguages '(en)' | tee -a probe.txt
@@ -109,3 +112,20 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           cat probe.txt >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  server-scripts:
+    # The wallpaper server scripts against a throwaway Postgres: deletes that
+    # can't remove another wallpaper's files or leave files and database
+    # disagreeing, the catalog's sharing rule, and catalog sync keeping keys.
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Postgres
+        run: brew install postgresql@17
+      - name: Test
+        run: |
+          set -o pipefail
+          /usr/bin/python3 -m unittest -v scripts/cloud/test_sync_catalog.py scripts/cloud/test_delete_service.py scripts/cloud/test_catalog_service.py 2>&1 | tee server-tests.log
+          # Skipped tests (no Postgres) would pass silently: require that none were.
+          ! grep -q "skipped" server-tests.log

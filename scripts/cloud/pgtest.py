@@ -7,7 +7,8 @@ import subprocess
 import tempfile
 
 BIN = "/opt/homebrew/opt/postgresql@17/bin"
-PSQL = "/opt/homebrew/bin/psql" if os.path.exists("/opt/homebrew/bin/psql") else "psql"
+# The same version as the server binaries (postgresql@17 is keg-only, so not on PATH in CI).
+PSQL = f"{BIN}/psql" if os.path.exists(f"{BIN}/psql") else "psql"
 HERE = os.path.dirname(os.path.abspath(__file__))
 AVAILABLE = os.path.exists(os.path.join(BIN, "initdb"))
 

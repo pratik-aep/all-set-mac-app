@@ -150,8 +150,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.setActivationPolicy(.accessory)
             services.start()
             Task {
-                await WidgetRenderHarness.renderPages(to: URL(fileURLWithPath: folder), services: services)
-                exit(0)
+                let missing = await WidgetRenderHarness.renderPages(to: URL(fileURLWithPath: folder), services: services)
+                exit(missing.isEmpty ? 0 : 1)
             }
             return
         }

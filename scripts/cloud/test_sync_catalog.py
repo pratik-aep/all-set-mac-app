@@ -7,52 +7,32 @@ import contextlib
 import io
 import json
 import os
-import shutil
-import socket
-import subprocess
 import sys
-import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import sync_catalog  # noqa: E402
 
-BIN = "/opt/homebrew/opt/postgresql@17/bin"
+import pgtest  # noqa: E402
 
 
-def free_port():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
-@unittest.skipUnless(os.path.exists(os.path.join(BIN, "initdb")), "needs a local Postgres")
+@unittest.skipUnless(pgtest.AVAILABLE, "needs a local Postgres")
 class SyncCatalogTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.tmp = tempfile.mkdtemp(prefix="allset-sync-test-")
-        cls.data = os.path.join(cls.tmp, "pg")
-        cls.port = free_port()
-        subprocess.run([f"{BIN}/initdb", "-D", cls.data, "-U", "allset", "--auth=trust"], check=True, capture_output=True)
-        subprocess.run([f"{BIN}/pg_ctl", "-D", cls.data, "-o", f"-p {cls.port} -c listen_addresses=127.0.0.1 -k {cls.tmp}",
-                        "-l", os.path.join(cls.tmp, "log"), "-w", "start"], check=True, capture_output=True)
-        cls.url = f"postgres://allset@127.0.0.1:{cls.port}/postgres"
-        with open(os.path.join(HERE, "schema.sql")) as schema:
-            cls.psql(schema.read())
+        cls.pg = pgtest.Postgres()
+        cls.url = cls.pg.url
+        cls.tmp = cls.pg.tmp
+        sync_catalog.PSQL = pgtest.PSQL
 
     @classmethod
     def tearDownClass(cls):
-        subprocess.run([f"{BIN}/pg_ctl", "-D", cls.data, "-m", "immediate", "stop"], capture_output=True)
-        shutil.rmtree(cls.tmp, ignore_errors=True)
+        cls.pg.stop()
 
     @classmethod
     def psql(cls, sql):
-        out = subprocess.run([sync_catalog.PSQL, cls.url, "-v", "ON_ERROR_STOP=1", "-At", "-c", sql],
-                             capture_output=True, text=True)
-        if out.returncode != 0:
-            raise AssertionError(out.stderr)
-        return out.stdout.strip()
+        return cls.pg.sql(sql)
 
     def sync(self, items):
         library = os.path.join(self.tmp, "library")
