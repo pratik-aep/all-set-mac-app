@@ -1,6 +1,7 @@
 #if DEBUG
 import AllSetCore
 import AppKit
+import OSLog
 import SwiftUI
 
 extension PageCPUProbe {
@@ -25,7 +26,7 @@ extension PageCPUProbe {
         let controller = NSHostingController(rootView: ScrollView {
             VStack(spacing: 0) {
                 ThemesHero(items: items, services: services, state: state, atmosphere: atmosphere,
-                           discovery: .constant(ThemeDiscovery.all.rawValue), query: .constant(""), layout: layout)
+                           layout: layout)
                 Color.clear.frame(height: 3000)
             }
         }
@@ -167,6 +168,40 @@ extension PageCPUProbe {
         let since = ThemePreviewCache.softenings.withLock { $0 } - blurred
         check("nothing was blurred while the carousel moved", since == 0 && atmosphere.current?.id == items[state.index].id,
               "\(since) blurred, atmosphere on \(atmosphere.current?.name ?? "nothing"), carousel on \(items[state.index].name)")
+        // A new preview must not invalidate another card's unchanged image.
+        // Purging must still notify that card and allow it to request again.
+        if items.count >= 2 {
+            let isolated = ThemePreviewCache(photos: services.themePhotos)
+            let first = items[0], second = items[1]
+            func waitFor(_ set: ThemeSet) async -> Bool {
+                for _ in 0..<100 {
+                    if isolated.image(for: set, dark: set.isDark) != nil { return true }
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+                return false
+            }
+            isolated.request(first, dark: first.isDark, services: services)
+            let firstReady = await waitFor(first)
+            let changed = OSAllocatedUnfairLock(initialState: false)
+            withObservationTracking {
+                _ = isolated.image(for: first, dark: first.isDark)
+            } onChange: {
+                changed.withLock { $0 = true }
+            }
+            isolated.request(second, dark: second.isDark, services: services)
+            let secondReady = await waitFor(second)
+            check("loading a different preview leaves the observed card alone",
+                  firstReady && secondReady && !changed.withLock { $0 }, "both loaded; observer changed: \(changed.withLock { $0 })")
+            isolated.cancel(first, dark: first.isDark)
+            isolated.cancel(second, dark: second.isDark)
+            isolated.purge()
+            check("purging notifies the observed preview", changed.withLock { $0 }, "observer notified: \(changed.withLock { $0 })")
+            isolated.request(first, dark: first.isDark, services: services)
+            let reloaded = await waitFor(first)
+            check("a purged preview loads again", reloaded, "reloaded: \(reloaded)")
+            isolated.cancel(first, dark: first.isDark)
+            isolated.purge()
+        }
         print("carousel \(failures == 0 ? "all checks passed" : "\(failures) check(s) FAILED")")
     }
 

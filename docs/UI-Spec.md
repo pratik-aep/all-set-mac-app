@@ -1,6 +1,6 @@
 # All Set — Complete UI Specification
 
-Every number below was read from the source or measured on a 1400 × 900 render of the current build (branch `perf-audit`, 2026-10-05). All sizes are points (pt). Where a number is derived (a formula), the formula is shown so it can be re-checked. "Target" marks what the Themes redesign still has to build; everything else is **as built today**.
+Every number below was read from the source or measured on a 1400 × 900 render of the current build (branch `perf-audit`, 2026-10-05). All sizes are points (pt). Where a number is derived (a formula), the formula is shown so it can be re-checked. Section 5 was updated for the approved cinematic Themes design later on 2026-10-05; other measurements describe the earlier checkpoint.
 
 Companion to `All-Set-Design-Overview.md` (the shorter, structural version). Where the two disagree, this one is newer.
 
@@ -154,129 +154,42 @@ Each section remembers the last page you were on. Detail pages (a theme set, a w
 
 ---
 
-## 5. Themes page (the redesigned page) — as built, 1400 × 900
+## 5. Themes page — approved cinematic design, 2026-10-05
 
-Reference image: `docs/reference/concept2-reference.png`. Review command: `./scripts/review-hero.sh` (writes `build/review/reference-vs-now.png`).
+Reference: `design/themes-concepts/2026-10-05-cinematic-reference/themes-preview.png`. Native captures: `build/review/selected-design/`, including the actual signed Dock app. Implementation: `Documentation/Reports/2026-10-05-themes-cinematic-design.md`; latest toolbar/cache refinement and measurements: `Documentation/Reports/2026-10-05-themes-toolbar-smoothness.md`. Other sections retain their earlier measurements unless stated otherwise.
 
-### 5.1 Vertical stack
-```
-  0 ─ window top
- 33 ─ (title-bar strip in the render harness; the nav cluster itself is 100 pt)
-133 ─ hero panel top  (= BleedLayout.topInset)
-        16 pt padding
-        carousel area 505 pt  (cards centred, ≈18 pt above and below the selected card)
-        12 pt gap
-        category rail 34 pt
-        16 pt padding
-716 ─ hero panel bottom   (panel height 583 = 0.76 × 767, clamp 350…640)
-        content climbs 48 pt (overlap) onto the hero, then a 16 pt gap
-        "Change the wallpaper too" switch row
- ~800 ─ Featured rail title
-```
-Viewport used: 1400 × 767 (900 − 133 inset). Panel height rule: `clamp(0.76 × viewport height, 350, 640)`; the hero takes most of the first screen and leaves the first rail's title in sight.
+### Structure
 
-Panel width = viewport width − 2 × margin (32) = **1336**; measured **1319** in the render because the Themes/Wallpaper pages reserve a 17 pt scroll-bar track in the harness (macOS "show scroll bars: always"). On a Mac using overlay scrollers expect 1336. Left edge is 32 pt in both cases.
+The existing navigation capsules stay above a fixed 48 pt `ThemesFilterBar`, with one 12 pt-radius surface and a faint 8%-white rim. Inactive categories are plain 12 pt medium labels with 4 pt spacing; the selected label has a 30 pt-high white pill. The rail has no separate capsule or outline. Search is integrated into the same surface after an 18 pt divider, 164 pt wide below 1000 pt of available width and 190 pt otherwise. The focused search subtly strengthens the toolbar border.
 
-### 5.2 Hero panel
-| Property | Value |
-|---|---|
-| Fill | white 4% (flat, no material) |
-| Radius | 28 continuous |
-| Border | 1 pt hairline (white 8%) |
-| Inner padding | 16 top and bottom; carousel and rail 16 from the sides |
-| Search field | top-right, 16 from top and right, width min(240, 25% of panel) = 240, height 34, prompt "Search themes…" |
-| Indicator | top-left, 16 in: "n / 8" (meta 11) + 12 gap + 120 × 3 track (hairline) with a 15 pt thumb (120 ÷ 8) travelling the track |
-| Arrows | 36 pt floating buttons, vertically centred, 16 from the carousel's left/right edges, always visible |
+Categories scroll horizontally when needed, with a 16 pt edge fade. Below 1220 pt available width an accessible All theme categories menu gives direct access to every filter. External category changes also bring the selected label into view. Reduced Motion uses a fade.
 
-### 5.3 Carousel geometry (card width W = 351.6, height H = 468.8)
-Cards are always 3:4. Selected card height = `min(panel − 102, 0.9 × (panel − 62))` → 90% of the room above the rail. Loops endlessly; reach 3 cards a side, 8 themes.
+The toolbar stays outside the vertical scroll view. The content uses one eager vertical stack with lazy horizontal rails; there is no pinned-header LazyVStack. Category changes and entering/leaving search reset the scroll container to its result start, while each typed character preserves the search field and its focus.
 
-| Distance from centre | 0 | 1 | 2 | 3 |
-|---|---|---|---|---|
-| Scale | 1.00 | 0.85 | 0.70 | 0.60 |
-| Card size (pt) | 351.6 × 468.8 | 298.9 × 398.5 | 246.1 × 328.2 | 211.0 × 281.3 |
-| Dim (black overlay) | 0 | 0.20 | 0.50 | 0.68 |
-| Tilt about vertical axis | 0° | 14° | 20° | 24° (cap 26°) |
-| Drop (dip) | 0 | 8 | 16 | 24 |
-| Centre offset from middle | 0 | 311.8 | 563.5 | 766.5 |
-| Step to next | 311.8 | 251.6 | 203.0 | — |
-| Opacity | 1 | 1 | 1 | 1, fades 1 → 0 between 3 and 3.5 |
+All with empty search shows the carousel, desktop status banners, Trending themes, Moodboards shortcuts and deferred collection shelves. Other selections and search show a results count, include-wallpaper switch and matching-theme grid. Search respects the selected collection.
 
-Perspective 0.5. Neighbours tuck 9 pt behind the card in front (step = half-widths − 9). Reduce Motion: no tilt, short dissolve instead of slide.
+### Spotlight geometry
 
-Input: arrow keys, trackpad swipe (axis-locked, vertical scroll passes to the page), wheel notch = one card, drag (4 pt minimum; lands within ±2 cards of the start), click a neighbour = go to it, click the centre = open the theme.
+`ThemeCarouselLayout` is the source of these formulas. Given viewport W×H and horizontal margin M:
 
-Timing: snap smooth 0.45 s (0.35 s Low Power); atmosphere crossfade easeInOut 0.70 s (Reduce Motion / Low Power: 0.15 s); words/badge fade 0.18 s; card edge-in third neighbour delayed 80 ms.
+- Panel width = max(W − 2M, 0).
+- Target height = min(max(0.66H, 290), 540).
+- Card height = max(min(target − 128, panel width × 0.34 ÷ (1136/768)), 0).
+- Center aspect = 1136/768; neighbour aspect = 3/4. During movement the aspect interpolates by max(1 − |distance|, 0).
+- Panel height = card height + 128 pt; two neighbours per side, 12 pt gaps, computed using turned/scaled half widths to avoid overlap.
+- Depth at distance d: scale = max(1 − 0.09min(|d|,3),0.73); shade = min(0.1|d|,0.35); tilt = ±min(12|d|,20) degrees; vertical dip = 8min(|d|,3) pt. Reduce Motion removes tilt and uses a short dissolve.
 
-### 5.4 Card (`ThemePreviewCard`)
-| Part | Spec |
-|---|---|
-| Picture | Full-bleed, pre-rendered 552 × 736 canvas: wallpaper + title word + hero widget + flanking small widgets |
-| Radius | 20 (panel) |
-| Bottom scrim | clear until 38%, black 50% at 70%, black 74% at 100% |
-| Edge light | 1.5 pt in the theme's accent at 75% (selected); 1 pt at 30% (others) |
-| Selected words (bottom-left, 16 in) | Name 32 bold, tracking −0.5, min scale 0.6 · count 12.5 medium secondary · 4 gap · actions row 8 above |
-| Actions | "Apply Theme" prominent pill (34 high) + info (34 circle) + heart (34 circle), 8 gap; narrow cards drop info, then shorten to "Apply"; becomes "Turn Off" when active |
-| Side words (bottom-left, 16 in) | Name 16 semibold + "n widgets" 11.5 medium |
-| Compact (< 330 pt tall) | 12 in; name 24 / 14; no count, no badge |
-| Badge | top-right, 12 in; "Featured" / "On your desktop", 11 semibold white, pad 10 × 5, black 42% + accent 30%, white 24% ring, capsule |
-| Halo pictures | Shadow halo: spread 18, black 30% (+25% × glow), y 8. Glow halo: spread 36, accent at 55% × glow. Both pre-rendered 9-slice images, opacity only. |
+The center displays a cached complete desktop. Neighbours display cached curated portraits; text overlays show name and widget count. Every card has an accessible favorite control. The selected card has a 1.5 pt cyan-to-secondary-accent border and a Featured/On your desktop badge. Card-only Apply buttons are removed.
 
-### 5.5 Category rail
-One horizontally scrolling capsule, height 34: 13 entries (All, Featured, Trending, New, Moodboards, Football, Music Icons, Popular, Minimal, Dark, Colorful, Developer, Favorites). Fill black 28% + hairline ring (no material). Strip padding 3; pill: horizontal 12, vertical 6, 12 medium, gap 2; selected = white 95% capsule with black 85% text, slides on a 0.15 s ease. Target (H4): separate compact pills, still one scrolling row, plain fills.
+Static elliptical floor pools and a faint flipped snapshot add reflected light. They do not animate blur or continuously rebuild widgets. Cached atmosphere follows the chosen theme. Snapshot consumers retain their request until task cancellation; changing variants releases the old request. Each cached preview is separately observable, so an unrelated image arrival does not invalidate the gallery. The hero prepares only its two adjacent desktop previews ahead of movement. The carousel takes keyboard focus after interaction, preserving typing when search is cleared.
 
-### 5.6 Atmosphere (behind the hero, fades into the window backdrop by 900 pt down)
-Static layers only; the only animation is an opacity crossfade between two slots (A/B).
+### Actions and browsing
 
-| Layer (bottom → top) | Spec |
-|---|---|
-| Base | canvas-lift → canvas @70% → clear @100% |
-| Wallpaper haze | The theme's wallpaper at 384 × 240, saturation ×1.6, Gaussian blur σ = 384 ÷ 22 ≈ 17.5, bottom alpha fade, stretched to the frame; opacity 0.24 (0.09 if the wallpaper has no colour) |
-| Primary pool | Elliptical gradient on the selected card's centre; stops 0.38 → 0.17 @0.38 → 0.05 @0.72 → clear, × glow intensity; size 1.3 × panel width by min(1.7 × panel height, room to the frame bottom) |
-| Secondary haze | Elliptical, 0.17 × glow, 0.8 × panel width by 0.9 × panel height, offset +0.32 W, +0.30 H from the focus; white secondaries are blended 50% toward the primary |
-| Vignette | 256 × 160 image, black up to 45% at the edges, fading out toward the bottom |
-| Top darkening | black 30% → clear over 60% of the focus height, for the nav's text |
+Seven pagination dots select the nearest carousel slot. The selected name is 26 pt, or 22 pt for card heights below 230. Apply/Turn Off Theme, Preview on Desktop, Favorite and the options menu sit below it. Options contain Include wallpaper and View theme details. Arrows, continuous drags, horizontal wheel input and arrow keys loop through the real library.
 
-Focus point: x = page centre, y = inset + 16 + (panel − 16 − 62) ÷ 2 = 133 + 268.5 ≈ 401.
+Trending uses complete cached desktop collages with names/counts and always visible hearts. Rail cards use five columns at available widths ≥1200, four at ≥900, otherwise three, with a minimum card width of 190. Horizontal lazy rows have arrows and See all. Moodboards has five 92 pt-high shortcuts: Minimal, Dark, Colorful, Moodboards and Developer, each showing actual counts.
 
-The atmosphere is drawn twice with the same numbers: behind the hero (scrolls) and once more cut to the nav's height and held still under it, so scrolled content never shows through the nav.
-
-### 5.7 Theme accents (`ThemeAccent`: primary, secondary, glow 0.6–1.0)
-Fallback order: curated accent → the theme's own accent → wallpaper dominant colour → warm gold (#D9B38C / #8A6A3A, glow 0.8). Colourless values are skipped (needs value > 0.3 and saturation ≥ 0.18).
-
-| Theme | Primary | Secondary | Glow |
-|---|---|---|---|
-| Seven | #FF2D4A | #FFB347 | 1.0 |
-| Red Seven | #FF3B30 | #FFD166 | 1.0 |
-| Americana | #FF5E8A | #FF9A3C | 0.85 |
-| Albiceleste | #4CC3FF | #FFFFFF | 0.9 |
-| Slime Green | #7CFF3A | #1FD98A | 0.8 |
-| Peach Fizz | #FF9E7A | #FFD0B0 | 0.65 |
-| Matcha Morning | #A8C686 | #E8E2C8 | 0.6 |
-| Leopard Noir | #D9A441 | #8A6A3A | 0.8 |
-| Angelic | #CFE3FF | #FFFFFF | 0.7 |
-| City Noir | #9FBBEA | #F2B66D | 0.85 |
-| Hypnotic | #B9A2F5 | #FFFFFF | 0.85 |
-| After Dark | #E3CF9A | #8A7A5A | 0.8 |
-
-Look-derived accents are brightened so the brightest channel reaches 0.94.
-
-### 5.8 Below the hero
-- "Change the wallpaper too": right-aligned switch row, 12 above the first rail (section gap 40).
-- Rails: Featured (the 8 carousel themes), Trending, then shelves that only show themes not already shown above; a category choice reorders the rails (chosen first); search replaces them with a grid (adaptive, min 280 wide, 16 gap, 24 row gap).
-- Rail card: 300 wide, picture 1136:768 (≈ 300 × 203), radius 20 + hairline, below it name (headline 14) + "n widgets" (meta) on one line and a one-line inspiration (meta); hover scale 1.03 + shadow halo 35%; favourite heart (30 circle) appears on hover; press scale 0.98.
-- Rail layout: title block (20 + 11), 12 gap, row with 16 between cards, 8 vertical pad.
-
-### 5.9 Not yet built (targets from the Reference-Match v2 prompt)
-| Phase | Still to do, with the numbers given |
-|---|---|
-| H3 lighting | Selected card: gradient edge, coloured + ground shadow, **neon edge strip** (2–3 pt vertical bar on the left edge, ~45% of height), **ground glow** ellipse (~60% of card width, 40 pt tall, 30–35%), **sheen** (white 10% → 0, diagonal, upper-left). Neighbours: own accent rim ~35% fading with distance, faint accent tint rising from the bottom. Glow never over text. |
-| H4 glass | Fill white 4–6%, 1 pt gradient border (top-left white 18% → bottom-right 4%), inner top highlight 1 pt white 10%, radius 28–32, panel shadow black 40% blur 40 y 24; applies to hero panel, nav, rail, search, arrows. One grain tile (128 × 128) at page level, 3.5–5%. |
-| H5 composition | ≥ 1200 pt wide: 1 centre + 2 neighbours a side; neighbour **gap 8–12 pt** (not tucked), overlap ≤ ~12%; neighbours dim ~0.1 / 0.3; stronger turn on the outer cards; cards cut to title + one centre widget + two small ones (hand-picked for all 8, contact sheet to approve); watermark-free wallpapers for Americana and Albiceleste. |
-| H6 motion | Light follows the carousel (opacity 240–400 ms), background crossfade 600–800 ms, Instruments profile of page switch and carousel. |
-| H7 | Final match at 1400 × 900, one wide, one narrow. |
-
----
+Midnight Aurora is a real 12-widget theme backed by an original offline JPEG. Its complete desktop anchors the selected composition. Existing themes and user-local art remain supported.
 
 ## 6. Widget Gallery page (Desktop › Widgets)
 
@@ -380,7 +293,7 @@ Categories (gallery entries): Time 9, Productivity 9, System 12, Developer 8, Li
 |---|---|
 | Tests | 313 passing in 85 suites, 0 warnings |
 | Carousel probe | 8 of 8 backdrops ready before the page is seen, **0 blurs while the carousel moves**, atmosphere in sync, routing / landing / looping checks pass in both motion modes |
-| Themes scroll CPU | **42–43%** now vs **37–38%** on the old page (HEAD); p95 frame 19.2–19.7 ms vs 19.2–19.4 ms; 0 hitches in both |
+| Themes scroll CPU (latest toolbar refinement) | Mean **43.1%** vs 47.2% before in interleaved runs; p95 18.2–20.2 ms vs 20.6–25.1; 0 >33 ms hitches in both. See `2026-10-05-themes-toolbar-smoothness.md` for shared-system limits. |
 | Themes page switch (main-thread hold, warm) | **96–137 ms** now vs **84–123 ms** old |
 | Earlier phases (before the atmosphere) | scroll ≈ equal; switch ≈ 113 vs ≈ 95 ms |
 

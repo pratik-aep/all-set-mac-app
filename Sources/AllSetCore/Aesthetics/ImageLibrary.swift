@@ -12,6 +12,8 @@ public enum ImageSource: Codable, Hashable, Sendable {
     case web(WebPhoto)
     /// A picture the user imported, stored in All Set's own folder by file name.
     case file(String)
+    /// Original artwork shipped with the app; available without a download.
+    case bundled(String)
 }
 
 /// An online photo: from Picsum (Unsplash photos, free to use) when `provider`
@@ -396,6 +398,9 @@ public final class ImageLibrary {
             return nil
         case .file(let name):
             image = await Self.decoded(userDirectory.appendingPathComponent(name))
+        case .bundled(let name):
+            guard let url = Self.bundledURL(name) else { return nil }
+            image = await Self.decoded(url)
         case .web(let photo):
             let file = cacheDirectory.appendingPathComponent(photo.cacheName)
             if let cached = await Self.decoded(file) {
@@ -459,8 +464,17 @@ public final class ImageLibrary {
         switch source {
         case .art: nil
         case .file(let name): userDirectory.appendingPathComponent(name)
+        case .bundled(let name): Self.bundledURL(name)
         case .web(let photo): cacheDirectory.appendingPathComponent(photo.cacheName)
         }
+    }
+
+    private static func bundledURL(_ name: String) -> URL? {
+        // App bundles put art in Resources; SwiftPM tools use the resource bundle.
+        if Bundle.main.bundleURL.pathExtension == "app" {
+            return Bundle.main.url(forResource: name, withExtension: nil, subdirectory: "ThemeArt")
+        }
+        return Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "ThemeArt")
     }
 
     private nonisolated static func writeScaledJPEG(from data: Data, to destination: URL, maxPixels: Int) -> Bool {

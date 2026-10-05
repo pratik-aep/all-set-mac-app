@@ -242,7 +242,7 @@ struct PhotoContent: View {
             switch source {
             case .art(let piece):
                 ArtView(piece: piece, animated: animated)
-            case .web, .file:
+            case .web, .file, .bundled:
                 if let image {
                     // Filling inside an overlay keeps the photo's own (larger)
                     // size out of layout; otherwise it spills past the widget.

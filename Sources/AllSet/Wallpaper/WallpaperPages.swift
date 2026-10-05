@@ -196,6 +196,8 @@ private struct WallpaperHero: View {
             return (photo.title ?? "Photo", ["Photo by \(photo.author)", photo.license ?? ""])
         case .photo(.file):
             return ("Your photo", ["With gentle motion"])
+        case .photo(.bundled):
+            return ("Midnight Aurora", ["Original artwork", "Available offline"])
         case .photo(.art(let piece)):
             return (piece.style.title, ["Still art", "\(piece.palette.title) palette"])
         case .video(let name):

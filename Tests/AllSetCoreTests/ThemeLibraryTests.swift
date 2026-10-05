@@ -52,6 +52,21 @@ import Testing
         #expect(ThemeLibrary.search("zzqx").isEmpty)
     }
 
+    @Test @MainActor func featuredAuroraHasOfflineArtAndACompleteKit() async throws {
+        let set = try #require(ThemeLibrary.set("setup.midnightAurora"))
+        #expect(ThemeLibrary.search("aurora").first?.id == set.id)
+        #expect(set.collections.contains(.featured))
+        #expect(set.includedWidgets.count == 12)
+        let source = ImageSource.bundled("midnight-aurora.jpg")
+        let data = try JSONEncoder().encode(source)
+        #expect(try JSONDecoder().decode(ImageSource.self, from: data) == source)
+        let library = ImageLibrary()
+        let file = try #require(library.fileURL(for: source))
+        #expect(FileManager.default.fileExists(atPath: file.path))
+        #expect(await library.image(for: source, maxPixels: 768) != nil)
+        #expect(await library.image(for: .bundled("missing.jpg")) == nil)
+    }
+
     @Test func trendingFollowsUseAndSeason() {
         let now = Date(timeIntervalSince1970: 1_790_000_000)
         var fresh = ThemeStats.Record()

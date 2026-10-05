@@ -19,6 +19,7 @@ cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
 if [ -f Resources/AppIcon.icns ]; then
   cp Resources/AppIcon.icns "$APP_DIR/Contents/Resources/"
 fi
+cp -R Sources/AllSetCore/Resources/ThemeArt "$APP_DIR/Contents/Resources/"
 
 # Sign with the local development certificate when it exists (see
 # setup-signing.sh) so macOS keeps Accessibility permission across rebuilds;

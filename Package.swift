@@ -20,6 +20,7 @@ let package = Package(
             name: "AllSetCore",
             dependencies: ["CPrivateAPIs"],
             path: "Sources/AllSetCore",
+            resources: [.copy("Resources/ThemeArt")],
             linkerSettings: [
                 .linkedFramework("IOKit"),
                 .linkedFramework("CoreAudio"),

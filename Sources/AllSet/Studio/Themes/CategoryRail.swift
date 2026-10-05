@@ -15,19 +15,21 @@ struct CategoryRail: View {
         let chosen = ThemeDiscovery(rawValue: selection) ?? .all
         ScrollViewReader { scroller in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 2) {
+                HStack(spacing: 4) {
                     ForEach(ThemeDiscovery.allCases) { item in
                         let selected = item == chosen
                         Button {
                             selection = item.rawValue
-                            withAnimation(reduced ? nil : .easeInOut(duration: 0.15)) { scroller.scrollTo(item.id) }
                         } label: {
                             Text(item.title)
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.system(size: 12, weight: selected ? .semibold : .medium))
                                 .foregroundStyle(selected ? Color.black.opacity(0.85) : DS.Ink.secondary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background { if selected { pill } }
+                                .fixedSize()
+                                .padding(.horizontal, 11)
+                                .frame(height: 30)
+                                .background {
+                                    if selected { pill }
+                                }
                                 .contentShape(Capsule())
                         }
                         .buttonStyle(.plain)
@@ -35,17 +37,20 @@ struct CategoryRail: View {
                         .accessibilityAddTraits(selected ? .isSelected : [])
                     }
                 }
-                .padding(3)
+                .padding(.leading, 2).padding(.trailing, 18)
                 // Only the strip animates. The page below changes at once:
                 // a dozen rails sliding to new places is motion nobody asked for.
                 .animation(reduced ? Motion.reduced : .easeInOut(duration: 0.15), value: chosen)
             }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .onChange(of: chosen) { _, item in
+                withAnimation(reduced ? nil : .easeInOut(duration: 0.18)) {
+                    scroller.scrollTo(item.id, anchor: .center)
+                }
+            }
         }
-        // A plain dark fill, not a material: the strip scrolls with the
-        // page, and a material re-blurs what moves behind it.
-        .background(Color.black.opacity(0.28), in: Capsule())
-        .overlay(Capsule().strokeBorder(DS.Surface.hairline))
-        .clipShape(Capsule())
+        .frame(height: 32)
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.control))
     }
 
     @ViewBuilder

@@ -5,9 +5,30 @@ log; it never needs reading in full.
 
 ---
 
-## CURRENT STATE
-_(overwritten every checkpoint — 2026-10-03 wrap-up; full log in Reports/2026-10-03-wrap-up.md)_
+_(latest local checkpoint: 2026-10-05, Themes toolbar and smoothness; full log in Reports/2026-10-05-themes-toolbar-smoothness.md)_
 
+### 2026-10-05 — toolbar refinement (local, not committed or pushed)
+- Single compact filter/search surface; narrow category menu; fixed toolbar replaces pinned-header layout.
+- Per-image cache observation, two adjacent desktop previews prepared ahead, search focus preserved when the hero returns.
+- 312 tests / 85 suites and 30 native carousel/cache checks pass. Four window sizes verified; exact signed Dock app replaced and relaunched on Themes.
+- Interleaved comparison: mean app CPU 47.2% → 43.1% (~9% lower); p95 20.6–25.1 → 18.2–20.2 ms; zero >33 ms hitches. System-wide WindowServer sample slightly higher, no GPU/WindowServer improvement claim.
+- Previous cinematic app backed up. Full logs/captures in `build/review/themes-refinement/`.
+
+
+### 2026-10-05 — cinematic Themes design (local, not committed or pushed)
+- Approved mockup implemented: landscape desktop spotlight, portrait neighbours, pinned filters/search, centered actions, Trending cards, Moodboards and responsive shelves.
+- Original offline Midnight Aurora artwork and 12-widget theme; packaged into the exact signed Dock app at `build/AllSet.app`, running on Themes.
+- 312 tests in 85 suites pass; 27 native carousel checks pass; debug/release warning checks pass; four window sizes rendered. Actual Dock app screenshot saved in `build/review/selected-design/dock-app-themes.png`.
+- New optimized scroll: 29–31% app CPU, p95 18.4–19.5 ms, no hitches; WindowServer whole-run sample 41.6%, includes other apps. No GPU utilization claim or comparable HEAD speedup claim.
+- Previous bundle backed up. Other tabs and backend changes await the user's next request.
+
+Previous checkpoints:
+
+### 2026-10-05 (pushed to cloud main and perf-audit `d6c4512`, 313 tests, 0 warnings)
+- Themes hero redesign through H2 (see HANDOFF "Current state (2026-10-05)" and docs/UI-Spec.md). Next: H3 card lighting, on the user's go-ahead.
+- Open: atmosphere +5 points scroll CPU (42-43% vs 37-38%), flattening test not run.
+
+### 2026-10-03 wrap-up (details in Reports/2026-10-03-wrap-up.md)
 
 ### 2026-10-03 later (pushed to cloud main and perf-audit, 293 tests, 0 warnings)
 - Home, Collections and Art pages removed; Desktop opens on Themes; art stays as the Wallpaper page's Art source. The overnight redesign (`redesign/ui`) was not taken and stays local.

@@ -1,99 +1,184 @@
 import AllSetCore
 import SwiftUI
 
-/// One curated row of themes: a title, an optional "See All", and cards
-/// that scroll sideways and settle on a card's edge. Lazy: only the cards
-/// in view are made.
+/// Responsive shelves of cached desktops with arrow and trackpad navigation.
 struct ThemeRail: View {
     let title: String
     let sets: [ThemeSet]
     let services: AppServices
-    /// Shows the whole category, when the rail has one.
+    var availableWidth: CGFloat = 1200
     var seeAll: (@MainActor () -> Void)?
+    @State private var visibleID: String?
+
+    private var cardWidth: CGFloat {
+        let columns: CGFloat = availableWidth >= 1200 ? 5 : availableWidth >= 900 ? 4 : 3
+        return max(190, (availableWidth - (columns - 1) * DS.Space.s) / columns)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s) {
-            if let seeAll {
-                SectionHeader(title: title, subtitle: "\(sets.count) themes", actionTitle: "See All", ) { seeAll() }
-            } else {
-                SectionHeader(title: title, subtitle: "\(sets.count) themes")
-            }
-            MediaRail(items: sets, cardWidth: 300) { set in
-                RailCard(set: set, services: services)
+        if !sets.isEmpty {
+            ScrollViewReader { scroller in
+                VStack(alignment: .leading, spacing: DS.Space.s) {
+                    HStack(spacing: DS.Space.s) {
+                        Image(systemName: symbol).font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(title == "Trending themes" ? Color.pink : Color.white.opacity(0.8))
+                            .frame(width: 30, height: 30)
+                            .background(DS.Surface.raised, in: RoundedRectangle(cornerRadius: DS.Radius.control))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(title).dsText(.section)
+                            Text(subtitle).dsText(.meta)
+                        }
+                        Spacer()
+                        arrow("chevron.left", by: -1, scroller: scroller)
+                        arrow("chevron.right", by: 1, scroller: scroller)
+                        if let seeAll { Button("See all", action: seeAll).buttonStyle(.pill).controlSize(.small) }
+                    }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(spacing: DS.Space.s) {
+                            ForEach(sets) { set in
+                                RailCard(set: set, services: services).frame(width: cardWidth).id(set.id)
+                            }
+                        }
+                        .scrollTargetLayout().padding(.vertical, DS.Space.xxs)
+                    }
+                    .scrollTargetBehavior(.viewAligned)
+                    .scrollPosition(id: $visibleID, anchor: .leading)
+                }
             }
         }
     }
+
+    private var symbol: String {
+        switch title {
+        case "Trending themes": "flame.fill"
+        case "Football": "soccerball"
+        case "Music Icons": "music.note"
+        case "Night": "moon.stars.fill"
+        case "Colour & Light": "sparkles"
+        case "Developer": "chevron.left.forwardslash.chevron.right"
+        default: "square.stack.3d.up"
+        }
+    }
+
+    private var subtitle: String {
+        switch title {
+        case "Trending themes": "Fresh looks for your next desktop."
+        case "Football": "For the beautiful game."
+        case "Music Icons": "Set the mood. Find your rhythm."
+        case "Colour & Light": "A brighter way to make it yours."
+        default: "\(sets.count) complete desktop experiences."
+        }
+    }
+
+    private func arrow(_ symbol: String, by direction: Int, scroller: ScrollViewProxy) -> some View {
+        let current = sets.firstIndex { $0.id == visibleID } ?? 0
+        let target = min(max(current + direction, 0), max(sets.count - 1, 0))
+        return Button {
+            withAnimation(ThemesMotion(services.ui.performance).snap) {
+                scroller.scrollTo(sets[target].id, anchor: .leading)
+                visibleID = sets[target].id
+            }
+        } label: { Image(systemName: symbol) }
+        .buttonStyle(FloatingButtonStyle(diameter: 28)).disabled(target == current)
+        .help(direction < 0 ? "Previous themes" : "Next themes")
+        .accessibilityLabel(direction < 0 ? "Previous \(title)" : "Next \(title)")
+    }
 }
 
-/// A theme in a rail: its desktop, its name, how many widgets, and a line
-/// about it. Still at rest (nothing to draw but the picture while
-/// scrolling); lifts a little under the pointer and dips when pressed. With
-/// Reduce Motion, Low Power Mode or a hot Mac it brightens instead of
-/// lifting. Opens the theme's page.
 struct RailCard: View {
     let set: ThemeSet
     let services: AppServices
-
     @State private var isHovering = false
 
     var body: some View {
-        let stats = services.themeStats
-        let favorite = stats.isFavorite(set.id)
-        let shape = RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous)
+        let favorite = services.themeStats.isFavorite(set.id)
+        let active = services.settings.activeThemeSet == set.id
         let motion = ThemesMotion(services.ui.performance)
-        let lifted = isHovering && motion.lifts
-        Button {
-            services.ui.page = .themeSet(set.id)
-        } label: {
-            VStack(alignment: .leading, spacing: DS.Space.s) {
-                ThemeSnapshot(set: set, dark: set.isDark, services: services)
-                    .overlay(Color.white.opacity(isHovering ? 0.06 : 0))
-                    .clipShape(shape)
-                    .overlay(shape.strokeBorder(DS.Surface.hairline))
-                    .background { CardHalo(spread: .shadow).foregroundStyle(.black).opacity(lifted ? 0.35 : 0).offset(y: 8) }
-                    .scaleEffect(lifted ? 1.03 : 1)
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(set.name).dsText(.headline).lineLimit(1)
-                        Spacer(minLength: DS.Space.xs)
-                        Text("\(set.includedWidgets.count) widgets").dsText(.meta)
-                    }
-                    Text(set.inspiration ?? set.tagline).dsText(.meta).lineLimit(1)
+        let shape = RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+        Button { services.ui.page = .themeSet(set.id) } label: {
+            ThemeSnapshot(set: set, dark: set.isDark, services: services)
+                .overlay(alignment: .bottomLeading) {
+                    ZStack(alignment: .bottomLeading) {
+                        LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .top, endPoint: .bottom)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(set.name).dsText(.headline).lineLimit(1)
+                            Text("\(set.includedWidgets.count) widgets").dsText(.meta)
+                        }.padding(DS.Space.s)
+                    }.frame(height: 60)
                 }
-                .padding(.horizontal, DS.Space.xxs)
-            }
-            .contentShape(Rectangle())
+                .overlay(Color.white.opacity(isHovering ? 0.04 : 0))
+                .clipShape(shape)
+                .overlay(shape.strokeBorder(active ? Color.cyan.opacity(0.8) : Color.white.opacity(isHovering ? 0.25 : 0.14),
+                                            lineWidth: active ? 1.5 : 1))
         }
-        .buttonStyle(RailCardPress(dips: motion.lifts))
+        .buttonStyle(.plain)
         .overlay(alignment: .topTrailing) {
             Button {
-                withMotion(Motion.standard) { stats.toggleFavorite(set.id) }
+                withMotion(Motion.standard) { services.themeStats.toggleFavorite(set.id) }
             } label: {
                 Image(systemName: favorite ? "heart.fill" : "heart")
                     .foregroundStyle(favorite ? Color.pink : DS.Ink.primary)
             }
-            .buttonStyle(FloatingButtonStyle(diameter: 30))
-            .padding(DS.Space.s)
-            .opacity(isHovering || favorite ? 1 : 0)
-            .accessibilityLabel(favorite ? "Remove from favorites" : "Add to favorites")
+            .buttonStyle(FloatingButtonStyle(diameter: 26)).padding(DS.Space.xs)
+            .help(favorite ? "Remove from favorites" : "Add to favorites")
+            .accessibilityLabel(favorite ? "Remove \(set.name) from favorites" : "Favorite \(set.name)")
         }
-        .onHover { hovering in
-            withAnimation(motion.fade) { isHovering = hovering }
-        }
+        .scaleEffect(isHovering && motion.lifts ? 1.015 : 1)
+        .onHover { value in withAnimation(motion.fade) { isHovering = value } }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(set.name) theme, \(set.includedWidgets.count) widgets. \(set.tagline)")
-        .accessibilityHint("Opens the theme")
+        .accessibilityLabel("\(set.name) theme, \(set.includedWidgets.count) widgets")
+        .accessibilityHint("Opens theme details")
     }
 }
 
-/// A tiny dip while the pointer is down; a dimming when cards aren't moving.
-private struct RailCardPress: ButtonStyle {
-    let dips: Bool
+/// Moodboard shortcuts show real category counts.
+struct ThemeMoodboards: View {
+    let services: AppServices
+    @Binding var selection: String
+    let availableWidth: CGFloat
+    private let categories: [(ThemeDiscovery, String)] = [
+        (.minimal, "softMono"), (.dark, "cityNoir"), (.colorful, "neonNights"),
+        (.artist, "leopardNoir"), (.developer, "beginning"),
+    ]
 
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && dips ? 0.98 : 1)
-            .opacity(configuration.isPressed && !dips ? 0.8 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s) {
+            HStack(spacing: DS.Space.s) {
+                Image(systemName: "cube").font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(DS.Ink.secondary).frame(width: 30, height: 30)
+                    .background(DS.Surface.raised, in: RoundedRectangle(cornerRadius: DS.Radius.control))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Moodboards").dsText(.section)
+                    Text("Curated theme collections for different vibes.").dsText(.meta)
+                }
+                Spacer()
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: DS.Space.s) {
+                    ForEach(categories, id: \.0.id) { category, theme in
+                        if let set = ThemeLibrary.set("setup.\(theme)") {
+                            Button { selection = category.rawValue } label: {
+                                ThemeSnapshot(set: set, dark: set.isDark, services: services, fills: true)
+                                    .frame(width: max(180, (availableWidth - 48) / 5), height: 92)
+                                    .overlay(LinearGradient(colors: [.clear, .black.opacity(0.82)], startPoint: .top, endPoint: .bottom))
+                                    .overlay(alignment: .bottomLeading) {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(category.title).dsText(.headline)
+                                            Text("\(category.sets(stats: services.themeStats).count) themes").dsText(.meta)
+                                        }.padding(DS.Space.s)
+                                    }
+                                    .overlay(alignment: .bottomTrailing) {
+                                        Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(DS.Ink.primary).padding(DS.Space.s)
+                                    }
+                                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.control))
+                                    .overlay(RoundedRectangle(cornerRadius: DS.Radius.control).strokeBorder(.white.opacity(0.14)))
+                            }
+                            .buttonStyle(.plain).accessibilityLabel("Browse \(category.title) themes")
+                        }
+                    }
+                }.padding(.vertical, DS.Space.xxs)
+            }
+        }
     }
 }

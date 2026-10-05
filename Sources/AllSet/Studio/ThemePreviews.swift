@@ -132,6 +132,10 @@ struct ThemeCardComposition: View {
                 // canvas's full size would stretch the wallpaper beside it.
                 .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
                 .allowsHitTesting(false)
+
+                // Baked card sheen
+                LinearGradient(colors: [.white.opacity(0.12), .clear, .black.opacity(0.15)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .blendMode(.overlay)
             }
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
             .clipped()
@@ -195,7 +199,19 @@ enum ThemePreviewVariant {
 /// ask, so scrolling the library never draws dozens of live widgets.
 @Observable @MainActor
 final class ThemePreviewCache {
-    private(set) var images: [String: NSImage] = [:]
+    /// Each card observes its own image. Publishing one preview must not
+    /// re-layout every other card in the library.
+    @Observable fileprivate final class Preview {
+        var image: NSImage?
+    }
+    @ObservationIgnored private var previews: [String: Preview] = [:]
+
+    private func preview(_ name: String) -> Preview {
+        if let existing = previews[name] { return existing }
+        let entry = Preview()
+        previews[name] = entry
+        return entry
+    }
     /// The color of each set's wallpaper, by set id, measured from its
     /// backdrop picture once there is one: what a theme with no accent of
     /// its own is lit with (`ThemeSet.lighting`). Missing for a wallpaper
@@ -206,7 +222,7 @@ final class ThemePreviewCache {
 
     #if DEBUG
     var debugCacheReport: String {
-        String(format: "previews %d (%.0f MB)", images.count, Double(bytes) / 1_048_576)
+        String(format: "previews %d (%.0f MB)", previews.values.filter { $0.image != nil }.count, Double(bytes) / 1_048_576)
     }
     #endif
 
@@ -243,7 +259,7 @@ final class ThemePreviewCache {
     @ObservationIgnored private let log = Logger(subsystem: "com.pratik.allset", category: "themes")
 
     /// Bump when the way previews are drawn changes, to redraw them all.
-    private static let drawingVersion = 4
+    private static let drawingVersion = 5
 
     /// The app's version: a release redraws previews; rebuilding the same one doesn't.
     private static let appVersion: String = {
@@ -285,7 +301,7 @@ final class ThemePreviewCache {
 
     func image(for set: ThemeSet, dark: Bool, variant: ThemePreviewVariant = .desktop) -> NSImage? {
         let name = key(set, dark: dark, variant: variant)
-        guard let image = images[name] else { return nil }
+        guard let image = preview(name).image else { return nil }
         useCount += 1
         lastUse[name] = useCount
         return image
@@ -311,16 +327,17 @@ final class ThemePreviewCache {
         if variant == .backdrop, wallpaperColors[set.id] == nil, let color = WallpaperColor.accent(of: ready) {
             wallpaperColors[set.id] = color
         }
-        if let old = images[name] { bytes -= old.decodedByteCount }
+        if let old = previews[name]?.image { bytes -= old.decodedByteCount }
         let picture = NSImage(cgImage: ready, size: NSSize(width: ready.width, height: ready.height))
-        images[name] = picture
+        preview(name).image = picture
         bytes += picture.decodedByteCount
         useCount += 1
         lastUse[name] = useCount
         while bytes > Self.memoryLimit,
-              let oldest = lastUse.filter({ images[$0.key] != nil && $0.key != name && showing[$0.key] == nil })
+              let oldest = lastUse.filter({ previews[$0.key]?.image != nil && $0.key != name && showing[$0.key] == nil })
                   .min(by: { $0.value < $1.value })?.key {
-            if let dropped = images.removeValue(forKey: oldest) { bytes -= dropped.decodedByteCount }
+            if let dropped = previews[oldest]?.image { bytes -= dropped.decodedByteCount }
+            previews[oldest]?.image = nil
             lastUse[oldest] = nil
         }
     }
@@ -333,7 +350,8 @@ final class ThemePreviewCache {
         generation += 1
         queue.removeAll()
         inFlight.removeAll()
-        images.removeAll()
+        for entry in previews.values { entry.image = nil }
+        previews.removeAll()
         lastUse.removeAll()
         showing.removeAll()
         bytes = 0
@@ -345,7 +363,7 @@ final class ThemePreviewCache {
     func request(_ set: ThemeSet, dark: Bool, variant: ThemePreviewVariant = .desktop, services: AppServices) {
         let name = key(set, dark: dark, variant: variant)
         showing[name, default: 0] += 1
-        guard images[name] == nil, !inFlight.contains(name) else { return }
+        guard previews[name]?.image == nil, !inFlight.contains(name) else { return }
         inFlight.insert(name)
         let asked = generation
         Task {
@@ -374,6 +392,7 @@ final class ThemePreviewCache {
     func cancel(_ set: ThemeSet, dark: Bool, variant: ThemePreviewVariant = .desktop) {
         let name = key(set, dark: dark, variant: variant)
         if let count = showing[name] { showing[name] = count > 1 ? count - 1 : nil }
+        guard showing[name] == nil else { return }
         guard let index = queue.firstIndex(where: { $0.name == name }) else { return }
         queue.remove(at: index).prepared.cancel()
         inFlight.remove(name)

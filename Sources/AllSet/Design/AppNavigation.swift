@@ -181,6 +181,7 @@ struct FloatingNav: View {
                             .background {
                                 if isSelected {
                                     Color.clear.glassLens()
+                                        .background(Capsule().fill(Color.indigo.opacity(page == .themes ? 0.28 : 0)))
                                         .matchedGeometryEffect(id: "section", in: selection)
                                 }
                             }

@@ -99,41 +99,64 @@ struct ThemesPage: View {
     private var results: [ThemeSet] {
         let base = filter.sets(stats: services.themeStats)
         guard !SearchMatch.normalize(query).isEmpty else { return base }
-        let matches = Set(ThemeLibrary.search(query).map(\.id))
-        return ThemeLibrary.search(query).filter { set in base.contains { $0.id == set.id } && matches.contains(set.id) }
+        let allowed = Set(base.map(\.id))
+        return ThemeLibrary.search(query).filter { allowed.contains($0.id) }
     }
 
     var body: some View {
         let sections = self.sections
-        // The hero is always shown, so a search or a filter never moves the
-        // search field and the categories, which live in it.
-        BleedScrollPage(showsHero: !sections.featured.isEmpty) { layout in
-            ThemesHero(items: sections.featured, services: services, state: hero, atmosphere: atmosphere,
-                       discovery: $discovery, query: $query, layout: layout)
-        } content: { _ in
-            VStack(alignment: .trailing, spacing: DS.Space.s) {
-                banners
-                Toggle("Change the wallpaper too", isOn: $setsWallpaper)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .foregroundStyle(DS.Ink.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            if !SearchMatch.normalize(query).isEmpty {
-                grid(results)
-            } else {
-                if filter != .all && filter.sets(stats: services.themeStats).isEmpty {
-                    grid([])
-                }
-                // A dozen rails of desktop previews, built after the switch
-                // frame. Each rail is lazy along its row; the column of rails
-                // is not: a lazy column cost 1.6 times the CPU to scroll
-                // (57% against 34% on first sight, `-probe scroll`).
-                Deferred {
-                    ForEach(rails(sections), id: \.title) { rail in
-                        railView(rail)
+        GeometryReader { geometry in
+            let margin = DS.Space.pageMargin(for: geometry.size.width)
+            let layout = BleedLayout(topInset: 0, visibleHeight: 0, margin: margin, viewport: geometry.size)
+            let browsing = filter == .all && SearchMatch.normalize(query).isEmpty
+            VStack(spacing: DS.Space.xs) {
+                ThemesFilterBar(selection: $discovery, query: $query,
+                                reduced: services.ui.performance.reducesMotion,
+                                availableWidth: geometry.size.width - margin * 2)
+                    .padding(.horizontal, margin)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: DS.Space.l) {
+                        if browsing {
+                            ThemesHero(items: sections.featured, services: services, state: hero,
+                                       atmosphere: atmosphere, layout: layout)
+                        }
+                        banners
+                        if browsing {
+                            ThemeRail(title: "Trending themes", sets: ThemeDiscovery.trending.sets(stats: services.themeStats),
+                                      services: services, availableWidth: geometry.size.width - margin * 2) {
+                                discovery = ThemeDiscovery.trending.rawValue
+                            }
+                            ThemeMoodboards(services: services, selection: $discovery,
+                                           availableWidth: geometry.size.width - margin * 2)
+                            Deferred {
+                                ForEach(sections.shelves, id: \.title) { rail in
+                                    railView(rail, width: geometry.size.width - margin * 2)
+                                }
+                            }
+                        } else {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(query.isEmpty ? filter.title : "Search results").dsText(.section)
+                                    Text("\(results.count) themes").dsText(.meta)
+                                }
+                                Spacer()
+                                Toggle("Include wallpaper", isOn: $setsWallpaper)
+                                    .toggleStyle(.switch).controlSize(.small).dsText(.meta)
+                            }
+                            grid(results)
+                        }
                     }
+                    .padding(.horizontal, margin)
+                    .padding(.top, DS.Space.xs)
+                    .padding(.bottom, DS.Space.xxl)
                 }
+                .clipped()
+                // A category/search change starts at its results, not a stale shelf offset.
+                .id("\(filter.rawValue)#\(browsing)")
+            }
+            .background(alignment: .top) {
+                ThemeAtmosphere(state: atmosphere, services: services,
+                                focusY: ThemesHero.focusY(for: layout), panel: ThemesHero.carousel(for: layout).panelSize)
             }
         }
         .overlay(alignment: .top) { navigationBackdrop }
@@ -211,31 +234,20 @@ struct ThemesPage: View {
             ("Developer", claim(ThemeDiscovery.developer.sets(stats: stats)), .developer),
         ]
         shelves.append(("More Setups", claim(ThemeLibrary.all), nil))
-        return (Array(ThemeDiscovery.featured.sets(stats: stats).prefix(8)), shelves)
+        let spotlight = ["midnightAurora", "albiceleste", "matchaMorning", "seven", "oceanGlass", "violetNoir", "americana"]
+            .compactMap { ThemeLibrary.set("setup.\($0)") }
+        return (spotlight, shelves)
     }
 
     @ViewBuilder
-    private func railView(_ rail: Rail) -> some View {
+    private func railView(_ rail: Rail, width: CGFloat) -> some View {
         if let more = rail.more {
-            ThemeRail(title: rail.title, sets: rail.sets, services: services) {
+            ThemeRail(title: rail.title, sets: rail.sets, services: services, availableWidth: width) {
                 discovery = more.rawValue
             }
         } else {
-            ThemeRail(title: rail.title, sets: rail.sets, services: services)
+            ThemeRail(title: rail.title, sets: rail.sets, services: services, availableWidth: width)
         }
-    }
-
-    /// Featured and Trending lead, then the shelves. A chosen category
-    /// becomes the first rail, whole; the rest follow.
-    private func rails(_ sections: (featured: [ThemeSet], shelves: [Rail])) -> [Rail] {
-        let stats = services.themeStats
-        var rails: [Rail] = [("Featured", sections.featured, .featured),
-                             ("Trending", ThemeDiscovery.trending.sets(stats: stats), .trending)] + sections.shelves
-        if filter != .all {
-            rails.removeAll { $0.more == filter || $0.title == filter.title }
-            rails.insert((filter.title, filter.sets(stats: stats), nil), at: 0)
-        }
-        return rails.filter { !$0.sets.isEmpty }
     }
 
     @ViewBuilder
@@ -371,8 +383,9 @@ struct ThemeSnapshot: View {
         // queued requests, and a card still waiting must ask again.
         .task(id: "\(cache.key(set, dark: dark, variant: variant))#\(cache.generation)") {
             cache.request(set, dark: dark, variant: variant, services: services)
+            defer { cache.cancel(set, dark: dark, variant: variant) }
+            while !Task.isCancelled { try? await Task.sleep(for: .seconds(3600)) }
         }
-        .onDisappear { cache.cancel(set, dark: dark, variant: variant) }
         .accessibilityHidden(true)
     }
 }

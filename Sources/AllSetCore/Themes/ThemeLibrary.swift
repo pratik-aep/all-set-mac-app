@@ -23,6 +23,7 @@ public enum ThemeLibrary {
     static let setups: [ThemeSet] = WidgetTheme.all.enumerated().map { index, theme in
         let isMoodboard = index < WidgetTheme.moodboards.count
         let (collections, tags): ([ThemeCollection], String) = switch theme.id {
+        case "midnightAurora": ([.featured, .night, .dreamy, .cinematic, .ambient], "aurora northern lights fjord blue violet glass calm nature")
         case "leopardNoir": ([.featured, .artistWorlds, .luxury, .night], "leopard diva hollywood glam black white photos script")
         case "cityNoir": ([.featured, .artistWorlds, .night, .minimal], "city skyline night black white noir")
         case "angelic": ([.featured, .artistWorlds, .luxury], "angel lace white script monogram")
@@ -87,8 +88,8 @@ public enum ThemeLibrary {
                         description: "\(theme.tagline) A whole desktop, with its own wallpaper and layout.",
                         philosophy: philosophy, inspiration: inspirations[theme.id],
                         collections: collections, tags: "\(theme.id) \(tags)", look: .setup(theme.id), layout: [],
-                        added: isColour ? "2026-09-30" : isMoodboard || fanIndex != nil ? "2026-09-25" : "2026-09-24",
-                        baseline: isMoodboard ? 90 - Double(index) : fanIndex.map { spotlight[theme.id] ?? 88 - Double($0) } ?? (isColour ? 70 : 55),
+                        added: theme.id == "midnightAurora" ? "2026-10-05" : isColour ? "2026-09-30" : isMoodboard || fanIndex != nil ? "2026-09-25" : "2026-09-24",
+                        baseline: theme.id == "midnightAurora" ? 98 : isMoodboard ? 90 - Double(index) : fanIndex.map { spotlight[theme.id] ?? 88 - Double($0) } ?? (isColour ? 70 : 55),
                         accent: accents[theme.id])
     }
 }
@@ -101,6 +102,7 @@ extension ThemeLibrary {
     /// for its edge and glow, and a second for haze. Where a theme isn't
     /// listed, `ThemeSet.lighting` works one out from its look.
     static let accents: [String: ThemeAccent] = [
+        "midnightAurora": ThemeAccent(0x41BFFF, 0xA374FF, glow: 0.9),
         // Neon crimson under warm gold floodlights.
         "seven": ThemeAccent(0xFF2D4A, 0xFFB347),
         "redSeven": ThemeAccent(0xFF3B30, 0xFFD166),

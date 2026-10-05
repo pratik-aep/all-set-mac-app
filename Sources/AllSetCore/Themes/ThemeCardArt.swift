@@ -89,7 +89,7 @@ public enum ThemeCardArt {
         func size(_ widget: Int) -> CGSize? { sizes.indices.contains(widget) ? sizes[widget].dimensions : nil }
         let titleSize = picks.title.flatMap(size)
         // The hero's box: smaller and lower when a word sits above it.
-        let side: CGFloat = titleSize == nil ? 328 : 300
+        let side: CGFloat = titleSize == nil ? 370 : 342
         let box = CGRect(x: (canvas.width - side) / 2, y: titleSize == nil ? 104 : 180, width: side, height: side)
 
         var pieces: [Piece] = []

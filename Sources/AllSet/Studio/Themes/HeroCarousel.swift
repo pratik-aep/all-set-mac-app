@@ -55,13 +55,10 @@ struct HeroCarousel: View {
     /// until they're out of sight, and which slide that was.
     @State private var leaving: (slot: Int, slide: Int)?
     @State private var slides = 0
-    /// Cards a side that exist. The page opens with the two that show most;
-    /// the third, at the panel's edge or past it, follows a moment later.
-    @State private var span = 2
     @FocusState private var focused: Bool
 
     private var motion: ThemesMotion { ThemesMotion(services.ui.performance) }
-    /// Neighbours a side: three, or fewer when there aren't that many
+    /// Neighbours a side: two, or fewer when there aren't that many
     /// different themes to put there.
     private var reach: Int { min(ThemeCarouselLayout.reach, max((items.count - 1) / 2, 0)) }
     /// The slot at the center. Slots count on past the ends of `items`.
@@ -105,7 +102,6 @@ struct HeroCarousel: View {
         .gesture(drag)
         .overlay(alignment: .leading) { arrow("chevron.left", by: -1).padding(.leading, margin) }
         .overlay(alignment: .trailing) { arrow("chevron.right", by: 1).padding(.trailing, margin) }
-        .overlay(alignment: .topLeading) { indicator.padding(.leading, margin) }
         // On top, but only scrolling stops at it: clicks and drags pass through.
         .overlay(CarouselScrollCatcher { scrolled($0) })
         .focusable()
@@ -119,36 +115,31 @@ struct HeroCarousel: View {
         .onChange(of: selection) { _, chosen in
             guard !items.isEmpty, item(at: center) != chosen else { return }
             let ahead = (chosen - item(at: center) + items.count) % items.count
-            position = CGFloat(center + (ahead <= items.count / 2 ? ahead : ahead - items.count))
+            go(to: center + (ahead <= items.count / 2 ? ahead : ahead - items.count))
         }
         .onAppear {
             position = CGFloat(min(max(selection, 0), max(items.count - 1, 0)))
-            focused = true
-        }
-        .task {
-            try? await Task.sleep(for: .milliseconds(80))
-            span = ThemeCarouselLayout.reach
         }
     }
 
     /// The selected card and its neighbours, plus, while the row slides,
     /// the ones it is sliding away from.
     private func cards(_ motion: ThemesMotion) -> some View {
-        let center = self.center, reach = min(self.reach, span)
+        let center = self.center, reach = self.reach
         let from = leaving?.slot ?? center
         return ZStack {
             if !items.isEmpty {
                 ForEach((min(center, from) - reach)...(max(center, from) + reach), id: \.self) { slot in
                     let set = items[item(at: slot)]
                     ThemePreviewCard(set: set, services: services, isSelected: slot == center,
-                                     isCompact: layout.cardSize.height < 330)
-                        .frame(width: layout.cardSize.width, height: layout.cardSize.height)
+                                     isCompact: layout.cardSize.height < 230)
                         .modifier(CarouselCardEffect(position: position, slot: slot, layout: layout, reach: self.reach,
                                                      glow: motion.glows ? Color(services.lighting(of: set).primary) : nil,
                                                      flat: motion.reduced))
                         // Strictly by distance: nearer the center, nearer the front.
                         .zIndex(Double(100 - abs(slot - center)))
                         .onTapGesture {
+                            focused = true
                             if slot == center { services.ui.page = .themeSet(set.id) } else { go(to: slot) }
                         }
                 }
@@ -157,30 +148,10 @@ struct HeroCarousel: View {
     }
 
     private func arrow(_ symbol: String, by step: Int) -> some View {
-        Button { go(to: center + step) } label: { Image(systemName: symbol).foregroundStyle(DS.Ink.primary) }
+        Button { focused = true; go(to: center + step) } label: { Image(systemName: symbol).foregroundStyle(DS.Ink.primary) }
             .buttonStyle(FloatingButtonStyle(diameter: 36))
             .opacity(items.count > 1 ? 1 : 0)
             .accessibilityLabel(step < 0 ? "Previous theme" : "Next theme")
-    }
-
-    /// "3 / 8" and a thin track whose thumb follows the carousel.
-    private var indicator: some View {
-        let trackWidth: CGFloat = 120, count = CGFloat(max(items.count, 1))
-        let thumb = trackWidth / count
-        // Where the row is among the themes, whichever time round this is.
-        let along = position - (position / count).rounded(.down) * count
-        return HStack(spacing: DS.Space.s) {
-            Text("\(selection + 1) / \(items.count)").dsText(.meta)
-            Capsule().fill(DS.Surface.hairline)
-                .frame(width: trackWidth, height: 3)
-                .overlay(alignment: .leading) {
-                    Capsule().fill(DS.Ink.secondary)
-                        .frame(width: thumb, height: 3)
-                        .offset(x: count <= 1 ? 0 : (trackWidth - thumb) * min(along / (count - 1), 1))
-                }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Theme \(selection + 1) of \(items.count)")
     }
 
     // MARK: Input
@@ -237,7 +208,9 @@ private struct CarouselCardEffect: ViewModifier, Animatable {
     func body(content: Content) -> some View {
         let distance = CGFloat(slot) - position
         let depth = ThemeCarouselDepth(distance: distance, flat: flat, reach: reach)
+        let size = layout.size(at: distance)
         content
+            .frame(width: size.width, height: size.height)
             // Side cards are darkened, not see-through (see `ThemeCarouselDepth.dim`).
             .overlay {
                 RoundedRectangle(cornerRadius: DS.Radius.panel, style: .continuous)

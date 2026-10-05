@@ -183,7 +183,7 @@ enum Kit {
 }
 
 extension WidgetTheme {
-    public static let all: [WidgetTheme] = moodboards + fandom + colour + [cloudNine, goodThings, pinkLatte, coquette, grunge, diva, luxeNoir, sepia,
+    public static let all: [WidgetTheme] = moodboards + fandom + colour + [midnightAurora, cloudNine, goodThings, pinkLatte, coquette, grunge, diva, luxeNoir, sepia,
                                             vigilante, neonNights, darkAcademia, midnightLofi, goth]
 
     /// Whether the wallpaper is dark (a night photo counts as dark).
