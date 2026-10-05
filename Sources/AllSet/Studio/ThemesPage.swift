@@ -197,7 +197,7 @@ struct ThemesPage: View {
                     VStack(spacing: 0) {
                         Color.black
                         LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                            .frame(height: FloatingNav.gapBelow)
+                            .frame(height: DS.Space.s)  // the gap below the navigation
                     }
                 }
                 // Up into the navigation's own space, above where the page starts.
