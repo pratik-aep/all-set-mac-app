@@ -5,7 +5,20 @@ log; it never needs reading in full.
 
 ---
 
-_(latest local checkpoint: 2026-10-05, Themes toolbar and smoothness; full log in Reports/2026-10-05-themes-toolbar-smoothness.md)_
+### 2026-10-06 — video-only Wallpaper and widget motion
+Wallpaper opens directly to the existing video library; all source tabs and the entire bar are removed. Aerial catalog/service/cache and unused cinematic source implementation are retired; shared generative art remains for Themes/widgets. Widget spotlight lighting now follows each footprint, and size/style controls use sliding selections in both the main page and Customize. 336 tests / 85 suites pass with no warnings; native library search/scroll and main size/style controls verified. Twelve final spotlight renders checked at two sizes. Warm scrolling has zero >33 ms gaps; first-load work and non-isolated GPU/WindowServer measurements are recorded honestly. Exact Dock app rebuilt and relaunched. See `Reports/2026-10-06-video-library-and-widget-motion.md`.
+
+_(latest local checkpoint: 2026-10-05, five quick Themes review passes; full log in Reports/2026-10-05-themes-five-pass-review.md)_
+
+### 2026-10-05 — five quick Themes review passes
+- Visual match is partial: lighting/reflection, dense previews, shelf spacing, caption collisions and preview completeness need polish. Four sizes × top/scrolled captures reviewed; side-by-side in `build/review/themes-five-pass/reference-vs-current.png`.
+- Fresh 25 targeted tests / five suites and 30 native carousel/cache checks pass. Two scroll passes: p95 17.9–18.1 ms, zero >33 ms hitches, 48.1–48.5% app CPU. WindowServer 49.4% whole-run/system-wide; no GPU isolation or comparative improvement claim.
+- Installed Dock app controls verified; live search replacement remains unresolved in automation. Bundle signature and release code match verified. No implementation edits, rebuild, commit or push in this review.
+- Deeper Themes work awaits the user's call. Wallpaper deferred until Themes is accepted.
+
+### 2026-10-05 — Wallpaper design previews
+- Three fresh built-in imagegen concepts saved in `design/wallpaper-concepts/2026-10-05/`, with exact prompts. Full report: `Reports/2026-10-05-wallpaper-design-concepts.md`.
+- Awaiting user selection. App source and Dock build unchanged.
 
 ### 2026-10-05 — toolbar refinement (local, not committed or pushed)
 - Single compact filter/search surface; narrow category menu; fixed toolbar replaces pinned-header layout.
@@ -208,3 +221,28 @@ Result: no code changes needed; docs now agree with reality.
   ⌘⇧5 starts the capture alone (system toolbar switched off), quitting restores macOS's
   shortcut. Found that a Carbon hotkey does not stop macOS's own ⌘⇧5, so it is switched off
   and restored. 263 tests.
+
+
+## 2026-10-05 — Widgets and Wallpaper cinematic implementation
+
+Both approved designs are now native screens in the rebuilt, signed Dock app. Widgets uses the dark blue alpine stage, luminous combined clock and native recommendation cards; Wallpaper uses the full-window scenic preview and bottom filmstrip. Existing catalog/library browsers and real data/services remain available. Twenty review/test phases completed: 330 tests pass, 92 live control assertions pass, Add/save/remove preserves the original widget data, and five window close/reopen cycles pass. Final gallery scroll has zero gaps over 33 ms. Layout landmark scores are approximately 95/100; artwork and live readings are not pixel-identical to the mockups.
+
+See [the implementation report](Reports/2026-10-05-widgets-wallpaper-cinematic-implementation.md) for changes, evidence, performance boundaries and remaining limitations. No commit or push.
+
+## 2026-10-05 — Studio functionality and motion follow-up
+
+Widgets now scrolls through all 91 original catalog entries and 634 themed widgets in the main page, with original customization controls and matching purpose/search filters. Wallpaper keeps the approved hero/filmstrip and scrolls into aligned, equal-size rows of every aerial, Art and video-library entry. The same two-row navigation stays across all sections; spotlight movement and tab selection animate with the existing motion policy. Preview caching and scroll-quiet thumbnail scheduling remove the earlier multi-second Wallpaper probe stalls. All 334 tests in 86 suites pass; the signed Dock bundle is rebuilt and live controls checked. Cold/warm performance boundaries and incomplete intermediate UI harness runs are recorded in [the follow-up report](Reports/2026-10-05-studio-functionality-and-motion.md). No commit or push.
+
+## 2026-10-06 — Restore the earlier Wallpaper UI
+
+Restored the Wallpaper page from the GitHub repository's main branch (`80dae188`), keeping the current shared navigation and pinned source/search/heart bar. Original aerial/Art rails, video library controls and detail sheet are back; shared search filters the original content. Widgets keeps its cinematic design and complete library. See [the restoration report](Reports/2026-10-06-wallpaper-ui-restoration.md). No commit or push.
+
+
+## 2026-10-06 — Wallpaper overlay and atmosphere
+
+Wallpaper now extends behind all three navigation bars, removing the separate navy header. The original library remains beneath the full-bleed hero; its background shares Themes' glow, softened wallpaper haze and vignette. A fading contrast layer keeps the controls readable over bright media and scrolling tiles. See [the overlay and atmosphere report](Reports/2026-10-06-wallpaper-overlay-and-atmosphere.md) for build, visual and performance evidence. No commit or push.
+
+
+## 2026-10-06 — Unified Themes style in Widgets and Wallpaper
+
+Removed Widgets' frosted page treatment and scenic page backdrop. Widgets and Wallpaper now share Themes' actual cached atmosphere, solid filter surface, card edges, typography and controls. Widgets defaults to Dark, with actual adjacent previews and the full catalog; Wallpaper retains its original library and floating hero. All 334 tests pass. See [the style report](Reports/2026-10-06-unified-studio-theme-style.md) for responsive renders, live verification and measured performance boundaries. No commit or push.
