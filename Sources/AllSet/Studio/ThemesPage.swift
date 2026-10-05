@@ -180,7 +180,19 @@ struct ThemesPage: View {
                     }
             }
             .ignoresSafeArea(edges: .top)
+            .background(alignment: .top) {
+                ThemeAtmosphere(accent: atmosphereAccent, crossfade: services.ui.performance.pausesDecorativeMotion ? 0.15 : 0.7)
+                    .ignoresSafeArea()
+            }
         }
+    }
+
+    /// The light at the top of the page: the theme on the desktop, or the
+    /// first of the featured ones.
+    private var atmosphereAccent: Color? {
+        let lead = services.settings.activeThemeSet.flatMap(ThemeLibrary.set)
+            ?? ThemeDiscovery.featured.sets(stats: services.themeStats).first
+        return lead?.accentColor
     }
 
     // MARK: Filter bar
@@ -337,6 +349,34 @@ struct ThemesPage: View {
                 }
             }
         }
+    }
+}
+
+/// Soft coloured light behind the top of the page, from a theme's accent,
+/// fading into the window's backdrop by about 720 pt down. Static: a change
+/// of theme crossfades it (opacity only), and nothing in it ever moves.
+private struct ThemeAtmosphere: View {
+    let accent: Color?
+    let crossfade: Double
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            if let accent {
+                ZStack {
+                    RadialGradient(colors: [accent.opacity(0.30), accent.opacity(0.11), .clear],
+                                   center: UnitPoint(x: 0.5, y: 0.14), startRadius: 0, endRadius: 720)
+                    RadialGradient(colors: [accent.opacity(0.14), .clear],
+                                   center: UnitPoint(x: 0.88, y: 0.2), startRadius: 0, endRadius: 480)
+                }
+                .frame(height: 900)
+                .id(accent)
+                .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .animation(.easeInOut(duration: crossfade), value: accent)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
