@@ -14,7 +14,7 @@ struct StudioBackdrop: View {
 
 // MARK: Gallery
 
-struct GalleryPage: View {
+struct ClassicGalleryPage: View {
     let category: WidgetCategory?
     let services: AppServices
 
@@ -257,7 +257,8 @@ struct GalleryCard: View {
         VStack(alignment: .leading, spacing: DS.Space.s) {
             ZStack {
                 StudioBackdrop(piece: ArtPiece(style: .blobs, palette: backdropPalette))
-                WidgetPreview(instance: sample, services: services, fit: CGSize(width: 250, height: 190))
+                    .environment(\.widgetSnapshot, true).environment(\.widgetIsVisible, false)
+                LibraryWidgetPreview(instance: sample, services: services, fit: CGSize(width: 250, height: 190), live: isHovering)
                     // Moving widgets come alive under the pointer; a page of
                     // them all moving at once would keep the Mac busy.
                     .environment(\.widgetIsVisible, isHovering)

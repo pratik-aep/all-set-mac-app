@@ -273,7 +273,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // `AllSet -openPage themes|gallery|art|widget|monitor` opens the window on that page.
         if let page = UserDefaults.standard.string(forKey: "openPage") {
             switch page {
-            case "art": services.ui.wallpaperTab = .art; services.openWindow(.wallpaper)
+            case "art": services.openWindow(.wallpaper)
             case "widget": services.openWindow(services.widgets.widgets.first.map { .widget($0.id) })
             case "monitor": services.openWindow(.monitor)
             case "wallpaper": services.openWindow(.wallpaper)

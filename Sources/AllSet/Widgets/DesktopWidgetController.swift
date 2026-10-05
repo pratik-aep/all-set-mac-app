@@ -631,7 +631,10 @@ private struct WidgetRoot: View {
         let own = window.liveScale ?? instance?.scale ?? 1
         let stretch = window.liveStretch ?? instance?.stretch ?? 1
         let scale = services.widgetScale(on: instance.flatMap { services.screen(for: $0) }) * own
-        let scaleY = scale * stretch
+        // Cinematic faces lay out at the stretched dimensions so their dials and
+        // fonts stay proportional to the gallery, instead of stretching pixels.
+        let cinematic = instance?.options.cinematicClock == true || instance?.options.cinematicStyle == true
+        let scaleY = scale * (cinematic ? 1 : stretch)
         GeometryReader { geometry in
             WidgetHostView(id: id, services: services, window: window, onDrag: onDrag, onResize: onResize,
                            onRemove: onRemove, onConfigure: onConfigure)

@@ -93,39 +93,44 @@ struct ThemeAtmosphere: View {
     @ViewBuilder
     private func slot(_ set: ThemeSet?, _ focus: CGPoint) -> some View {
         if let set {
-            let light = services.lighting(of: set), glow = light.glowIntensity
+            let lighting = services.lighting(of: set)
             let picture = services.themePreviews.image(for: set, dark: set.isDark, variant: .backdrop)
             // A wallpaper with no color of its own (a black-and-white photo)
             // would only lay gray over the theme's light: it's kept faint.
             let hasColor = services.themePreviews.wallpaperColors[set.id] != nil
-            // A white second color is light in the theme's art, but fog as
-            // haze on a dark page: half way to the first color instead, so
-            // the corner glows in the theme's hue rather than graying.
-            let haze = light.secondary.hsvSaturation < 0.12 ? light.secondary.blended(toward: light.primary, by: 0.5) : light.secondary
-            ZStack(alignment: .topLeading) {
-                if let picture {
-                    // Stretched to the frame, not cropped: it's a blur, and
-                    // its own fade has to end where the frame does.
-                    Image(nsImage: picture).resizable().interpolation(.high)
-                        .opacity(hasColor ? 0.24 : 0.09)
-                        .transition(.opacity)
-                }
-                // Pooled behind the selected card, with a long faint skirt
-                // that carries the color out across the panel.
-                EllipticalGradient(stops: [.init(color: Color(light.primary).opacity(0.38 * glow), location: 0),
-                                           .init(color: Color(light.primary).opacity(0.17 * glow), location: 0.38),
-                                           .init(color: Color(light.primary).opacity(0.05 * glow), location: 0.72),
-                                           .init(color: .clear, location: 1)],
-                                   center: .center, startRadiusFraction: 0, endRadiusFraction: 0.5)
-                    // No taller than fits above the frame's lower edge, so it ends in nothing.
-                    .frame(width: panel.width * 1.3, height: min(panel.height * 1.7, (Self.height - focus.y - 12) * 2))
-                    .position(focus)
-                EllipticalGradient(colors: [Color(haze).opacity(0.17 * glow), .clear],
-                                   center: .center, startRadiusFraction: 0, endRadiusFraction: 0.5)
-                    .frame(width: panel.width * 0.8, height: panel.height * 0.9)
-                    .position(x: focus.x + panel.width * 0.32, y: focus.y + panel.height * 0.3)
+            light(lighting, picture: picture, hasColor: hasColor, focus: focus)
+        }
+    }
+
+    @ViewBuilder
+    private func light(_ light: ThemeAccent, picture: NSImage?, hasColor: Bool, focus: CGPoint) -> some View {
+        let glow = light.glowIntensity
+        // A white second color is light in the theme's art, but fog as
+        // haze on a dark page: half way to the first color instead, so
+        // the corner glows in the theme's hue rather than graying.
+        let haze = light.secondary.hsvSaturation < 0.12 ? light.secondary.blended(toward: light.primary, by: 0.5) : light.secondary
+        ZStack(alignment: .topLeading) {
+            if let picture {
+                // Stretched to the frame, not cropped: it's a blur, and
+                // its own fade has to end where the frame does.
+                Image(nsImage: picture).resizable().interpolation(.high)
+                    .opacity(hasColor ? 0.24 : 0.09)
+                    .transition(.opacity)
             }
-            .animation(.easeInOut(duration: 0.5), value: picture != nil)
+            // Pooled behind the selected card, with a long faint skirt
+            // that carries the color out across the panel.
+            EllipticalGradient(stops: [.init(color: Color(light.primary).opacity(0.38 * glow), location: 0),
+                                       .init(color: Color(light.primary).opacity(0.17 * glow), location: 0.38),
+                                       .init(color: Color(light.primary).opacity(0.05 * glow), location: 0.72),
+                                       .init(color: .clear, location: 1)],
+                               center: .center, startRadiusFraction: 0, endRadiusFraction: 0.5)
+                // No taller than fits above the frame's lower edge, so it ends in nothing.
+                .frame(width: panel.width * 1.3, height: min(panel.height * 1.7, (Self.height - focus.y - 12) * 2))
+                .position(focus)
+            EllipticalGradient(colors: [Color(haze).opacity(0.17 * glow), .clear],
+                               center: .center, startRadiusFraction: 0, endRadiusFraction: 0.5)
+                .frame(width: panel.width * 0.8, height: panel.height * 0.9)
+                .position(x: focus.x + panel.width * 0.32, y: focus.y + panel.height * 0.3)
         }
     }
 

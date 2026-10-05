@@ -115,6 +115,7 @@ struct HeroSection<Media: View, Actions: View>: View {
     var eyebrow: String?
     let title: String
     var metadata: [String] = []
+    var titleRole: DS.TextRole = .hero
     var height: CGFloat = 420
     /// Edge to edge and under the navigation, fading into the window's
     /// backdrop, instead of a rounded card.
@@ -136,7 +137,7 @@ struct HeroSection<Media: View, Actions: View>: View {
     private var words: some View {
         VStack(alignment: .leading, spacing: DS.Space.s) {
             if let eyebrow { Text(eyebrow).dsText(.eyebrow, color: DS.Ink.secondary) }
-            Text(title).dsText(.hero).lineLimit(2).minimumScaleFactor(0.7)
+            Text(title).dsText(titleRole).lineLimit(2).minimumScaleFactor(0.7)
             if !metadata.isEmpty { MetadataRow(items: metadata) }
             HStack(spacing: DS.Space.s) { actions }
                 .padding(.top, DS.Space.xs)

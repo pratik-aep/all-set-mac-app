@@ -61,6 +61,8 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         // Theme previews and the pictures pages showed were only for this
         // window; desktop widgets keep the recent ones they use.
         services?.releaseCachedPictures(keeping: 0.25)
+        CinemaArtwork.clear()
+        LibraryPreviewCache.clear()
     }
 
     private weak var services: AppServices?
@@ -102,34 +104,28 @@ final class MainWindowController: NSObject, NSWindowDelegate {
 struct MainView: View {
     let services: AppServices
     @Bindable var ui: UIState
+    @State private var cinemaWindowVisible = true
+    private var cinema: Bool {
+        switch ui.page { case .gallery: true; default: false }
+    }
 
     var body: some View {
         GeometryReader { geometry in
-            let margin = DS.Space.pageMargin(for: geometry.size.width)
             // A page swaps at once and eases in under a Core Animation veil
             // (`PageVeil`); the navigation stays put above it.
             ZStack {
                 detail(ui.page ?? .island)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .id(ui.page)
+                    .transition(.opacity)
             }
-            .overlay { PageVeil(page: ui.page).allowsHitTesting(false) }
+            .motion(Motion.standard, value: ui.page)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .safeAreaInset(edge: .top, spacing: 0) {
-                VStack(spacing: 0) {
-                    FloatingNav(services: services, ui: ui, margin: margin)
-                    if let error = services.widgets.saveError {
-                        Label("Your widget layout couldn't be saved: \(error)", systemImage: "exclamationmark.triangle.fill")
-                            .dsText(.body)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, DS.Space.m)
-                            .padding(.vertical, DS.Space.xs)
-                            .background(RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous).fill(Color.orange.opacity(0.22)))
-                            .padding(.horizontal, margin)
-                            .padding(.bottom, DS.Space.xs)
-                            .accessibilityAddTraits(.isStaticText)
-                    }
-                }
+                if ui.page != .wallpaper { navigation(width: geometry.size.width) }
+            }
+            .overlay(alignment: .top) {
+                if ui.page == .wallpaper { navigation(width: geometry.size.width) }
             }
             .overlay(alignment: .top) {
                 if let toast = ui.toast {
@@ -152,12 +148,36 @@ struct MainView: View {
                 }
             }
         }
-        .background(WindowBackdrop(paused: ui.performance.pausesDecorativeMotion))
+        .background {
+            if ui.page == .wallpaper { WallpaperAtmosphere(services: services) }
+            else if cinema { StudioAtmosphere(services: services) }
+            else { WindowBackdrop(paused: ui.performance.pausesDecorativeMotion) }
+        }
+        .ignoresSafeArea(.container, edges: .top)
         .environment(ui)
+        .background { if cinema { CinemaWindowPresence(visible: $cinemaWindowVisible) } }
+        .environment(\.widgetIsOnScreen, cinema ? cinemaWindowVisible : true)
         // The main window is always dark: the content (art, wallpapers,
         // themes) leads, and a dark canvas is what lets it. Desktop widgets
         // and the notch keep their own appearance.
         .preferredColorScheme(.dark)
+    }
+
+    private func navigation(width: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            CinemaNavigation(services: services)
+            if let error = services.widgets.saveError {
+                Label("Your widget layout couldn't be saved: \(error)", systemImage: "exclamationmark.triangle.fill")
+                    .dsText(.body)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, DS.Space.m)
+                    .padding(.vertical, DS.Space.xs)
+                    .background(RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous).fill(Color.orange.opacity(0.22)))
+                    .padding(.horizontal, DS.Space.pageMargin(for: width))
+                    .padding(.bottom, DS.Space.xs)
+                    .accessibilityAddTraits(.isStaticText)
+            }
+        }
     }
 
     @ViewBuilder
@@ -187,7 +207,7 @@ struct MainView: View {
         case .desktop:
             DesktopWidgetsPage(services: services)
         case .wallpaper:
-            LiveWallpaperPage(services: services, tab: services.ui.wallpaperTab)
+            ClassicWallpaperPage(services: services)
         case .wallpaperOptions:
             WallpaperOptionsPage(services: services)
         case .snapping:

@@ -512,7 +512,6 @@ enum PageCPUProbe {
         report("before")
         let mainWindow = { NSApp.windows.first { $0.frameAutosaveName == "AllSetMain" && $0.isVisible } }
         for cycle in 1...5 {
-            services.ui.wallpaperTab = .videos
             services.ui.page = .wallpaper
             MainWindowController.shared.show(services: services)
             try? await Task.sleep(for: .seconds(3))

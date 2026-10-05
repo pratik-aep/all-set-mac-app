@@ -7,8 +7,8 @@ import Observation
 @Observable @MainActor
 final class UIState {
     var page: AppPage? = .island
-    /// Which source the Live Wallpaper page opens on.
-    var wallpaperTab = LiveWallpaperPage.Tab.aerials
+    var studioWidgetSelection = "digitalClock"
+    var studioWidgetFilter = StudioWidgetFilter.all
     var isArrangingWidgets = false
     /// ⌘K is open.
     var isSearching = false
@@ -73,7 +73,6 @@ final class AppServices {
     let images = ImageLibrary()
     let search = PhotoSearch()
     let wallpaper = WallpaperStore()
-    let aerials = AerialCatalog()
     let workspaces = WorkspaceStore()
     let clipboard = ClipboardStore()
     let shelf = ShelfStore()
@@ -146,7 +145,6 @@ final class AppServices {
     func releaseCachedPictures(keeping fraction: Double) {
         if hasThemePreviews { themePreviews.purge() }
         images.trimCaches(to: fraction)
-        aerials.trimPreviews(to: fraction)
         ArtworkCache.trim(to: fraction)
     }
 
@@ -237,8 +235,6 @@ final class AppServices {
     func handle(_ link: DeepLink) {
         switch link {
         case .page(let name):
-            // Art is a source on the Wallpaper page now.
-            if name == "art" { ui.wallpaperTab = .art }
             let pages: [String: AppPage] = [
                 "home": .island, "island": .island, "themes": .themes, "gallery": .gallery(nil), "monitor": .monitor,
                 "wallpaper": .wallpaper, "art": .wallpaper, "clipboard": .clipboard, "notes": .notes,
@@ -295,6 +291,7 @@ final class AppServices {
         var instance = instance
         // New widgets join the chosen design theme.
         if let theme = settings.widgetDesignTheme, instance.options.designTheme == nil,
+           !instance.options.cinematicClock, !instance.options.cinematicStyle,
            !instance.kind.isFreeform, !instance.kind.paintsOwnBackground, instance.material != .clear {
             instance.options.designTheme = theme
         }

@@ -45,6 +45,8 @@ struct ThemeWidgetCard: View {
     let widget: ThemeWidget
     let services: AppServices
 
+    var showThemeName = false
+
     @State private var added = false
     @State private var isHovering = false
 
@@ -52,7 +54,7 @@ struct ThemeWidgetCard: View {
         VStack(alignment: .leading, spacing: DS.Space.xs) {
             ZStack {
                 LinearGradient(colors: [Color(white: 0.16), Color(white: 0.07)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                WidgetPreview(instance: widget.instance, services: services, fit: CGSize(width: 214, height: 150))
+                LibraryWidgetPreview(instance: widget.instance, services: services, fit: CGSize(width: 214, height: 150), live: isHovering)
                     // Still until pointed at: a rail of moving widgets would keep the Mac busy.
                     .environment(\.widgetIsVisible, isHovering)
             }
@@ -71,7 +73,8 @@ struct ThemeWidgetCard: View {
             HStack(spacing: DS.Space.xs) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(widget.title).dsText(.headline).lineLimit(1)
-                    Text(widget.instance.size.title).dsText(.meta)
+                    Text(showThemeName ? "\(widget.setName) · \(widget.instance.size.title)" : widget.instance.size.title)
+                        .dsText(.meta).lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 Button {

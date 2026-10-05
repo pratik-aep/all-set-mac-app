@@ -57,7 +57,7 @@ private struct LibraryTile<Content: View, Actions: View>: View {
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
-                    .strokeBorder(picked ? Color.white.opacity(0.92) : DS.Surface.hairline, lineWidth: picked ? 3 : 1)
+                    .strokeBorder(picked ? Color.cyan.opacity(0.8) : Color.white.opacity(isHovering ? 0.25 : 0.14), lineWidth: picked ? 1.5 : 1)
             }
             .overlay(alignment: .topTrailing) {
                 if context.isPicking {
@@ -119,6 +119,8 @@ struct ArtLibraryPage: View {
     /// Inside another page's scroll (the Wallpaper page's Art source): no
     /// scroll view or page title of its own.
     var embedded = false
+    var searchQuery = ""
+    var favoriteIDs: Set<String>?
 
     @State private var palette: ArtPalette?
 
@@ -146,7 +148,17 @@ struct ArtLibraryPage: View {
                            subtitle: "Hover to see them move. Any of them can be a wallpaper, a live scene or a widget background.")
             }
             PaletteFilter(selection: $palette)
-            if let palette {
+            if !searchQuery.isEmpty || favoriteIDs != nil {
+                let pieces = ArtPiece.all.filter {
+                    (palette == nil || $0.palette == palette) && SearchMatch.containsAll(searchQuery, in: $0.title)
+                        && (favoriteIDs == nil || favoriteIDs!.contains(StudioSavedIDs.wallpaperID($0)))
+                }
+                if pieces.isEmpty {
+                    EmptyState(symbol: "magnifyingglass", title: "No wallpapers found", message: "Clear search or turn off Favorites to see the full library.")
+                } else {
+                    grid(pieces, caption: \.title)
+                }
+            } else if let palette {
                 // One palette: every style in it, side by side.
                 grid(ArtStyle.allCases.map { ArtPiece(style: $0, palette: palette) }, caption: \.style.title)
             } else if context.isPicking {

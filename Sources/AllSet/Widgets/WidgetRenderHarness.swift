@@ -566,7 +566,7 @@ extension WidgetRenderHarness {
         let window = NSWindow(contentRect: NSRect(x: 80, y: 80, width: 1100, height: 900), styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: .darkAqua)
-        window.contentView = NSHostingView(rootView: LiveWallpaperPage(services: services, tab: .videos).frame(width: 1100, height: 900))
+        window.contentView = NSHostingView(rootView: ClassicWallpaperPage(services: services).frame(width: 1100, height: 900))
         window.orderFrontRegardless()
         try? await Task.sleep(for: .seconds(4))
         for (index, offset) in [0.0, 700, 1400].enumerated() {
@@ -615,9 +615,15 @@ extension WidgetRenderHarness {
     static let pages: [(name: String, page: AppPage)] = [
         ("island", .island), ("activities", .activities), ("favorites", .favorites), ("themes", .themes), ("theme-seven", .themeSet("setup.seven")),
         ("gallery", .gallery(nil)), ("gallery-themes", .gallery(nil)), ("look", .widgetAppearance), ("desktop", .desktop), ("widget", .desktop), ("wallpaper", .wallpaper),
-        ("wallpaper-art", .wallpaper), ("wallpaper-videos", .wallpaper), ("wallpaper-options", .wallpaperOptions), ("snapping", .snapping), ("workspaces", .workspaces),
+        ("wallpaper-options", .wallpaperOptions), ("snapping", .snapping), ("workspaces", .workspaces),
         ("clipboard", .clipboard), ("shelf", .shelf), ("mixer", .mixer), ("taptap", .knocks), ("notes", .notes),
         ("screenshot", .screenshot), ("monitor", .monitor), ("lid-plane", .lidPlane), ("general", .general), ("about", .about),
+    ]
+
+    /// Opt-in visual cases; keep the normal CI page/probe inventory unchanged.
+    private static let spotlightPages: [(name: String, page: AppPage)] = [
+        ("gallery-focus", .gallery(nil)), ("gallery-analog", .gallery(nil)), ("gallery-weather", .gallery(nil)),
+        ("gallery-calendar", .gallery(nil)), ("gallery-system", .gallery(nil)), ("gallery-music", .gallery(nil)),
     ]
 
     /// `-renderPages folder [-pages wallpaper,themes] [-pageSizes 900x600,1280x800]`:
@@ -678,14 +684,18 @@ extension WidgetRenderHarness {
         try? await Task.sleep(for: .seconds(2))
         for size in sizes {
             window.setContentSize(size)
-            for (name, page) in pages where wanted?.contains(name) ?? true {
-                // The Wallpaper page opens on `wallpaperTab`; a fresh page picks it up.
-                let tab: LiveWallpaperPage.Tab = name == "wallpaper-art" ? .art : name == "wallpaper-videos" ? .videos : .aerials
+            for (name, page) in pages + spotlightPages.filter({ wanted?.contains($0.name) == true }) where wanted?.contains(name) ?? true {
                 services.ui.galleryFromThemes = name == "gallery-themes"
-                if page == .wallpaper {
+                if case .gallery = page {
+                    // Fresh page state lets visual checks cover square, wide
+                    // and tall spotlight widgets, rather than just the clock.
                     services.ui.page = .about
-                    try? await Task.sleep(for: .milliseconds(200))
-                    services.ui.wallpaperTab = tab
+                    // Wait for the 300 ms page transition to actually unmount
+                    // the previous gallery and release its @State.
+                    try? await Task.sleep(for: .milliseconds(700))
+                    services.ui.studioWidgetSelection = ["gallery-focus": "focusTimer", "gallery-analog": "analogClock",
+                        "gallery-weather": "weather", "gallery-calendar": "calendar", "gallery-system": "systemMonitor",
+                        "gallery-music": "music"][name] ?? "digitalClock"
                 }
                 // "widget" is the first desktop widget's settings, whichever that is.
                 services.ui.page = name == "widget" ? services.widgets.widgets.first.map { .widget($0.id) } ?? page : page
@@ -694,7 +704,7 @@ extension WidgetRenderHarness {
                 // Theme previews are drawn one at a time, photos and cut-outs
                 // first, which takes a CI machine a while.
                 let settle = name == "themes" ? 8000
-                    : ["theme-seven", "gallery", "gallery-themes", "wallpaper", "wallpaper-art", "wallpaper-videos"].contains(name) ? 6000 : 1800
+                    : ["theme-seven", "gallery", "gallery-themes", "wallpaper"].contains(name) ? 6000 : 1800
                 try? await Task.sleep(for: .milliseconds(settle))
                 if let image = captureOwnWindow(window),
                    let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {

@@ -55,6 +55,11 @@ struct WidgetOptionsEditor: View {
             themeSections(instance)
             textSections(instance)
 
+            if instance.options.cinematicStyle {
+                Section("Appearance") {
+                    Toggle("Cinematic card", isOn: binding(\.options.cinematicStyle, instance))
+                }
+            }
             if instance.material == .photo, showsStylePicker(instance), instance.designTheme == nil {
                 Section("Background Photo") {
                     BackgroundPhotoPicker(selection: Binding(
@@ -289,6 +294,7 @@ struct WidgetOptionsEditor: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                Toggle("Cinematic clock", isOn: binding(\.options.cinematicClock, instance))
                 Toggle("24-hour time", isOn: binding(\.options.use24Hour, instance))
                 if instance.options.clockFace != .world, instance.options.clockFace != .minimal {
                     Toggle("Show seconds", isOn: binding(\.options.showSeconds, instance))
@@ -936,7 +942,13 @@ struct WidgetOptionsEditor: View {
     private func binding<Value>(_ keyPath: WritableKeyPath<WidgetInstance, Value>, _ fallback: WidgetInstance) -> Binding<Value> {
         Binding(
             get: { services.widgets.instance(id)?[keyPath: keyPath] ?? fallback[keyPath: keyPath] },
-            set: { value in services.widgets.update(id) { $0[keyPath: keyPath] = value } }
+            set: { value in services.widgets.update(id) {
+                $0[keyPath: keyPath] = value
+                if keyPath == \WidgetInstance.options.clockFace || keyPath == \WidgetInstance.options.designTheme || (keyPath == \WidgetInstance.material && ($0.material == .art || $0.material == .clear)) {
+                    $0.options.cinematicClock = false
+                    $0.options.cinematicStyle = false
+                }
+            } }
         )
     }
 }

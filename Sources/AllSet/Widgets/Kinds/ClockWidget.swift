@@ -14,8 +14,11 @@ struct ClockWidget: View {
     var body: some View {
         // Ticks on the second or on the minute, aligned so the display changes
         // exactly when the time does.
-        let step: TimeInterval = options.showSeconds ? 1 : 60
+        let step: TimeInterval = options.showSeconds || options.cinematicClock ? 1 : 60
         WidgetTimeline(.periodic(from: Self.aligned(.now, to: step), by: step)) { context in
+            if options.cinematicClock {
+                CinematicClockFace(instance: instance, date: context.date)
+            } else {
             switch options.clockFace {
             case .digital: digital(context.date)
             case .analog: analog(context.date)
@@ -24,6 +27,7 @@ struct ClockWidget: View {
             case .flip: flip(context.date)
             case .minimal: minimal(context.date)
             case .world: world(context.date)
+            }
             }
         }
     }

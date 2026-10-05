@@ -161,12 +161,16 @@ struct WidgetHostView: View {
             // While its corner is dragged, the layout the drag has reached.
             let _ = window.liveSize.map { instance.size = $0 }
             let ownScale = window.liveScale ?? instance.scale
-            let ownStretch = window.liveStretch ?? instance.stretch
+            let cinematic = instance.options.cinematicClock || instance.options.cinematicStyle
+            let contentStretch = window.liveStretch ?? instance.stretch
+            let ownStretch = cinematic ? 1 : contentStretch
             let arranging = services.ui.isArrangingWidgets
             let radius = instance.designTheme?.cornerRadius ?? instance.options.cornerRadius ?? services.settings.widgetCornerRadius
             let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
 
             WidgetBody(instance: instance, services: services, onConfigure: onConfigure)
+            .frame(width: cinematic ? instance.size.dimensions.width : nil,
+                   height: cinematic ? instance.size.dimensions.height * contentStretch : nil)
             // Covered widgets, and all of them in Low Power Mode or with Reduce
             // Motion on, hold still.
             .environment(\.widgetIsVisible, !window.isOccluded && !services.ui.performance.pausesDecorativeMotion)
@@ -282,12 +286,18 @@ struct WidgetBody: View {
     var onConfigure: @MainActor () -> Void = {}
     @Environment(\.widgetFontOverride) private var fontOverride
     @Environment(\.widgetCornerOverride) private var cornerOverride
+    @Environment(\.widgetIsPreview) private var isPreview
     /// The Mac's appearance (nothing above has overridden it yet).
     @Environment(\.colorScheme) private var systemScheme
 
     var body: some View {
         Group {
-            if let theme = instance.designTheme {
+            if instance.kind == .clock, instance.options.cinematicClock {
+                ClockWidget(instance: instance)
+                    .onTapGesture { if !isPreview { services.openWindow(.widget(instance.id)) } }
+            } else if instance.options.cinematicStyle, CinematicWidgetFace.supports(instance.kind) {
+                CinematicWidgetFace(instance: instance, services: services)
+            } else if let theme = instance.designTheme {
                 themed(theme)
             } else {
                 classic
