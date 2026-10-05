@@ -26,3 +26,6 @@ Code located: `Studio/ThemesPage.swift` (first pass present), `Studio/ThemePrevi
 No carousel files exist in this tree.
 
 Skipped (no toolchain): build, test run, baseline probes, baseline screenshots.
+
+## Phase 1 — audit (done)
+`AUDIT.md` written (22 rows). Biggest gaps: no layout toggle, sliding indicator, scrolling-under bar, glass rims, atmosphere, row position tracking, narrow category cards, See All on every row.
