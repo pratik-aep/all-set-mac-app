@@ -3,7 +3,10 @@
 Metadata only — this does not touch the actual video/still/thumbnail files
 (those go to object storage separately, once R2 is wired up). Safe to run
 again: loads into a staging table, then upserts by id, so a rerun updates
-rows instead of duplicating them.
+rows instead of duplicating them. It never changes a row's storage keys:
+new rows start without them, and keys an upload filled in are kept.
+
+Tests: /usr/bin/python3 -m unittest scripts/cloud/test_sync_catalog.py
 
 Needs `psql` (already on this Mac via Homebrew) and a `.env` file next to
 this script with:
@@ -42,6 +45,11 @@ PSQL = "/opt/homebrew/bin/psql" if os.path.exists("/opt/homebrew/bin/psql") else
 COLUMNS = ["id", "title", "kind", "category", "tags", "origin_root", "origin_file",
            "playback_key", "still_key", "thumbnail_key", "duration", "width", "height",
            "fps", "size_bytes", "status", "status_reason", "provenance", "content_rating", "added_at"]
+
+# Where each uploaded file lives. The catalog never knows them (the upload step
+# writes them), so a rerun must leave them alone: updating them from this sync
+# would set every uploaded row's keys back to NULL and break playback.
+STORAGE_KEYS = {"playback_key", "still_key", "thumbnail_key"}
 
 
 def load_env(path):
@@ -116,13 +124,16 @@ def main():
     print(f"{len(items)} wallpapers to sync (of {len(all_items)} total)")
 
     buf = io.StringIO()
-    writer = csv.writer(buf)
+    # Postgres's CSV reader takes its line ending from the first line, and the
+    # end-of-data marker below ends in "\n": the csv module's default "\r\n"
+    # makes COPY fail with "unquoted newline found in data".
+    writer = csv.writer(buf, lineterminator="\n")
     writer.writerow(COLUMNS)
     for item in items:
         writer.writerow(row_for(item))
 
     cols = ",".join(COLUMNS)
-    updates = ",\n    ".join(f"{c} = excluded.{c}" for c in COLUMNS if c != "id")
+    updates = ",\n    ".join(f"{c} = excluded.{c}" for c in COLUMNS if c != "id" and c not in STORAGE_KEYS)
     script = f"""
 create schema if not exists staging;
 drop table if exists staging.wallpapers;
