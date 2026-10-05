@@ -144,7 +144,8 @@ struct ThemesPage: View {
             let inset = geometry.safeAreaInsets.top
             ZStack(alignment: .top) {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: DS.Space.section) {
+                    // A slim row of controls, then 12 above the first section.
+                    VStack(alignment: .leading, spacing: DS.Space.s) {
                         VStack(alignment: .leading, spacing: DS.Space.s) {
                             DesktopUndoBanner(services: services)
                             HStack {
@@ -525,8 +526,11 @@ struct ThemeRow<Item: Identifiable, Card: View>: View where Item.ID == String {
                     }
                 }
                 .scrollTargetLayout()
-                .padding(bleed)
+                .padding(.top, bleed.top)
+                .padding(.bottom, bleed.bottom)
             }
+            // A margin, not padding, so snapping lines cards up inside it.
+            .contentMargins(.horizontal, bleed.leading, for: .scrollContent)
             .scrollPosition(id: $leading)
             .scrollTargetBehavior(.viewAligned)
             .padding(EdgeInsets(top: -bleed.top, leading: -bleed.leading, bottom: -bleed.bottom, trailing: -bleed.trailing))

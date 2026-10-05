@@ -42,3 +42,35 @@ Moodboards is a `ThemeRow` of five 252 × 126 `ThemeCategoryCard`s (lead theme p
 
 ## Phase 5 — finish (done)
 `ThemeAtmosphere`: two static radial accent pools (30% / 14%) from the desktop theme's accent (or the first featured theme), reaching ≈ 720 pt down, crossfading on change (0.7 s; 0.15 s under Reduce Motion / saver tier), no blur layers. Glass: bar, sort menu, layout toggle and row arrows share one finish (plain 28% black fill, 1 pt top-left → bottom-right white 18 → 4% rim, 1 pt inner top highlight at 10%, static bar shadow). Reduce Motion: no hover lift, `withMotion` dissolves; saver/hot: no lift, no glow. VoiceOver: pills carry the selected trait, arrows say "Previous/Next <row>", hearts name the theme, tiles/categories have labels, values and hints, headers marked. Keyboard: ←/→ on a focused row.
+
+## Phase 6 — static review (no Mac available)
+Not run here, by necessity: build, tests, `-probe scroll` / `-probe pages`, screenshots, `compare-N.png`. Everything below is by code reading against `reference-B-themes-page-rows.png` and the real APIs in `Design/*`, `Components/Motion.swift`, `PerformancePolicy`.
+
+### Iteration 1 (static)
+Compile review found and fixed: unused `rowID` parameter removed; horizontal scroll bleed moved from padding to `contentMargins` (so snapping doesn't shift the first card); 40 pt gap between the controls row and the first section reduced to 12.
+APIs checked present for macOS 14.2: `scrollPosition(id:)`, `scrollTargetBehavior(.viewAligned)`, `contentMargins`, `onKeyPress`, `focusEffectDisabled`, `PerformancePolicy.Tier` (Comparable), `FloatingButtonStyle`/`.pill`, `SearchField`, `EmptyState`, `Deferred`, `withMotion`, `.motion`.
+
+| Check | Result (by reading) |
+|---|---|
+| Sticky bar pinned, pills / search / sort / toggle layout | PASS |
+| No carousel on Themes page; first row visible at 1400 × 900 (bar ends ≈ y 162, header ≈ y 200, cards ≈ y 252–430) | PASS |
+| Section header identical everywhere (tile, title, description, `‹ ›`, See All) | PASS |
+| Cards: fill, name + count bottom-left on fade, heart, radius 20, hairline, 252 wide, 5 per row at 1400 (1324 ≤ 1336) | PASS |
+| Active ring; hover lift + accent glow | PASS |
+| Moodboards = 5 category cards, title, count, round arrow, "Most Popular" | PASS |
+| Football and every other row use the same `ThemeRow` | PASS |
+| Spacing: section 40, card 16, margin 32 / 24 | PASS |
+| Tokens (`DS.*`, `Motion.*`); literals only for glass opacities from the prompt | PASS |
+| Mood: atmosphere + glass | PASS (needs eyes on a Mac) |
+| Search, filters, sort, favourites, apply/undo, wallpaper switch, See All, deep link | PASS by reading (logic reused from `ThemeDiscovery`/`ThemeStats`; deep link untouched) |
+| Performance | UNVERIFIED (no probe). Risks to watch: `ThemeAtmosphere` is 2 static gradients; per-card `dsElevated` shadow in lazy rows (as before) |
+| 900 × 600 layout, Reduce Motion | PASS by reading; verify visually |
+Result: static PASS after 1 iteration. Not a substitute for the screenshot loop.
+
+### Owner must run on a Mac
+1. `swift build` (zero warnings) and the full test suite (313 tests / 85 suites expected).
+2. `-openPage themes` at 1400 × 900 (top, scrolled to Trending/Moodboards, scrolled to Football) and 900 × 600; side-by-side against `reference-B`.
+3. `-probe scroll` and `-probe pages` for Themes vs baseline.
+4. Hover glow strength, atmosphere strength, selected-pill slide, arrow/keyboard scrolling, drag snapping (no first-card jump), Reduce Motion and Low Power behaviour.
+5. If your local tree still shows the carousel hero on this page, remove its use from `ThemesPage` (the carousel files stay).
+6. Known judgement calls: sort defaults to "Suggested" (reference shows "Newest"); Moodboards cards preview a single lead theme, not a collage.
