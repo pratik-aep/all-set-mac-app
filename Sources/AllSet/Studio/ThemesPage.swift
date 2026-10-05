@@ -12,12 +12,12 @@ enum ThemeDiscovery: String, CaseIterable, Identifiable {
         switch self {
         case .all: "All"
         case .featured: "Featured"
-        case .trending: "Trending"
+        case .trending: "Recommended"
         case .new: "New"
         case .artist: "Moodboards"
         case .football: "Football"
         case .music: "Music Icons"
-        case .popular: "Popular"
+        case .popular: "Top Picks"
         case .minimal: "Minimal"
         case .dark: "Dark"
         case .colorful: "Colorful"
@@ -122,7 +122,7 @@ struct ThemesPage: View {
                         }
                         banners
                         if browsing {
-                            ThemeRail(title: "Trending themes", sets: ThemeDiscovery.trending.sets(stats: services.themeStats),
+                            ThemeRail(title: "Recommended themes", sets: ThemeDiscovery.trending.sets(stats: services.themeStats),
                                       services: services, availableWidth: geometry.size.width - margin * 2) {
                                 discovery = ThemeDiscovery.trending.rawValue
                             }

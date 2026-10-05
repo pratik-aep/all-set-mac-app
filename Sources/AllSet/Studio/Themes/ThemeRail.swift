@@ -21,7 +21,7 @@ struct ThemeRail: View {
                 VStack(alignment: .leading, spacing: DS.Space.s) {
                     HStack(spacing: DS.Space.s) {
                         Image(systemName: symbol).font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(title == "Trending themes" ? Color.pink : Color.white.opacity(0.8))
+                            .foregroundStyle(title == "Recommended themes" ? Color.pink : Color.white.opacity(0.8))
                             .frame(width: 30, height: 30)
                             .background(DS.Surface.raised, in: RoundedRectangle(cornerRadius: DS.Radius.control))
                         VStack(alignment: .leading, spacing: 3) {
@@ -50,7 +50,7 @@ struct ThemeRail: View {
 
     private var symbol: String {
         switch title {
-        case "Trending themes": "flame.fill"
+        case "Recommended themes": "flame.fill"
         case "Football": "soccerball"
         case "Music Icons": "music.note"
         case "Night": "moon.stars.fill"
@@ -62,7 +62,7 @@ struct ThemeRail: View {
 
     private var subtitle: String {
         switch title {
-        case "Trending themes": "Fresh looks for your next desktop."
+        case "Recommended themes": "Picked for the season and for what you use."
         case "Football": "For the beautiful game."
         case "Music Icons": "Set the mood. Find your rhythm."
         case "Colour & Light": "A brighter way to make it yours."

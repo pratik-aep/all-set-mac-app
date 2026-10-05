@@ -3,7 +3,7 @@ import Observation
 import OSLog
 
 /// How themes are used on this Mac: installs, applies, previews, favorites
-/// and when each was last used. Trending and Popular are ranked from these
+/// and when each was last used. Recommended and Top Picks (the `trending` and `popular` scores) are ranked from these
 /// plus each set's starting popularity, so a server's counts can replace the
 /// local ones later without changing the ranking.
 @Observable @MainActor

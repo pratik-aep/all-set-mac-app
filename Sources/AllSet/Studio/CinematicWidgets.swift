@@ -47,6 +47,8 @@ struct GalleryPage: View {
         instance.options.ink = WidgetColor(hex: 0xFFFFFF)
         instance.options.background = .bundled(entry.kind == .focus && background == StudioScenery.wallpaper ? StudioScenery.widgets : background)
         instance.options.art = ArtPiece(style: .aurora, palette: .midnight)
+        // Previews show the month without reading the calendar; `installable` turns
+        // events back on for a calendar that goes on the desktop.
         if entry.kind == .calendar { instance.options.showEvents = false }
         if entry.id == "digitalClock" {
             instance.options.cinematicClock = true
@@ -55,7 +57,9 @@ struct GalleryPage: View {
         }
         if entry.kind == .weather {
             instance.material = material == .frosted ? .tinted : material
-            instance.options.location = WeatherLocation(name: "London", latitude: 51.5072, longitude: -0.1276)
+            // A city already on the desktop, else one guessed from this Mac's time zone:
+            // never a fixed city the person didn't choose.
+            instance.options.location = services.widgets.widgets.lazy.compactMap(\.options.location).first ?? TimeZonePlace.guess()
         }
         return instance
     }
@@ -261,7 +265,7 @@ struct GalleryPage: View {
                     Button { toggleFavorite(entry.id) } label: { Image(systemName: isFavorite(entry.id) ? "heart.fill" : "heart").font(.system(size: 15)) }
                         .buttonStyle(FloatingButtonStyle(diameter: 26)).padding(DS.Space.xs).accessibilityLabel("Favorite \(entry.title)").accessibilityValue(isFavorite(entry.id) ? "Saved" : "Not saved")
                 }
-                .onDrag { let widget = make(entry); services.ui.widgetDrop = widget; return NSItemProvider(object: entry.title as NSString) }
+                .onDrag { let widget = installable(make(entry)); services.ui.widgetDrop = widget; return NSItemProvider(object: entry.title as NSString) }
             HStack {
                 Text(entry.id == "music" ? "Music Player" : entry.title).font(.system(size: 14, weight: .medium)).lineLimit(1)
                 Spacer(minLength: 2)
@@ -297,9 +301,23 @@ struct GalleryPage: View {
         let index = spotlightIDs.firstIndex(of: selected) ?? 0
         if let next = StudioLayout.wrapped(index + step, count: spotlightIDs.count) { select(spotlightIDs[next]) }
     }
-    private func add(_ instance: WidgetInstance) {
+    /// What goes on the desktop, as opposed to a preview: a calendar shows the
+    /// person's events (macOS asks for access the first time).
+    private func installable(_ instance: WidgetInstance) -> WidgetInstance {
+        var instance = instance
+        if instance.kind == .calendar { instance.options.showEvents = true }
+        return instance
+    }
+
+    private func add(_ preview: WidgetInstance) {
+        let instance = installable(preview)
         services.addWidget(instance); added = true
-        services.ui.toast = Toast(message: "\(instance.kind.title) added to desktop", symbol: "plus")
+        let message = switch instance.kind {
+        case .weather: "Weather for \(instance.options.location?.name ?? "your area") added: change the city in Edit Widget"
+        case .calendar: "Calendar added: it shows your events once Calendar access is allowed"
+        default: "\(instance.kind.title) added to desktop"
+        }
+        services.ui.toast = Toast(message: message, symbol: "plus")
         Task { try? await Task.sleep(for: .seconds(2)); added = false }
     }
     private func isFavorite(_ id: String) -> Bool { StudioSavedIDs.decode(favorites).contains(id) }

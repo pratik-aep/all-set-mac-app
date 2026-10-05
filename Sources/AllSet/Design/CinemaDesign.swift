@@ -44,7 +44,7 @@ struct CinemaNavigation: View {
                     Spacer()
                 }
                 HStack(spacing: 2) {
-                    ForEach(NavSection.allCases) { option in
+                    ForEach(Array(NavSection.allCases.enumerated()), id: \.element) { index, option in
                         Button { navigate(lastPage[option] ?? option.home) } label: {
                             Text(option.title).foregroundStyle(option == section ? .white : .white.opacity(0.65))
                                 .padding(.horizontal, 27.5).frame(height: 34)
@@ -54,6 +54,9 @@ struct CinemaNavigation: View {
                                     }
                                 }
                         }.buttonStyle(.plain).accessibilityAddTraits(option == section ? .isSelected : [])
+                        // ⌘1–⌘5, as the README promises and the earlier navigation had.
+                        .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+                        .help("\(option.title) (⌘\(index + 1))")
                     }
                 }
                 .font(.system(size: 14)).padding(3)

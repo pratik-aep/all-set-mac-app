@@ -88,6 +88,7 @@ private struct LibraryTile<Content: View, Actions: View>: View {
             }
             .contentShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
             .onTapGesture { context.toggle(source) }
+            .keyboardActivatable(hint: "Picks or unpicks this photo", activate: { context.toggle(source) })
             .onHover { hovering in withMotion(Motion.responsive) { isHovering = hovering } }
     }
 }
