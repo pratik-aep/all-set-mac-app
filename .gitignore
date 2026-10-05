@@ -23,3 +23,4 @@ graphify-out/
 
 # Shareable builds and the handout READMEs (not source)
 /dist
+__pycache__/
