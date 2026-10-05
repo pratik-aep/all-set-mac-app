@@ -612,7 +612,7 @@ private struct LibraryTile: View {
             .alert("Couldn't finish deleting “\(video.title)”", isPresented: .init(get: { deleteProblem != nil }, set: { if !$0 { deleteProblem = nil } })) {
                 Button("OK") {}
             } message: {
-                Text((deleteProblem ?? "") + " It's already gone from this Mac; try again once that's fixed to finish removing it from the server.")
+                Text((deleteProblem ?? "") + " Nothing was deleted: it's still on this Mac and in your library. Delete it again once that's fixed.")
             }
             .overlay(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -716,7 +716,7 @@ private struct LibraryTile: View {
                 guard await AdminGate.authorize(reason: "delete “\(video.title)” everywhere") else { return }
                 switch await delete() {
                 case .success, nil: break
-                case .localOnly(let reason): deleteProblem = reason
+                case .notDeleted(let reason): deleteProblem = reason
                 }
             }
         }
@@ -856,7 +856,7 @@ private struct LibraryDetailSheet: View {
         .alert("Couldn't finish deleting “\(video.title)”", isPresented: .init(get: { deleteProblem != nil }, set: { if !$0 { deleteProblem = nil } })) {
             Button("OK") {}
         } message: {
-            Text((deleteProblem ?? "") + " It's already gone from this Mac.")
+            Text((deleteProblem ?? "") + " Nothing was deleted: it's still on this Mac and in your library. Delete it again once that's fixed.")
         }
     }
 
@@ -882,7 +882,7 @@ private struct LibraryDetailSheet: View {
                 guard await AdminGate.authorize(reason: "delete “\(video.title)” everywhere") else { return }
                 switch await delete() {
                 case .success, nil: onClose()
-                case .localOnly(let reason): deleteProblem = reason
+                case .notDeleted(let reason): deleteProblem = reason
                 }
             }
         }

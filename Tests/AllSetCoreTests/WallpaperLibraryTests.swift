@@ -450,6 +450,29 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         #expect(store.canPlay(a))
     }
 
+    /// The same size isn't the same file: a server copy with different bytes keeps ours.
+    @MainActor @Test func freeingSpaceKeepsAFileWhoseServerCopyDiffers() async throws {
+        let store = try await offloadableLibrary()
+        StubURLProtocol.handler = { request in
+            request.url?.lastPathComponent == "a.mp4" ? (200, Data("zzzz".utf8)) : (404, nil)
+        }
+        let result = await store.offloadAll()
+        #expect(result.freedFiles == 0)
+        #expect(FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("live/a.mp4").path))
+    }
+
+    /// If what was freed can't be written down first, nothing is freed.
+    @MainActor @Test func freeingSpaceDeletesNothingWhenItCantRecordIt() async throws {
+        let store = try await offloadableLibrary()
+        // A folder where the record file goes: it can't be written.
+        try FileManager.default.createDirectory(at: store.libraryDirectory.appendingPathComponent("offloaded.json"),
+                                                withIntermediateDirectories: true)
+        let result = await store.offloadAll()
+        #expect(result.freedFiles == 0)
+        #expect(result.kept.contains("live/a.mp4"))
+        #expect(FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("live/a.mp4").path))
+    }
+
     @MainActor @Test func freeingSpaceWithoutAServerKeepsEverything() async throws {
         let store = try await offloadableLibrary()
         store.config.libraryServerURL = nil
@@ -618,20 +641,40 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         #expect(store.libraryVideo(id) == nil)
     }
 
-    /// The local part is unconditional and already done by the time the
-    /// server is even asked — a server failure doesn't undo it or hide it.
-    @MainActor @Test func deleteEverywhereStaysLocalWhenTheServerFails() async throws {
+    /// A server failure deletes nothing anywhere: the wallpaper stays on this Mac and
+    /// in the library, the delete is remembered, and asking again finishes it.
+    @MainActor @Test func aFailedDeleteEverywhereDeletesNothingAndCanBeRetried() async throws {
         let (store, id) = try await missingLibraryVideo()
-        try FileManager.default.createDirectory(at: store.libraryDirectory.appendingPathComponent("live"), withIntermediateDirectories: true)
-        try Data("here".utf8).write(to: store.libraryDirectory.appendingPathComponent("live/f1.mp4"))
+        let file = store.libraryDirectory.appendingPathComponent("live/f1.mp4")
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("here".utf8).write(to: file)
         StubURLProtocol.handler = { _ in (500, Data("{\"error\":\"db down\"}".utf8)) }
         store.deleteServiceURL = URL(string: "http://stub.invalid/wallpaper")!
         store.deleteServiceToken = "test-token"
 
         let outcome = await store.deleteEverywhere(id)
 
-        guard case .localOnly = outcome else { Issue.record("expected .localOnly, got \(String(describing: outcome))"); return }
-        #expect(!FileManager.default.fileExists(atPath: store.libraryDirectory.appendingPathComponent("live/f1.mp4").path))
+        guard case .notDeleted = outcome else { Issue.record("expected .notDeleted, got \(String(describing: outcome))"); return }
+        #expect(FileManager.default.fileExists(atPath: file.path))
+        #expect(store.libraryVideo(id) != nil)
+        #expect(store.pendingDeletes == [id])
+
+        // Fixed on the server: the same call now finishes it.
+        StubURLProtocol.handler = { _ in (200, Data("{}".utf8)) }
+        #expect(await store.deleteEverywhere(id) == .success)
+        #expect(!FileManager.default.fileExists(atPath: file.path))
         #expect(store.libraryVideo(id) == nil)
+        #expect(store.pendingDeletes.isEmpty)
+    }
+
+    /// The server has nothing left for it (an earlier attempt finished there): done.
+    @MainActor @Test func deleteEverywhereFinishesWhenTheServerHasNothingLeft() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        StubURLProtocol.handler = { _ in (404, Data("{\"error\":\"unknown id\"}".utf8)) }
+        store.deleteServiceURL = URL(string: "http://stub.invalid/wallpaper")!
+        store.deleteServiceToken = "test-token"
+        #expect(await store.deleteEverywhere(id) == .success)
+        #expect(store.libraryVideo(id) == nil)
+        #expect(store.pendingDeletes.isEmpty)
     }
 }

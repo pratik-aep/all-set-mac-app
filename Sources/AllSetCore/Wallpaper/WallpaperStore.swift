@@ -508,7 +508,9 @@ public final class WallpaperStore {
 
     /// Frees space by deleting this Mac's copy of each playable file the
     /// personal server is confirmed to hold: a HEAD request for that exact
-    /// path must answer 200 with the same size, or the file stays. The
+    /// path must answer 200 with the same size, and then the server's copy is
+    /// downloaded and must hash (SHA-256) the same as this Mac's, or the file
+    /// stays. Same size isn't proof: a corrupt or different file can match it. The
     /// catalog and `removed.json` are untouched — the wallpaper stays in the
     /// library and is fetched back the next time it's played. What was freed
     /// is listed in `offloaded.json`, so the importer keeps it rather than
@@ -526,6 +528,7 @@ public final class WallpaperStore {
             return result
         }
         let session = fetchSession
+        let directory = libraryDirectory
         offloadProgress = (0, candidates.count)
         defer { offloadProgress = nil }
         var confirmed: [OffloadCandidate] = []
@@ -535,17 +538,23 @@ public final class WallpaperStore {
             var pending = candidates.makeIterator()
             for _ in 0..<8 {
                 guard let next = pending.next() else { break }
-                group.addTask { (next, await Self.serverHolds(next, root: root, session: session)) }
+                group.addTask { (next, await Self.serverHolds(next, root: root, session: session, directory: directory)) }
             }
             while let (candidate, held) = await group.next() {
                 if held { confirmed.append(candidate) } else { result.kept.append(candidate.relative) }
                 offloadProgress = ((offloadProgress?.done ?? 0) + 1, candidates.count)
                 if let next = pending.next() {
-                    group.addTask { (next, await Self.serverHolds(next, root: root, session: session)) }
+                    group.addTask { (next, await Self.serverHolds(next, root: root, session: session, directory: directory)) }
                 }
             }
         }
-        let directory = libraryDirectory
+        // Written down (and read back) before anything is deleted, so the importer
+        // always knows a freed file was freed on purpose. If that can't be
+        // recorded, nothing is deleted.
+        guard recordOffloaded(confirmed.map(\.relative)) else {
+            result.kept += confirmed.map(\.relative)
+            return result
+        }
         let toDelete = confirmed
         let deleted = await Task.detached(priority: .userInitiated) {
             toDelete.filter { (try? FileManager.default.removeItem(at: directory.appendingPathComponent($0.relative))) != nil }
@@ -557,29 +566,56 @@ public final class WallpaperStore {
             result.freedBytes += candidate.size
             if libraryVideo(candidate.id)?.playback == candidate.relative { libraryCopies.remove(candidate.id) }
         }
-        recordOffloaded(deleted.map(\.relative))
+        // Anything that couldn't be deleted is still here: not offloaded after all.
+        let notDeleted = confirmed.map(\.relative).filter { !deletedPaths.contains($0) }
+        if !notDeleted.isEmpty { unrecordOffloaded(notDeleted) }
         return result
     }
 
     /// Adds to `offloaded.json`: relative paths deliberately freed from this
-    /// Mac because the server holds them. Read by the importer.
-    private func recordOffloaded(_ relatives: [String]) {
-        guard !relatives.isEmpty else { return }
+    /// Mac because the server holds them. Read by the importer. True only once
+    /// the file has been written and reads back with them in it.
+    @discardableResult
+    private func recordOffloaded(_ relatives: [String]) -> Bool {
+        guard !relatives.isEmpty else { return true }
+        return updateOffloaded { $0.formUnion(relatives) }
+    }
+
+    private func unrecordOffloaded(_ relatives: [String]) {
+        updateOffloaded { $0.subtract(relatives) }
+    }
+
+    @discardableResult
+    private func updateOffloaded(_ change: (inout Set<String>) -> Void) -> Bool {
         let url = libraryDirectory.appendingPathComponent("offloaded.json")
         var paths = Set((try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? [])
-        paths.formUnion(relatives)
-        if let data = try? JSONEncoder().encode(paths.sorted()) {
-            try? data.write(to: url, options: .atomic)
+        change(&paths)
+        do {
+            try JSONEncoder().encode(paths.sorted()).write(to: url, options: .atomic)
+            return Set(try JSONDecoder().decode([String].self, from: Data(contentsOf: url))) == paths
+        } catch {
+            log.error("Couldn't record offloaded files: \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 
-    private nonisolated static func serverHolds(_ candidate: OffloadCandidate, root: URL, session: URLSession) async -> Bool {
-        var request = URLRequest(url: root.appendingPathComponent(candidate.relative))
-        request.httpMethod = "HEAD"
-        guard let (_, response) = try? await session.data(for: request),
+    /// Whether the server's copy of a file is the same as this Mac's: same size
+    /// (a cheap HEAD first), then the same SHA-256 over its downloaded bytes.
+    private nonisolated static func serverHolds(_ candidate: OffloadCandidate, root: URL, session: URLSession,
+                                                directory: URL) async -> Bool {
+        let remote = root.appendingPathComponent(candidate.relative)
+        var head = URLRequest(url: remote)
+        head.httpMethod = "HEAD"
+        guard let (_, response) = try? await session.data(for: head),
               let http = response as? HTTPURLResponse, http.statusCode == 200,
-              let length = http.value(forHTTPHeaderField: "Content-Length").flatMap(Int64.init) else { return false }
-        return length == candidate.size
+              let length = http.value(forHTTPHeaderField: "Content-Length").flatMap(Int64.init),
+              length == candidate.size else { return false }
+        guard let (downloaded, getResponse) = try? await session.download(for: URLRequest(url: remote)) else { return false }
+        defer { try? FileManager.default.removeItem(at: downloaded) }
+        guard (getResponse as? HTTPURLResponse)?.statusCode == 200,
+              let theirs = FileDigest.sha256(of: downloaded),
+              let ours = FileDigest.sha256(of: directory.appendingPathComponent(candidate.relative)) else { return false }
+        return theirs == ours
     }
 
     /// Takes a library wallpaper out for good: deletes this Mac's own copies
@@ -639,37 +675,76 @@ public final class WallpaperStore {
     public enum DeleteEverywhereOutcome: Sendable, Equatable {
         /// Gone here, on the server, and from the database.
         case success
-        /// Gone here — that part is unconditional and already done by the
-        /// time this returns — but the server or database wasn't reached;
-        /// says why, so it can be retried or cleaned up by hand.
-        case localOnly(String)
+        /// The server didn't confirm the delete, so nothing was deleted on this Mac
+        /// either: says why. It stays in the library and in `pendingDeletes`, and
+        /// calling `deleteEverywhere` again retries it.
+        case notDeleted(String)
     }
 
-    /// Deletes a wallpaper everywhere: this Mac (via `deleteLibraryVideo`,
-    /// unconditionally first), then the server's copy of its files and its
-    /// Postgres row, through the delete service. Call only after
-    /// `AdminGate.authorize` — this function itself doesn't gate anything.
+    /// Permanent deletes started but not confirmed by the server, by id: written
+    /// before the server is asked, removed once it confirms. Survives a relaunch.
+    public var pendingDeletes: [String] { pendingDeleteRecords.keys.sorted() }
+
+    private var pendingDeletesURL: URL { libraryDirectory.appendingPathComponent("pending-deletes.json") }
+
+    private var pendingDeleteRecords: [String: [String]] {
+        (try? Data(contentsOf: pendingDeletesURL)).flatMap { try? JSONDecoder().decode([String: [String]].self, from: $0) } ?? [:]
+    }
+
+    @discardableResult
+    private func updatePendingDeletes(_ change: (inout [String: [String]]) -> Void) -> Bool {
+        var records = pendingDeleteRecords
+        change(&records)
+        do {
+            try FileManager.default.createDirectory(at: libraryDirectory, withIntermediateDirectories: true)
+            try JSONEncoder().encode(records).write(to: pendingDeletesURL, options: .atomic)
+            return pendingDeleteRecords == records
+        } catch {
+            log.error("Couldn't record a pending delete: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    /// Deletes a wallpaper everywhere: the server's copy of its files and its
+    /// Postgres row (through the delete service) first, and only once the server
+    /// confirms, this Mac's copy (via `deleteLibraryVideo`). Until then it's
+    /// recorded in `pendingDeletes`, so a failure leaves everything in place and
+    /// calling this again retries. Call only after `AdminGate.authorize` — this
+    /// function itself doesn't gate anything. Nil: no such wallpaper or pending delete.
     @discardableResult
     public func deleteEverywhere(_ id: String) async -> DeleteEverywhereOutcome? {
-        guard let video = libraryVideo(id) else { return nil }
-        let paths = Set([video.playback, video.thumbnail, video.still].compactMap { $0 }).sorted()
-        deleteLibraryVideo(id)
+        let paths: [String]
+        if let video = libraryVideo(id) {
+            paths = Set([video.playback, video.thumbnail, video.still].compactMap { $0 }).sorted()
+        } else if let pending = pendingDeleteRecords[id] {
+            paths = pending
+        } else {
+            return nil
+        }
+        guard updatePendingDeletes({ $0[id] = paths }) else {
+            return .notDeleted("Couldn't record the delete before starting it, so nothing was deleted.")
+        }
         guard let token = deleteServiceToken ?? DeleteAPIKeychain.token else {
-            return .localOnly("No delete-service token in Keychain — see DeleteAPIKeychain.swift.")
+            return .notDeleted("No delete-service token in Keychain — see DeleteAPIKeychain.swift.")
         }
         var request = URLRequest(url: deleteServiceURL)
         request.httpMethod = "DELETE"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // The server works out the wallpaper's files from its id; `paths` is sent
+        // for older servers only and isn't trusted by the current one.
         request.httpBody = try? JSONSerialization.data(withJSONObject: ["id": id, "paths": paths])
         guard let (data, response) = try? await fetchSession.data(for: request),
               let http = response as? HTTPURLResponse else {
-            return .localOnly("Couldn't reach the delete service — is the tunnel open (scripts/cloud/tunnel.sh)?")
+            return .notDeleted("Couldn't reach the delete service — is the tunnel open (scripts/cloud/tunnel.sh)?")
         }
-        guard http.statusCode == 200 else {
+        // 404: the server has no row and no files for it (an earlier attempt finished there).
+        guard http.statusCode == 200 || http.statusCode == 404 else {
             let body = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?.description ?? "HTTP \(http.statusCode)"
-            return .localOnly(body)
+            return .notDeleted(body)
         }
+        deleteLibraryVideo(id)
+        updatePendingDeletes { $0[id] = nil }
         return .success
     }
 
