@@ -89,6 +89,10 @@ struct ThemesPage: View {
     @AppStorage("themes.setsWallpaper") private var setsWallpaper = true
     @AppStorage("themes.discovery") private var discovery = ThemeDiscovery.all.rawValue
     @State private var query = ""
+    @State private var hero = ThemeHeroState()
+    @State private var atmosphere = ThemeAtmosphereState()
+    /// Marks the navigation's backdrop as this page's own while it shows.
+    @State private var navigationToken = UUID()
 
     private var filter: ThemeDiscovery { ThemeDiscovery(rawValue: discovery) ?? .all }
 
@@ -101,48 +105,82 @@ struct ThemesPage: View {
 
     var body: some View {
         let sections = self.sections
-        // The banner is the theme on the desktop now; with none, the best-liked one.
-        let active = services.settings.activeThemeSet.flatMap { ThemeLibrary.set($0) }
-        let lead = active ?? sections.featured.first
-        // The lead theme fills the top of the window; the rest of the
-        // featured row climbs onto its faded bottom. Always shown, so a
-        // search or a filter never moves the search field.
-        BleedScrollPage(showsHero: lead != nil) { layout in
-            if let lead {
-                FeaturedThemeHero(set: lead, isActive: active != nil, services: services, layout: layout)
-            }
+        // The hero is always shown, so a search or a filter never moves the
+        // search field and the categories, which live in it.
+        BleedScrollPage(showsHero: !sections.featured.isEmpty) { layout in
+            ThemesHero(items: sections.featured, services: services, state: hero, atmosphere: atmosphere,
+                       discovery: $discovery, query: $query, layout: layout)
         } content: { _ in
-            shelf("Featured", sets: sections.featured.filter { $0.id != lead?.id }, more: .featured)
-            VStack(alignment: .leading, spacing: DS.Space.l) {
-                header
-                banners
-                chips
-            }
-            if filter == .all && SearchMatch.normalize(query).isEmpty {
-                // Fifteen rails of desktop previews: only what's in view on the switch frame.
-                Deferred {
-                    ForEach(sections.shelves, id: \.title) { shelf in
-                        self.shelf(shelf.title, sets: shelf.sets, more: shelf.more)
-                    }
-                }
-            } else {
-                grid(results)
-            }
-        }
-    }
-
-    private var header: some View {
-        PageHeader(eyebrow: "\(ThemeLibrary.all.count) complete desktops", title: "Themes",
-                   subtitle: "Pick one and your whole desktop follows: the widgets, their look and the wallpaper.") {
             VStack(alignment: .trailing, spacing: DS.Space.s) {
-                SearchField(text: $query, prompt: "Search themes: night, pink, developer…")
-                    .frame(width: 280)
+                banners
                 Toggle("Change the wallpaper too", isOn: $setsWallpaper)
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .foregroundStyle(DS.Ink.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            if !SearchMatch.normalize(query).isEmpty {
+                grid(results)
+            } else {
+                if filter != .all && filter.sets(stats: services.themeStats).isEmpty {
+                    grid([])
+                }
+                // A dozen rails of desktop previews, built after the switch
+                // frame. Each rail is lazy along its row; the column of rails
+                // is not: a lazy column cost 1.6 times the CPU to scroll
+                // (57% against 34% on first sight, `-probe scroll`).
+                Deferred {
+                    ForEach(rails(sections), id: \.title) { rail in
+                        railView(rail)
+                    }
+                }
+            }
         }
+        .overlay(alignment: .top) { navigationBackdrop }
+        // The navigation's backdrop is this page's (above), not the plain
+        // canvas it paints for other pages.
+        .onAppear {
+            services.ui.mediaUnderNavigation = navigationToken
+            #if DEBUG
+            // `-heroTheme leopardNoir`: open the carousel on that theme, for pictures of it.
+            if let name = UserDefaults.standard.string(forKey: "heroTheme"),
+               let index = sections.featured.firstIndex(where: { $0.id == "setup.\(name)" }) {
+                hero.index = index
+            }
+            #endif
+        }
+        .onDisappear {
+            if services.ui.mediaUnderNavigation == navigationToken { services.ui.mediaUnderNavigation = nil }
+        }
+    }
+
+    /// The top of the atmosphere again, cut to the navigation's height and
+    /// held still under it. The page's own copy scrolls away with the
+    /// content; this one stays, solid down to the navigation's lower edge
+    /// and gone within the gap below it, so nothing that scrolls beneath
+    /// the navigation shows through, and its backdrop is still the theme's
+    /// light rather than plain canvas.
+    private var navigationBackdrop: some View {
+        GeometryReader { geometry in
+            let inset = geometry.safeAreaInsets.top
+            // The same numbers the hero is laid out with (`BleedScrollPage`).
+            let layout = BleedLayout(topInset: inset, visibleHeight: 0, margin: DS.Space.pageMargin(for: geometry.size.width),
+                                     viewport: geometry.size)
+            ThemeAtmosphere(state: atmosphere, services: services, focusY: ThemesHero.focusY(for: layout),
+                            panel: ThemesHero.carousel(for: layout).panelSize)
+                .frame(height: inset, alignment: .top)
+                .clipped()
+                .mask {
+                    VStack(spacing: 0) {
+                        Color.black
+                        LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                            .frame(height: FloatingNav.gapBelow)
+                    }
+                }
+                // Up into the navigation's own space, above where the page starts.
+                .offset(y: -inset)
+        }
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
@@ -150,22 +188,11 @@ struct ThemesPage: View {
         DesktopUndoBanner(services: services)
     }
 
-    private var chips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: DS.Space.xs) {
-                ForEach(ThemeDiscovery.allCases) { item in
-                    FilterPill(title: item.title, symbol: item.symbol, isSelected: filter == item) {
-                        withMotion(Motion.quick) { discovery = item.rawValue }
-                    }
-                }
-            }
-            .padding(.vertical, 2)
-        }
-    }
+    private typealias Rail = (title: String, sets: [ThemeSet], more: ThemeDiscovery?)
 
-    /// The library split so every theme shows up exactly once: each shelf
-    /// takes only what the ones above it haven't shown.
-    private var sections: (featured: [ThemeSet], shelves: [(title: String, sets: [ThemeSet], more: ThemeDiscovery?)]) {
+    /// The carousel's themes, and the library below them as shelves: each
+    /// shelf takes only what the ones above it haven't shown.
+    private var sections: (featured: [ThemeSet], shelves: [Rail]) {
         let stats = services.themeStats
         var shown = Set<String>()
         func claim(_ sets: [ThemeSet]) -> [ThemeSet] {
@@ -173,11 +200,10 @@ struct ThemesPage: View {
             shown.formUnion(fresh.map(\.id))
             return fresh
         }
-        let featured = claim(Array(ThemeDiscovery.featured.sets(stats: stats).prefix(4)))
-        var shelves: [(title: String, sets: [ThemeSet], more: ThemeDiscovery?)] = [
-            ("Colour & Light", claim(ThemeLibrary.sets(in: .colourAndLight)), nil),
+        var shelves: [Rail] = [
             ("Football", claim(ThemeDiscovery.football.sets(stats: stats)), .football),
             ("Music Icons", claim(ThemeDiscovery.music.sets(stats: stats)), .music),
+            ("Colour & Light", claim(ThemeLibrary.sets(in: .colourAndLight)), nil),
             ("Moodboards", claim(ThemeDiscovery.artist.sets(stats: stats)), .artist),
             ("Night", claim(ThemeLibrary.sets(in: .night)), nil),
             ("Dreamy", claim(ThemeLibrary.sets(in: .dreamy)), nil),
@@ -185,29 +211,31 @@ struct ThemesPage: View {
             ("Developer", claim(ThemeDiscovery.developer.sets(stats: stats)), .developer),
         ]
         shelves.append(("More Setups", claim(ThemeLibrary.all), nil))
-        return (featured, shelves)
-    }
-
-    private func shelf(_ title: String, _ discovery: ThemeDiscovery) -> some View {
-        shelf(title, sets: discovery.sets(stats: services.themeStats), more: discovery)
+        return (Array(ThemeDiscovery.featured.sets(stats: stats).prefix(8)), shelves)
     }
 
     @ViewBuilder
-    private func shelf(_ title: String, sets: [ThemeSet], more: ThemeDiscovery? = nil) -> some View {
-        if !sets.isEmpty {
-            VStack(alignment: .leading, spacing: DS.Space.s) {
-                if let more {
-                    SectionHeader(title: title, subtitle: "\(sets.count) themes", actionTitle: "See All") {
-                        withMotion(Motion.quick) { discovery = more.rawValue }
-                    }
-                } else {
-                    SectionHeader(title: title, subtitle: "\(sets.count) themes")
-                }
-                MediaRail(items: sets, cardWidth: 300) { set in
-                    ThemeSetCard(set: set, services: services)
-                }
+    private func railView(_ rail: Rail) -> some View {
+        if let more = rail.more {
+            ThemeRail(title: rail.title, sets: rail.sets, services: services) {
+                discovery = more.rawValue
             }
+        } else {
+            ThemeRail(title: rail.title, sets: rail.sets, services: services)
         }
+    }
+
+    /// Featured and Trending lead, then the shelves. A chosen category
+    /// becomes the first rail, whole; the rest follow.
+    private func rails(_ sections: (featured: [ThemeSet], shelves: [Rail])) -> [Rail] {
+        let stats = services.themeStats
+        var rails: [Rail] = [("Featured", sections.featured, .featured),
+                             ("Trending", ThemeDiscovery.trending.sets(stats: stats), .trending)] + sections.shelves
+        if filter != .all {
+            rails.removeAll { $0.more == filter || $0.title == filter.title }
+            rails.insert((filter.title, filter.sets(stats: stats), nil), at: 0)
+        }
+        return rails.filter { !$0.sets.isEmpty }
     }
 
     @ViewBuilder
@@ -317,86 +345,34 @@ struct ThemeSetCard: View {
     }
 }
 
-/// The lead featured theme, large: its desktop fills the hero.
-struct FeaturedThemeHero: View {
-    let set: ThemeSet
-    /// This is the theme on the desktop now.
-    var isActive = false
-    let services: AppServices
-    let layout: BleedLayout
-
-    var body: some View {
-        let favorite = services.themeStats.isFavorite(set.id)
-        HeroSection(eyebrow: isActive ? "On your desktop" : "Featured theme", title: set.name,
-                    metadata: [set.inspiration ?? set.tagline, "\(set.includedWidgets.count) widgets"], bleed: layout) {
-            // Wide windows show the desktop whole, as a card on the right
-            // between the navigation and the row below, over its own colors;
-            // narrow ones crop it to fill.
-            GeometryReader { geometry in
-                let cardHeight = layout.visibleHeight - layout.overlap - DS.Space.xl * 2
-                let ratio = ThemeComposition.canvas.width / ThemeComposition.canvas.height
-                let showsCard = geometry.size.width - cardHeight * ratio - layout.margin > 620
-                ZStack(alignment: .bottomTrailing) {
-                    ThemeSnapshot(set: set, dark: set.isDark, services: services, fills: true)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .clipped()
-                    // Busy widgets behind the words: dim them, more so when
-                    // the card carries the picture.
-                    Color.black.opacity(showsCard ? 0.72 : 0.6)
-                    if showsCard {
-                        ThemeSnapshot(set: set, dark: set.isDark, services: services)
-                            .frame(width: cardHeight * ratio, height: cardHeight)
-                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous).strokeBorder(DS.Surface.hairline))
-                            .dsElevated()
-                            .padding(.trailing, layout.margin)
-                            .padding(.bottom, layout.overlap + DS.Space.xl)
-                    }
-                }
-            }
-        } actions: {
-            Button("View Theme") { services.ui.page = .themeSet(set.id) }
-                .buttonStyle(.pillProminent)
-            if isActive {
-                Button("Turn Off Theme") { withMotion(Motion.standard) { services.turnOffTheme() } }
-                    .buttonStyle(.pill)
-            }
-            Button {
-                withMotion(Motion.bouncy) { services.themeStats.toggleFavorite(set.id) }
-            } label: {
-                Image(systemName: favorite ? "heart.fill" : "heart")
-                    .foregroundStyle(favorite ? Color.pink : DS.Ink.primary)
-            }
-            .buttonStyle(.floating)
-            .accessibilityLabel(favorite ? "Remove from favorites" : "Add to favorites")
-        }
-    }
-}
-
-/// A theme's preview picture, drawn on first sight.
+/// A theme's preview picture, drawn on first sight: its desktop, or its
+/// portrait card for the carousel.
 struct ThemeSnapshot: View {
     let set: ThemeSet
     let dark: Bool
     let services: AppServices
-    /// Fills its frame (cropping) rather than keeping the desktop's shape.
+    /// Fills its frame (cropping) rather than keeping the picture's shape.
     var fills = false
+    var variant = ThemePreviewVariant.desktop
 
     var body: some View {
         let cache = services.themePreviews
         ZStack {
-            if let image = cache.image(for: set, dark: dark) {
+            if let image = cache.image(for: set, dark: dark, variant: variant) {
                 Image(nsImage: image).resizable().aspectRatio(contentMode: .fill).transition(.opacity)
             } else {
                 Rectangle().fill(DS.Surface.raised)
                     .overlay(ProgressView().controlSize(.small))
             }
         }
-        .aspectRatio(fills ? nil : ThemeComposition.canvas.width / ThemeComposition.canvas.height, contentMode: fills ? .fill : .fit)
-        .motion(Motion.standard, value: cache.image(for: set, dark: dark) != nil)
+        .aspectRatio(fills ? nil : variant.aspect, contentMode: fills ? .fill : .fit)
+        .motion(Motion.standard, value: cache.image(for: set, dark: dark, variant: variant) != nil)
         // Keyed on the purge generation too: a purge (memory pressure) drops
         // queued requests, and a card still waiting must ask again.
-        .task(id: "\(cache.key(set, dark: dark))#\(cache.generation)") { cache.request(set, dark: dark, services: services) }
-        .onDisappear { cache.cancel(set, dark: dark) }
+        .task(id: "\(cache.key(set, dark: dark, variant: variant))#\(cache.generation)") {
+            cache.request(set, dark: dark, variant: variant, services: services)
+        }
+        .onDisappear { cache.cancel(set, dark: dark, variant: variant) }
         .accessibilityHidden(true)
     }
 }

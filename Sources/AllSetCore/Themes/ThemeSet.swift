@@ -37,10 +37,14 @@ public struct ThemeSet: Identifiable, Sendable {
     /// Months (1...12) when the set is in season and ranks higher.
     public let seasons: [Int]
     public let version: Int
+    /// The light chosen for the set, when its look's own colors aren't the
+    /// ones to use (see `lighting`).
+    public let accent: ThemeAccent?
 
     public init(id: String, name: String, tagline: String, description: String, philosophy: String, inspiration: String? = nil,
                 collections: [ThemeCollection], tags: String = "", look: Look, layout: [SetItem], research: ThemeResearch? = nil,
-                added: String = "2026-09-24", baseline: Double = 40, seasons: [Int] = [], version: Int = 1) {
+                added: String = "2026-09-24", baseline: Double = 40, seasons: [Int] = [], version: Int = 1,
+                accent: ThemeAccent? = nil) {
         self.id = id
         self.name = name
         self.tagline = tagline
@@ -56,6 +60,25 @@ public struct ThemeSet: Identifiable, Sendable {
         self.baseline = baseline
         self.seasons = seasons
         self.version = version
+        self.accent = accent
+    }
+
+    /// The light the set casts in the Themes hero. The one chosen for it
+    /// (`accent`); otherwise its look's own accent; otherwise the color of
+    /// its wallpaper, when the caller has measured one; otherwise warm gold.
+    /// At each step a color with nothing to it (white on a black-and-white
+    /// theme) is passed over, so such a theme ends on gold, not gray.
+    public func lighting(wallpaper: WidgetColor? = nil) -> ThemeAccent {
+        if let accent { return accent }
+        let own = [setup?.accent, setup?.wallpaperAccent, designTheme?.palette(dark: isDark).accent]
+            .compactMap { $0 }
+            .filter(\.hasColor)
+        guard let first = own.first ?? wallpaper.flatMap({ $0.hasColor ? $0 : nil }) else { return .neutral }
+        let primary = first.lit
+        // A second color of the look's own, when it has a different one;
+        // otherwise the first again, paled, as haze.
+        let other = own.dropFirst().first { $0.hueDistance(to: first) > 0.06 }
+        return ThemeAccent(primary: primary, secondary: other?.lit ?? primary.paled, glowIntensity: isDark ? 0.9 : 0.65)
     }
 
     public var designTheme: DesignTheme? {

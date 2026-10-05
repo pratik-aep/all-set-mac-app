@@ -88,13 +88,39 @@ public enum ThemeLibrary {
                         philosophy: philosophy, inspiration: inspirations[theme.id],
                         collections: collections, tags: "\(theme.id) \(tags)", look: .setup(theme.id), layout: [],
                         added: isColour ? "2026-09-30" : isMoodboard || fanIndex != nil ? "2026-09-25" : "2026-09-24",
-                        baseline: isMoodboard ? 90 - Double(index) : fanIndex.map { spotlight[theme.id] ?? 88 - Double($0) } ?? (isColour ? 70 : 55))
+                        baseline: isMoodboard ? 90 - Double(index) : fanIndex.map { spotlight[theme.id] ?? 88 - Double($0) } ?? (isColour ? 70 : 55),
+                        accent: accents[theme.id])
     }
 }
 
 extension ThemeLibrary {
     /// The worlds that lead the library.
     static let spotlight: [String: Double] = ["seven": 97, "redSeven": 96.5, "americana": 96, "albiceleste": 93, "slimeGreen": 92]
+
+    /// The light each leading theme casts in the Themes hero: a neon color
+    /// for its edge and glow, and a second for haze. Where a theme isn't
+    /// listed, `ThemeSet.lighting` works one out from its look.
+    static let accents: [String: ThemeAccent] = [
+        // Neon crimson under warm gold floodlights.
+        "seven": ThemeAccent(0xFF2D4A, 0xFFB347),
+        "redSeven": ThemeAccent(0xFF3B30, 0xFFD166),
+        // Magenta dusk over a sunset orange.
+        "americana": ThemeAccent(0xFF5E8A, 0xFF9A3C, glow: 0.85),
+        // Electric sky and white.
+        "albiceleste": ThemeAccent(0x4CC3FF, 0xFFFFFF, glow: 0.9),
+        "slimeGreen": ThemeAccent(0x7CFF3A, 0x1FD98A, glow: 0.8),
+        // Bright themes glow less: their own pictures carry the light.
+        "peachFizz": ThemeAccent(0xFF9E7A, 0xFFD0B0, glow: 0.65),
+        "matchaMorning": ThemeAccent(0xA8C686, 0xE8E2C8, glow: 0.6),
+        // Black-and-white themes get a deliberate color, never gray: old
+        // gold, icy silver-blue, moonlight with streetlamp amber, violet
+        // haze, bone gold.
+        "leopardNoir": ThemeAccent(0xD9A441, 0x8A6A3A, glow: 0.8),
+        "angelic": ThemeAccent(0xCFE3FF, 0xFFFFFF, glow: 0.7),
+        "cityNoir": ThemeAccent(0x9FBBEA, 0xF2B66D, glow: 0.85),
+        "hypnotic": ThemeAccent(0xB9A2F5, 0xFFFFFF, glow: 0.85),
+        "afterDark": ThemeAccent(0xE3CF9A, 0x8A7A5A, glow: 0.8),
+    ]
 
     /// What each football and music world draws on, described without names.
     static let inspirations: [String: String] = [

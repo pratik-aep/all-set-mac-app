@@ -103,8 +103,11 @@ struct NavItem: Identifiable {
     }
 }
 
-/// The top of the main window: the sections in a glass capsule, desktop
-/// switches on the trailing edge, and the section's pages beneath.
+/// The top of the main window, as one cluster: the sections in a glass
+/// capsule with the desktop switches on the trailing edge, and the section's
+/// pages in a smaller, quieter capsule close beneath. Nothing shows through
+/// behind it: pages scroll away under a solid scrim that ends with the
+/// cluster, so a page's first content starts a clear gap below.
 struct FloatingNav: View {
     let services: AppServices
     @Bindable var ui: UIState
@@ -118,8 +121,11 @@ struct FloatingNav: View {
     private var page: AppPage { ui.page ?? .island }
     private var section: NavSection { .of(page) }
 
+    /// From the cluster's lower edge to where a page's content starts.
+    static let gapBelow: CGFloat = DS.Space.s
+
     var body: some View {
-        VStack(spacing: DS.Space.s) {
+        VStack(spacing: DS.Space.xs) {
             ZStack {
                 HStack(spacing: DS.Space.s) {
                     Text("All Set")
@@ -136,18 +142,22 @@ struct FloatingNav: View {
         }
         .padding(.horizontal, margin)
         .padding(.top, DS.Space.xxs)
-        .padding(.bottom, DS.Space.s)
+        .padding(.bottom, Self.gapBelow)
         .background {
-            // Content scrolls away beneath the navigation: a fade, not a blur.
-            // Over a full-bleed hero there's no fade: the picture runs to the
-            // top, and the hero darkens its own top edge.
-            LinearGradient(stops: [.init(color: DS.Surface.canvasLift, location: 0),
-                                   .init(color: DS.Surface.canvasLift.opacity(0.94), location: 0.7),
-                                   .init(color: DS.Surface.canvasLift.opacity(0), location: 1)],
-                           startPoint: .top, endPoint: .bottom)
-                .opacity(ui.mediaUnderNavigation == nil ? 1 : 0)
-                .motion(Motion.quick, value: ui.mediaUnderNavigation == nil)
-                .ignoresSafeArea(edges: .top)
+            // Content scrolls away beneath the navigation behind a scrim,
+            // not a blur: solid down to the second row's lower edge, so
+            // nothing shows through between or behind the rows, then gone
+            // within the gap below it, so it never lies over what a page
+            // starts with. Over a full-bleed hero there's no scrim: the
+            // picture runs to the top, and the hero darkens its own top edge.
+            VStack(spacing: 0) {
+                DS.Surface.canvasLift
+                LinearGradient(colors: [DS.Surface.canvasLift, DS.Surface.canvasLift.opacity(0)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: Self.gapBelow)
+            }
+            .opacity(ui.mediaUnderNavigation == nil ? 1 : 0)
+            .motion(Motion.quick, value: ui.mediaUnderNavigation == nil)
+            .ignoresSafeArea(edges: .top)
         }
         .onChange(of: ui.page) { _, new in
             if let new { lastPage[.of(new)] = new }
@@ -229,7 +239,8 @@ struct FloatingNav: View {
         let items = NavItem.items(in: section, services: services)
         // One glass capsule for the whole row, like an Apple segmented
         // control: a single surface to sample, not one per pill.
-        let row = GlassPanel(cornerRadius: 18, padding: 3) {
+        // The same glass as the row above, with a fainter rim: its junior.
+        let row = GlassPanel(cornerRadius: 18, padding: 3, rim: 0.65) {
             HStack(spacing: 2) {
                 ForEach(items) { item in
                     PagePill(item: item, isSelected: item.matches(page), lens: lens) {

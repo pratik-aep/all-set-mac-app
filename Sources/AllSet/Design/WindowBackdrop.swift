@@ -191,6 +191,8 @@ struct BleedLayout: Equatable {
     var margin: CGFloat
     /// How far the content below climbs onto the hero.
     var overlap: CGFloat = DS.Space.xxl
+    /// The page below the navigation, for a hero that sizes itself.
+    var viewport: CGSize = .zero
 
     var height: CGFloat { topInset + visibleHeight }
 }
@@ -209,7 +211,7 @@ struct BleedScrollPage<Hero: View, Content: View>: View {
             let inset = geometry.safeAreaInsets.top
             let layout = BleedLayout(topInset: inset,
                                      visibleHeight: min(max(geometry.size.height * 0.62, 320), 560),
-                                     margin: margin)
+                                     margin: margin, viewport: geometry.size)
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if showsHero {

@@ -135,6 +135,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
+        // `-renderThemeCards /folder`: the Themes carousel's cards, side by side (see the harness).
+        if let folder = UserDefaults.standard.string(forKey: "renderThemeCards") {
+            NSApp.setActivationPolicy(.accessory)
+            services.start()
+            Task {
+                await WidgetRenderHarness.renderThemeCards(to: URL(fileURLWithPath: folder), services: services)
+                exit(0)
+            }
+            return
+        }
         // `-renderPages /folder`: every main-window page at three sizes (see the harness).
         if let folder = UserDefaults.standard.string(forKey: "renderPages") {
             NSApp.setActivationPolicy(.accessory)
@@ -204,6 +214,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case "island": await PageCPUProbe.runIslandViews(services: services)
                 case "scroll": await PageCPUProbe.runScroll(services: services)
                 case "pageswitch": await PageCPUProbe.runPageSwitch(services: services)
+                case "carousel": await PageCPUProbe.runCarousel(services: services)
                 case "galleryparts": await PageCPUProbe.runGalleryParts(services: services)
                 default:
                     await PageCPUProbe.run(pages: [("blank", .about), ("island", .island), ("activities", .activities),

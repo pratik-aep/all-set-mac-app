@@ -1,5 +1,6 @@
 import AllSetCore
 import AppKit
+import CoreImage
 import Observation
 import OSLog
 import SwiftUI
@@ -21,7 +22,7 @@ struct ThemeComposition: View {
         GeometryReader { geometry in
             let scale = max(geometry.size.width / Self.canvas.width, geometry.size.height / Self.canvas.height)
             ZStack(alignment: .topLeading) {
-                wallpaper.environment(\.widgetIsVisible, isLive)
+                ThemeWallpaper(set: set, services: services, dark: dark, isLive: isLive)
                 ZStack(alignment: .topLeading) {
                     ForEach(widgets) { widget in
                         WidgetBody(instance: widget, services: services)
@@ -38,18 +39,6 @@ struct ThemeComposition: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
             .clipped()
-        }
-    }
-
-    @ViewBuilder
-    private var wallpaper: some View {
-        switch set.wallpaper {
-        case .art(let piece):
-            ArtView(piece: piece, animated: isLive)
-        case .photo(let source):
-            PhotoContent(source: source, filter: .none, tint: .white, animated: false, library: services.images, maxPixels: 1200)
-        case .video, .library, nil:
-            StudioBackdrop(piece: ArtPiece(style: .blobs, palette: dark ? .midnight : .pastel))
         }
     }
 
@@ -78,12 +67,140 @@ private struct CompositionShadow: ViewModifier {
     }
 }
 
+/// A theme set's wallpaper, filling whatever frame it's given: a landscape
+/// desktop or a portrait card alike.
+struct ThemeWallpaper: View {
+    let set: ThemeSet
+    let services: AppServices
+    var dark = true
+    /// Lets it move.
+    var isLive = false
+
+    var body: some View {
+        Group {
+            switch set.wallpaper {
+            case .art(let piece):
+                ArtView(piece: piece, animated: isLive)
+            case .photo(let source):
+                PhotoContent(source: source, filter: .none, tint: .white, animated: false, library: services.images, maxPixels: 1200)
+            case .video, .library, nil:
+                StudioBackdrop(piece: ArtPiece(style: .blobs, palette: dark ? .midnight : .pastel))
+            }
+        }
+        .environment(\.widgetIsVisible, isLive)
+    }
+}
+
+/// A theme set's card for the Themes carousel: its wallpaper edge to edge
+/// and a few of its widgets floating over the upper part (`ThemeCardArt`).
+/// Drawn into a picture, never live.
+struct ThemeCardComposition: View {
+    let set: ThemeSet
+    /// All of the set's widgets, in layout order.
+    let widgets: [WidgetInstance]
+    let services: AppServices
+    var dark = true
+
+    var body: some View {
+        let picks = ThemeCardArt.curated[set.id] ?? ThemeCardArt.picks(from: widgets.map { ($0.kind, $0.size) })
+        let pieces = picks.map { ThemeCardArt.pieces($0, sizes: widgets.map(\.size)) } ?? []
+        let zoom = picks?.zoom ?? 1, focus = picks?.focus ?? CGPoint(x: 0.5, y: 0.5)
+        GeometryReader { geometry in
+            let scale = max(geometry.size.width / ThemeCardArt.canvas.width, geometry.size.height / ThemeCardArt.canvas.height)
+            ZStack(alignment: .topLeading) {
+                // The card's own size, so all of the wallpaper shows; or
+                // larger and shifted, to crop it around its focus.
+                ThemeWallpaper(set: set, services: services, dark: dark)
+                    .frame(width: geometry.size.width * zoom, height: geometry.size.height * zoom)
+                    .offset(x: -geometry.size.width * (zoom - 1) * focus.x, y: -geometry.size.height * (zoom - 1) * focus.y)
+                ZStack(alignment: .topLeading) {
+                    ForEach(Array(pieces.enumerated()), id: \.offset) { _, piece in
+                        let widget = widgets[piece.widget]
+                        WidgetBody(instance: widget, services: services)
+                            // Floating: a deeper shadow than on the desktop.
+                            .shadow(color: .black.opacity(widget.hasCard || widget.kind.paintsOwnBackground ? 0.4 : 0), radius: 16, y: 10)
+                            .scaleEffect(piece.scale, anchor: .topLeading)
+                            .offset(x: piece.origin.x, y: piece.origin.y)
+                    }
+                }
+                .frame(width: ThemeCardArt.canvas.width, height: ThemeCardArt.canvas.height, alignment: .topLeading)
+                .environment(\.widgetIsVisible, false)
+                .environment(\.widgetIsPreview, true)
+                .environment(\.colorScheme, dark ? .dark : .light)
+                .scaleEffect(scale, anchor: .topLeading)
+                // Scaling doesn't shrink what it takes up: without this the
+                // canvas's full size would stretch the wallpaper beside it.
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+                .allowsHitTesting(false)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+            .clipped()
+        }
+    }
+}
+
+/// The pictures the cache keeps of a theme set.
+enum ThemePreviewVariant {
+    /// The whole desktop, as the rails and the theme's own page show it.
+    case desktop
+    /// The portrait card for the Themes carousel.
+    case card
+    /// The wallpaper alone, small, blurred until only its light is left and
+    /// fading out toward the bottom: the Themes page's atmosphere lays it
+    /// over the page as it is.
+    case backdrop
+
+    /// Width over height.
+    @MainActor var aspect: CGFloat {
+        switch self {
+        case .desktop: ThemeComposition.canvas.width / ThemeComposition.canvas.height
+        case .card: ThemeCardArt.canvas.width / ThemeCardArt.canvas.height
+        case .backdrop: Self.backdropSize.width / Self.backdropSize.height
+        }
+    }
+
+    /// Small: it's only ever seen blurred and stretched.
+    static let backdropSize = CGSize(width: 384, height: 240)
+
+    /// What marks its files. Desktops have none; the others end in a number
+    /// to bump when the way they're drawn (or, for cards, which widgets
+    /// they show) changes, to redraw them.
+    fileprivate var mark: String {
+        switch self {
+        case .desktop: ""
+        case .card: "-card"
+        case .backdrop: "-backdrop"
+        }
+    }
+
+    fileprivate var suffix: String {
+        switch self {
+        case .desktop: ""
+        case .card: "-card7"
+        case .backdrop: "-backdrop2"
+        }
+    }
+
+    /// Whether a file in the cache is one of this kind's.
+    fileprivate func owns(_ file: String) -> Bool {
+        switch self {
+        case .desktop: !file.contains(ThemePreviewVariant.card.mark) && !file.contains(ThemePreviewVariant.backdrop.mark)
+        case .card, .backdrop: file.contains(mark)
+        }
+    }
+}
+
 /// Pictures of theme sets for the library's cards: drawn once each, when a
 /// card first needs one, then kept in memory and on disk. Only visible cards
 /// ask, so scrolling the library never draws dozens of live widgets.
 @Observable @MainActor
 final class ThemePreviewCache {
     private(set) var images: [String: NSImage] = [:]
+    /// The color of each set's wallpaper, by set id, measured from its
+    /// backdrop picture once there is one: what a theme with no accent of
+    /// its own is lit with (`ThemeSet.lighting`). Missing for a wallpaper
+    /// with no color to speak of.
+    private(set) var wallpaperColors: [String: WidgetColor] = [:]
 
     @ObservationIgnored private let photos: ThemePhotos
 
@@ -162,12 +279,12 @@ final class ThemePreviewCache {
 
     /// Changes when what the preview shows does: the set's contents, the
     /// person's photos for it, the app's version or the way previews are drawn.
-    func key(_ set: ThemeSet, dark: Bool) -> String {
-        "\(set.id)-\(dark ? "dark" : "light")-\(fingerprint(set))-\(Self.appVersion)-d\(Self.drawingVersion)-p\(photos.version(of: set.id))"
+    func key(_ set: ThemeSet, dark: Bool, variant: ThemePreviewVariant = .desktop) -> String {
+        "\(set.id)-\(dark ? "dark" : "light")-\(fingerprint(set))-\(Self.appVersion)-d\(Self.drawingVersion)-p\(photos.version(of: set.id))\(variant.suffix)"
     }
 
-    func image(for set: ThemeSet, dark: Bool) -> NSImage? {
-        let name = key(set, dark: dark)
+    func image(for set: ThemeSet, dark: Bool, variant: ThemePreviewVariant = .desktop) -> NSImage? {
+        let name = key(set, dark: dark, variant: variant)
         guard let image = images[name] else { return nil }
         useCount += 1
         lastUse[name] = useCount
@@ -187,10 +304,13 @@ final class ThemePreviewCache {
     /// changes, since a purge drops the requests they were waiting on.
     private(set) var generation = 0
 
-    private func keep(_ image: CGImage, as name: String) {
+    private func keep(_ image: CGImage, as name: String, of set: ThemeSet, variant: ThemePreviewVariant) {
         // ImageRenderer draws 16 bits a channel; the screen shows 8. Half the
         // memory, and Core Animation draws it without converting.
         let ready = image.bitsPerPixel == 32 ? image : ImageLibrary.displayReady(image)
+        if variant == .backdrop, wallpaperColors[set.id] == nil, let color = WallpaperColor.accent(of: ready) {
+            wallpaperColors[set.id] = color
+        }
         if let old = images[name] { bytes -= old.decodedByteCount }
         let picture = NSImage(cgImage: ready, size: NSSize(width: ready.width, height: ready.height))
         images[name] = picture
@@ -222,8 +342,8 @@ final class ThemePreviewCache {
     /// Asks for a preview. Pictures already on disk load at once, off the main
     /// thread; the rest are drawn one at a time, in the order asked, so a page
     /// full of new cards never floods the main thread (drawing uses it).
-    func request(_ set: ThemeSet, dark: Bool, services: AppServices) {
-        let name = key(set, dark: dark)
+    func request(_ set: ThemeSet, dark: Bool, variant: ThemePreviewVariant = .desktop, services: AppServices) {
+        let name = key(set, dark: dark, variant: variant)
         showing[name, default: 0] += 1
         guard images[name] == nil, !inFlight.contains(name) else { return }
         inFlight.insert(name)
@@ -231,22 +351,28 @@ final class ThemePreviewCache {
         Task {
             if let cached = await Self.load(folder.appendingPathComponent(name + ".png")) {
                 guard asked == generation else { return }
-                keep(cached, as: name)
+                keep(cached, as: name, of: set, variant: variant)
                 inFlight.remove(name)
                 return
             }
             guard asked == generation else { return }
             // Photos, cut-outs and forecasts are fetched now, for every card at
             // once; only the drawing itself waits its turn.
-            let prepared = Task { await prepare(set, dark: dark, services: services) }
-            queue.append((name, set, dark, prepared))
+            let prepared = Task { await prepare(set, dark: dark, variant: variant, services: services) }
+            // A backdrop is a moment's work and the whole page waits on its
+            // light: ahead of the pictures that take a second each.
+            if variant == .backdrop {
+                queue.insert((name, set, dark, variant, prepared), at: 0)
+            } else {
+                queue.append((name, set, dark, variant, prepared))
+            }
             drawQueued(services: services)
         }
     }
 
     /// A card that scrolled away no longer needs its picture drawn first.
-    func cancel(_ set: ThemeSet, dark: Bool) {
-        let name = key(set, dark: dark)
+    func cancel(_ set: ThemeSet, dark: Bool, variant: ThemePreviewVariant = .desktop) {
+        let name = key(set, dark: dark, variant: variant)
         if let count = showing[name] { showing[name] = count > 1 ? count - 1 : nil }
         guard let index = queue.firstIndex(where: { $0.name == name }) else { return }
         queue.remove(at: index).prepared.cancel()
@@ -262,7 +388,8 @@ final class ThemePreviewCache {
         scrollsUnderWay > 0 || CACurrentMediaTime() - lastScrollEnd < 0.35
     }
 
-    @ObservationIgnored private var queue: [(name: String, set: ThemeSet, dark: Bool, prepared: Task<[WidgetInstance], Never>)] = []
+    @ObservationIgnored private var queue: [(name: String, set: ThemeSet, dark: Bool, variant: ThemePreviewVariant,
+                                             prepared: Task<[WidgetInstance], Never>)] = []
     @ObservationIgnored private var drawing: Task<Void, Never>?
 
     private func drawQueued(services: AppServices) {
@@ -271,10 +398,14 @@ final class ThemePreviewCache {
             while !queue.isEmpty {
                 while isScrolling { try? await Task.sleep(for: .milliseconds(120)) }
                 guard !queue.isEmpty else { break }
-                let (name, set, dark, prepared) = queue.removeFirst()
+                let (name, set, dark, variant, prepared) = queue.removeFirst()
                 let asked = generation
-                if let image = await render(set, dark: dark, widgets: await prepared.value, services: services) {
-                    if asked == generation { keep(image, as: name) }
+                var drawn = await render(set, dark: dark, variant: variant, widgets: await prepared.value, services: services)
+                // Blurred and faded now, once, and saved that way: nothing is
+                // blurred when the carousel moves.
+                if variant == .backdrop, let sharp = drawn { drawn = await Self.softened(SendableImage(sharp))?.image }
+                if let image = drawn {
+                    if asked == generation { keep(image, as: name, of: set, variant: variant) }
                     let file = folder.appendingPathComponent(name + ".png"), folder = folder
                     let picture = SendableImage(image)
                     // Stale: this set's older pictures from this same build. Another
@@ -283,9 +414,11 @@ final class ThemePreviewCache {
                     let older = "\(set.id)-\(dark ? "dark" : "light")-", build = "-\(Self.appVersion)-d\(Self.drawingVersion)-"
                     Task.detached(priority: .utility) {
                         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                        // Earlier pictures of this set are stale now.
+                        // Earlier pictures of this set, of this kind (its
+                        // desktop, card and backdrop are kept side by side), are stale now.
                         for stale in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-                        where stale.hasPrefix(older) && stale.contains(build) && stale != file.lastPathComponent {
+                        where stale.hasPrefix(older) && stale.contains(build) && variant.owns(stale)
+                            && stale != file.lastPathComponent {
                             try? FileManager.default.removeItem(at: folder.appendingPathComponent(stale))
                         }
                         guard let destination = CGImageDestinationCreateWithURL(file as CFURL, "public.png" as CFString, 1, nil) else { return }
@@ -303,7 +436,12 @@ final class ThemePreviewCache {
 
     /// Fetches what the widgets show (photos, the forecast), so the picture
     /// never catches them still loading. Runs alongside other cards' fetches.
-    private func prepare(_ set: ThemeSet, dark: Bool, services: AppServices) async -> [WidgetInstance] {
+    private func prepare(_ set: ThemeSet, dark: Bool, variant: ThemePreviewVariant, services: AppServices) async -> [WidgetInstance] {
+        // A backdrop shows the wallpaper and nothing else.
+        guard variant != .backdrop else {
+            if case .photo(let source) = set.wallpaper { _ = await services.images.image(for: source, maxPixels: 1200) }
+            return []
+        }
         let widgets = ThemeComposition.widgets(for: set, dark: dark, services: services)
         for widget in widgets {
             for image in widget.options.images { _ = await services.images.image(for: image, maxPixels: 768) }
@@ -329,20 +467,70 @@ final class ThemePreviewCache {
         return widgets
     }
 
-    private func render(_ set: ThemeSet, dark: Bool, widgets: [WidgetInstance], services: AppServices) async -> CGImage? {
+    private func render(_ set: ThemeSet, dark: Bool, variant: ThemePreviewVariant, widgets: [WidgetInstance],
+                        services: AppServices) async -> CGImage? {
         // Its pictures may have arrived mid-scroll; the drawing itself waits.
         while isScrolling { try? await Task.sleep(for: .milliseconds(120)) }
-        let size = CGSize(width: 568, height: 384)
-        let view = ThemeComposition(set: set, widgets: widgets, services: services, dark: dark)
-            .frame(width: size.width, height: size.height)
-            .environment(\.widgetSnapshot, true)
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = 2
+        let view: AnyView = switch variant {
+        case .desktop:
+            AnyView(ThemeComposition(set: set, widgets: widgets, services: services, dark: dark).frame(width: 568, height: 384))
+        case .card:
+            // Three quarters of the card canvas: at twice that, sharp on the
+            // largest selected card.
+            AnyView(ThemeCardComposition(set: set, widgets: widgets, services: services, dark: dark).frame(width: 414, height: 552))
+        case .backdrop:
+            AnyView(ThemeWallpaper(set: set, services: services, dark: dark)
+                .frame(width: ThemePreviewVariant.backdropSize.width, height: ThemePreviewVariant.backdropSize.height)
+                .clipped())
+        }
+        let renderer = ImageRenderer(content: view.environment(\.widgetSnapshot, true))
+        renderer.scale = variant == .backdrop ? 1 : 2
         guard let image = renderer.cgImage else {
             log.error("Couldn't draw a preview of \(set.id, privacy: .public)")
             return nil
         }
         return image
+    }
+
+    #if DEBUG
+    /// How many pictures have been blurred since launch, for checking that
+    /// none are while the carousel moves (`-probe carousel`).
+    nonisolated static let softenings = OSAllocatedUnfairLock(initialState: 0)
+    #endif
+
+    /// A wallpaper picture as the atmosphere uses it: blurred until only its
+    /// light is left, and fading to nothing toward the bottom, so it melts
+    /// into the page below it with no mask to apply when it's drawn.
+    nonisolated private static func softened(_ picture: SendableImage) async -> SendableImage? {
+        await Task.detached(priority: .utility) { () -> SendableImage? in
+            #if DEBUG
+            softenings.withLock { $0 += 1 }
+            #endif
+            let source = picture.image
+            let extent = CGRect(x: 0, y: 0, width: source.width, height: source.height)
+            // A blur averages colors toward gray: the picture's own are
+            // strengthened first, so what's left is its light, not its mud.
+            let blurred = CIImage(cgImage: source)
+                .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 1.6])
+                .clampedToExtent()
+                .applyingGaussianBlur(sigma: Double(source.width) / 22)
+                .cropped(to: extent)
+            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+                  let soft = CIContext(options: [.cacheIntermediates: false]).createCGImage(blurred, from: extent, format: .RGBA8, colorSpace: space),
+                  let context = CGContext(data: nil, width: source.width, height: source.height, bitsPerComponent: 8,
+                                          bytesPerRow: source.width * 4, space: space,
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+                  let fade = CGGradient(colorsSpace: space,
+                                        colors: [CGColor(red: 0, green: 0, blue: 0, alpha: 1), CGColor(red: 0, green: 0, blue: 0, alpha: 1),
+                                                 CGColor(red: 0, green: 0, blue: 0, alpha: 0)] as CFArray,
+                                        locations: [0, 0.4, 1]) else { return nil }
+            context.draw(soft, in: extent)
+            // Keeps what's drawn only as far as the gradient is opaque:
+            // whole at the top, gone at the bottom.
+            context.setBlendMode(.destinationIn)
+            context.drawLinearGradient(fade, start: CGPoint(x: 0, y: extent.height), end: .zero, options: [])
+            return context.makeImage().map(SendableImage.init)
+        }.value
     }
 
     private static func load(_ file: URL) async -> CGImage? {

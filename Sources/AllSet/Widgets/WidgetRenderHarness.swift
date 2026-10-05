@@ -623,9 +623,16 @@ extension WidgetRenderHarness {
     /// `-renderPages folder [-pages wallpaper,themes] [-pageSizes 900x600,1280x800]`:
     /// the real main window, navigation and all, on each page at each size, as
     /// PNGs named `<page>-<width>x<height>.png`. For checking the UI without
-    /// sitting at the Mac (CI uploads them).
+    /// sitting at the Mac (CI uploads them). `-reduceMotion 1` and
+    /// `-lowPower 1` show the pages as they are with Reduce Motion on or in
+    /// Low Power Mode, whatever this Mac is set to. `-pageScroll 90` saves
+    /// each page a second time, scrolled that far (`…-scrolled.png`), to see
+    /// what passes under the navigation.
     static func renderPages(to folder: URL, services: AppServices) async {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        if UserDefaults.standard.bool(forKey: "reduceMotion") { services.ui.performance.reducesMotion = true }
+        if UserDefaults.standard.bool(forKey: "lowPower") { services.ui.performance.isLowPower = true }
+        let scrolled = UserDefaults.standard.double(forKey: "pageScroll")
         let wanted = UserDefaults.standard.string(forKey: "pages").map { Set($0.split(separator: ",").map(String.init)) }
         let sizes = (UserDefaults.standard.string(forKey: "pageSizes") ?? "900x600,1280x800,1728x1080")
             .split(separator: ",")
@@ -693,9 +700,61 @@ extension WidgetRenderHarness {
                    let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
                     try? png.write(to: folder.appendingPathComponent("\(name)-\(Int(size.width))x\(Int(size.height)).png"))
                 }
+                if scrolled > 0, let scroll = PageCPUProbe.tallestScrollView(in: window.contentView) {
+                    let clip = scroll.contentView, top = clip.bounds.origin
+                    clip.scroll(to: NSPoint(x: top.x, y: top.y + scrolled))
+                    scroll.reflectScrolledClipView(clip)
+                    try? await Task.sleep(for: .milliseconds(600))
+                    if let image = captureOwnWindow(window),
+                       let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+                        try? png.write(to: folder.appendingPathComponent("\(name)-\(Int(size.width))x\(Int(size.height))-scrolled.png"))
+                    }
+                    clip.scroll(to: top)
+                    scroll.reflectScrolledClipView(clip)
+                }
             }
         }
         window.close()
+    }
+}
+
+extension WidgetRenderHarness {
+    /// `-renderThemeCards folder [-cardThemes americana,seven,leopardNoir]`:
+    /// the Themes carousel's card for each theme, selected (top row) and as a
+    /// neighbour (bottom row), side by side in `theme-cards.png`. For judging
+    /// the card art without paging through the carousel.
+    static func renderThemeCards(to folder: URL, services: AppServices) async {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? ArtGPU.compileNow()
+        let names = (UserDefaults.standard.string(forKey: "cardThemes") ?? "americana,seven,leopardNoir").split(separator: ",")
+        let sets = names.compactMap { ThemeLibrary.set("setup.\($0)") }
+        let cache = services.themePreviews
+        for set in sets {
+            cache.request(set, dark: set.isDark, variant: .card, services: services)
+            for _ in 0..<300 where cache.image(for: set, dark: set.isDark, variant: .card) == nil {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+        let sheet = VStack(alignment: .leading, spacing: 28) {
+            HStack(spacing: 28) {
+                ForEach(sets) { set in
+                    ThemePreviewCard(set: set, services: services, isSelected: true).frame(width: 360, height: 480)
+                }
+            }
+            HStack(spacing: 28) {
+                ForEach(sets) { set in
+                    ThemePreviewCard(set: set, services: services, isSelected: false).frame(width: 240, height: 320)
+                }
+            }
+        }
+        .padding(36)
+        .background(DS.Surface.canvasLift)
+        let renderer = ImageRenderer(content: sheet)
+        renderer.scale = 2
+        if let image = renderer.cgImage,
+           let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+            try? png.write(to: folder.appendingPathComponent("theme-cards.png"))
+        }
     }
 }
 

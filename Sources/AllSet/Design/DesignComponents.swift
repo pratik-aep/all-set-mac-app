@@ -286,6 +286,9 @@ struct PreviewCanvas<Content: View>: View {
 struct GlassPanel<Content: View>: View {
     var cornerRadius: CGFloat = DS.Radius.panel
     var padding: CGFloat = DS.Space.l
+    /// How bright the lit rim is; under 1 for glass that sits second to
+    /// another piece beside it.
+    var rim: Double = 1
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -297,12 +300,12 @@ struct GlassPanel<Content: View>: View {
         if #available(macOS 26, *) {
             padded
                 .glassEffect(.regular.tint(.white.opacity(0.05)), in: shape)
-                .overlay(GlassRim(shape: shape))
+                .overlay(GlassRim(shape: shape).opacity(rim))
         } else {
             padded
                 .background(.ultraThinMaterial, in: shape)
                 .background(shape.fill(Color.white.opacity(0.04)))
-                .overlay(GlassRim(shape: shape))
+                .overlay(GlassRim(shape: shape).opacity(rim))
         }
     }
 }

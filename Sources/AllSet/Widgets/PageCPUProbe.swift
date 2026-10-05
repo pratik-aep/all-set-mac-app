@@ -706,6 +706,9 @@ enum PageCPUProbe {
         // Each page twice: the first pass pays for first sight (previews
         // drawn, tiles made); the second is what scrolling feels like after.
         let onlyScroll = ProcessInfo.processInfo.environment["ONLY"]
+        // `STALL_MS=22` lists every frame slower than that with where the
+        // page was, to find what on a page costs a frame.
+        let stall = (Double(ProcessInfo.processInfo.environment["STALL_MS"] ?? "") ?? 100) / 1000
         for (name, page) in [("themes", AppPage.themes), ("gallery", .gallery(nil)), ("wallpaper", .wallpaper)]
             .flatMap({ [($0.0 + " 1st", $0.1), ($0.0 + " 2nd", $0.1)] }) {
             if let onlyScroll, !name.hasPrefix(onlyScroll) { continue }
@@ -734,7 +737,7 @@ enum PageCPUProbe {
                 try? await Task.sleep(for: .milliseconds(16))
                 let now = CACurrentMediaTime()
                 gaps.append(now - last)
-                if now - last > 0.1 { print(String(format: "  stall %.0f ms at y=%.0f of %.0f", (now - last) * 1000, y, range)) }
+                if now - last > stall { print(String(format: "  stall %.0f ms at y=%.0f of %.0f", (now - last) * 1000, y, range)) }
                 last = now
             }
             let seconds = CACurrentMediaTime() - begin
