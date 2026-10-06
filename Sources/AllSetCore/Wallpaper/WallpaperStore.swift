@@ -213,8 +213,17 @@ public final class WallpaperStore {
                 guard let data = try? Data(contentsOf: file) else { return nil }
                 return try? JSONDecoder().decode(WallpaperLibraryCatalog.self, from: data)
             }.value
-            let items = (catalog?.items ?? []).filter { $0.status != .unsupported }
             let directory = libraryDirectory
+            // An entry whose files would lie outside the library is never used:
+            // every read, download and delete below trusts these paths.
+            let items = (catalog?.items ?? []).filter { video in
+                guard video.status != .unsupported else { return false }
+                let contained = [video.playback, video.still, video.thumbnail].allSatisfy { relative in
+                    relative.map { ContainedPath.resolve($0, in: directory) != nil } ?? true
+                }
+                if !contained { log.error("Ignoring library entry \(video.id, privacy: .public): a path leaves the library") }
+                return contained
+            }
             libraryCopies = Set(items.filter { video in
                 video.playback.map { FileManager.default.fileExists(atPath: directory.appendingPathComponent($0).path) } ?? false
             }.map(\.id))
@@ -352,8 +361,8 @@ public final class WallpaperStore {
     /// isn't on this Mac. Returns immediately if it already is.
     @discardableResult
     public func fetchThumbnail(_ id: String) async throws -> URL {
-        guard let relative = libraryVideo(id)?.thumbnail else { throw LibraryFetchError.noServer }
-        let local = libraryDirectory.appendingPathComponent(relative)
+        guard let relative = libraryVideo(id)?.thumbnail,
+              let local = ContainedPath.resolve(relative, in: libraryDirectory) else { throw LibraryFetchError.noServer }
         if FileManager.default.fileExists(atPath: local.path) { return local }
         return try await fetch(relative: relative)
     }
@@ -387,8 +396,8 @@ public final class WallpaperStore {
             inflight[relative]?.waiters += 1
         } else {
             guard let base = config.libraryServerURL, let root = URL(string: base) else { throw LibraryFetchError.noServer }
+            guard let destination = ContainedPath.resolve(relative, in: libraryDirectory) else { throw LibraryFetchError.noServer }
             let remote = root.appendingPathComponent(relative)
-            let destination = libraryDirectory.appendingPathComponent(relative)
             let newToken = UUID()
             token = newToken
             task = Task {
@@ -492,8 +501,8 @@ public final class WallpaperStore {
         return await Task.detached(priority: .userInitiated) {
             wanted.flatMap { id, relatives in
                 relatives.compactMap { relative -> OffloadCandidate? in
-                    let path = directory.appendingPathComponent(relative).path
-                    guard let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? Int64 else { return nil }
+                    guard let path = ContainedPath.resolve(relative, in: directory)?.path,
+                          let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? Int64 else { return nil }
                     return OffloadCandidate(id: id, relative: relative, size: size)
                 }
             }
@@ -557,7 +566,10 @@ public final class WallpaperStore {
         }
         let toDelete = confirmed
         let deleted = await Task.detached(priority: .userInitiated) {
-            toDelete.filter { (try? FileManager.default.removeItem(at: directory.appendingPathComponent($0.relative))) != nil }
+            toDelete.filter { candidate in
+                guard let url = ContainedPath.resolve(candidate.relative, in: directory) else { return false }
+                return (try? FileManager.default.removeItem(at: url)) != nil
+            }
         }.value
         let deletedPaths = Set(deleted.map(\.relative))
         result.kept += confirmed.map(\.relative).filter { !deletedPaths.contains($0) }
@@ -614,7 +626,8 @@ public final class WallpaperStore {
         defer { try? FileManager.default.removeItem(at: downloaded) }
         guard (getResponse as? HTTPURLResponse)?.statusCode == 200,
               let theirs = FileDigest.sha256(of: downloaded),
-              let ours = FileDigest.sha256(of: directory.appendingPathComponent(candidate.relative)) else { return false }
+              let local = ContainedPath.resolve(candidate.relative, in: directory),
+              let ours = FileDigest.sha256(of: local) else { return false }
         return theirs == ours
     }
 
@@ -635,7 +648,12 @@ public final class WallpaperStore {
             config.source = WallpaperConfig().source
         }
         for relative in Set([video.playback, video.thumbnail, video.still].compactMap({ $0 })) {
-            try? FileManager.default.removeItem(at: libraryDirectory.appendingPathComponent(relative))
+            // Only inside the library: a catalog path that escapes it is never deleted.
+            guard let url = ContainedPath.resolve(relative, in: libraryDirectory) else {
+                log.error("Not deleting \(relative, privacy: .public): it isn't inside the library")
+                continue
+            }
+            try? FileManager.default.removeItem(at: url)
         }
         let removedURL = libraryDirectory.appendingPathComponent("removed.json")
         var removed = (try? Data(contentsOf: removedURL)).flatMap {

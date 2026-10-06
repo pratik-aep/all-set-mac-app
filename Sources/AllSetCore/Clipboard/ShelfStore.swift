@@ -58,7 +58,9 @@ public final class ShelfStore {
 
     /// Files the shelf itself saved (browser pictures) go when they leave it.
     private func cleanUp(_ item: ShelfItem) {
-        if item.url.path.hasPrefix(droppedFilesDirectory.path) {
+        // Inside the shelf's own folder, compared by path component after resolving
+        // symlinks: a sibling such as Dropped-Other, or a link out, isn't the shelf's.
+        if ContainedPath.contains(item.url, in: droppedFilesDirectory) {
             try? FileManager.default.removeItem(at: item.url)
         }
     }
