@@ -28,3 +28,29 @@ Totals at the end: 353 Swift tests, 20 server tests, 0 warnings.
 - After restarting `catalog_service.py`, a tester sees only published wallpapers: the library is all quarantined, so start it with `--include-quarantined` to keep the current behaviour for your own tester.
 - `delete_service.py` now ignores `paths`; older app builds still work against it.
 - Server tests: `/usr/bin/python3 -m unittest scripts/cloud/test_*.py` (needs `brew install postgresql@17`).
+
+## Comprehensive review (2026-10-06): status register
+
+Findings from `2026-10-06-comprehensive-review.md`. Every fixed item has a test that failed (or would fail) on the earlier code.
+
+| # | Finding | Status | Commit |
+|---|---|---|---|
+| R1 | Redaction not authoritative | Fixed | `7616c7f` |
+| R2 | AI answer lands in the wrong screenshot | Fixed (late reply dropped; the request itself isn't cancelled) | `3734315` |
+| R3 | Audio gain data race | Fixed (atomic helpers; ThreadSanitizer clean) | `8f91b43` |
+| R4 | Shelf ownership by string prefix | Fixed (`ContainedPath`) | `4ead711` |
+| R5 | Local wallpaper delete escapes the library | Fixed (rejected at load and at every delete/write) | `4ead711` |
+| R6 | Server deletes a file another row uses | Fixed | `59f5d70` |
+| R7 | Rollback discards an original on collision | Fixed (kept as a conflict) | `59f5d70` |
+| R8 | Preview journal retired without confirmed save | Fixed | `9df2319` |
+| R9 | Unreadable importer catalog triggers cleanup | Fixed (stops; cleanup moves to `.orphans/`) | `5c9ec48` |
+| D1 | Clipboard history on by default | **Open: product decision** | |
+| D2 | Pending capture after Clear/Turn Off | Fixed | `d84af1e` |
+| D3 | GitHub cache not scoped to credential | Fixed (token fingerprint; external Keychain edits not detected) | `0a922e1` |
+| D4 | Key replacement deletes first | Fixed (failure path verified by reading, not by test) | `48e612f` |
+| D5 | Unreadable widgets erased by save | Fixed | `ea52076` |
+| D6 | Inconsistent save-failure semantics | Partly: local delete and Notes report failures; other stores (clipboard, workspace, wallpaper config writes) still only log | `1b323e2` |
+| P2 | Screenshot history by count only | Fixed (600 MB byte budget) | `3734315` |
+| P1, P3–P7 | Timers in views, image import on main, pointer wakeups, retry backoff, status key case, command timeout | Open | |
+| U1–U6 | Navigation, utility pages, accessibility names, notes undo, "on your server" wording, copy | Open (U1 needs a design decision) | |
+| A1–A4, O1–O6 | Architecture, workspace restore, display identity, platform testing, backend ops, tests, CI budgets, release, docs, import input bounds | Open | |
