@@ -123,14 +123,14 @@ struct ThemesPage: View {
                         banners
                         if browsing {
                             ThemeRail(title: "Recommended themes", sets: ThemeDiscovery.trending.sets(stats: services.themeStats),
-                                      services: services, availableWidth: geometry.size.width - margin * 2) {
+                                      services: services, availableWidth: geometry.size.width - margin * 2, viewportHeight: geometry.size.height) {
                                 discovery = ThemeDiscovery.trending.rawValue
                             }
                             ThemeMoodboards(services: services, selection: $discovery,
                                            availableWidth: geometry.size.width - margin * 2)
                             Deferred {
                                 ForEach(sections.shelves, id: \.title) { rail in
-                                    railView(rail, width: geometry.size.width - margin * 2)
+                                    railView(rail, width: geometry.size.width - margin * 2, viewportHeight: geometry.size.height)
                                 }
                             }
                         } else {
@@ -149,8 +149,12 @@ struct ThemesPage: View {
                     .padding(.horizontal, margin)
                     .padding(.top, DS.Space.xs)
                     .padding(.bottom, DS.Space.xxl)
+                    .background(LibraryScrollActivity(onBoundsChange: {
+                        services.themePreviews.noteScrollMovement()
+                    }))
                 }
                 .clipped()
+                .coordinateSpace(name: "themesViewport")
                 // A category/search change starts at its results, not a stale shelf offset.
                 .id("\(filter.rawValue)#\(browsing)")
             }
@@ -240,13 +244,13 @@ struct ThemesPage: View {
     }
 
     @ViewBuilder
-    private func railView(_ rail: Rail, width: CGFloat) -> some View {
+    private func railView(_ rail: Rail, width: CGFloat, viewportHeight: CGFloat) -> some View {
         if let more = rail.more {
-            ThemeRail(title: rail.title, sets: rail.sets, services: services, availableWidth: width) {
+            ThemeRail(title: rail.title, sets: rail.sets, services: services, availableWidth: width, viewportHeight: viewportHeight) {
                 discovery = more.rawValue
             }
         } else {
-            ThemeRail(title: rail.title, sets: rail.sets, services: services, availableWidth: width)
+            ThemeRail(title: rail.title, sets: rail.sets, services: services, availableWidth: width, viewportHeight: viewportHeight)
         }
     }
 
@@ -311,6 +315,7 @@ struct ThemeSetCard: View {
     let services: AppServices
 
     @State private var isHovering = false
+    @FocusState private var favoriteFocused: Bool
 
     var body: some View {
         let stats = services.themeStats
@@ -322,18 +327,6 @@ struct ThemeSetCard: View {
                 ThemeSnapshot(set: set, dark: set.isDark, services: services)
                     .clipShape(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: DS.Radius.media, style: .continuous).strokeBorder(DS.Surface.hairline))
-                    .overlay(alignment: .topTrailing) {
-                        Button {
-                            withMotion(Motion.bouncy) { stats.toggleFavorite(set.id) }
-                        } label: {
-                            Image(systemName: favorite ? "heart.fill" : "heart")
-                                .foregroundStyle(favorite ? Color.pink : DS.Ink.primary)
-                        }
-                        .buttonStyle(FloatingButtonStyle(diameter: 30))
-                        .padding(DS.Space.s)
-                        .opacity(isHovering || favorite ? 1 : 0)
-                        .accessibilityLabel(favorite ? "Remove from favorites" : "Add to favorites")
-                    }
                     .scaleEffect(isHovering ? 1.02 : 1)
                     .dsElevated()
                 VStack(alignment: .leading, spacing: 3) {
@@ -352,10 +345,25 @@ struct ThemeSetCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { hovering in withMotion(Motion.responsive) { isHovering = hovering } }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(set.name) theme, \(set.includedWidgets.count) widgets. \(set.tagline)")
         .accessibilityHint("Opens the theme")
+        // A separate action over the card, never a Button inside a Button.
+        .overlay(alignment: .topTrailing) {
+            Button {
+                withMotion(Motion.bouncy) { stats.toggleFavorite(set.id) }
+            } label: {
+                Image(systemName: favorite ? "heart.fill" : "heart")
+                    .foregroundStyle(favorite ? Color.pink : DS.Ink.primary)
+            }
+            .buttonStyle(FloatingButtonStyle(diameter: 30))
+            .padding(DS.Space.s)
+            .opacity(isHovering || favorite || favoriteFocused ? 1 : 0)
+            .allowsHitTesting(isHovering || favorite || favoriteFocused)
+            .focused($favoriteFocused)
+            .accessibilityLabel(favorite ? "Remove \(set.name) from favorites" : "Favorite \(set.name)")
+        }
+        .onHover { hovering in withMotion(Motion.responsive) { isHovering = hovering } }
     }
 }
 
@@ -368,22 +376,25 @@ struct ThemeSnapshot: View {
     /// Fills its frame (cropping) rather than keeping the picture's shape.
     var fills = false
     var variant = ThemePreviewVariant.desktop
+    /// Offscreen shelves retain their size without decoding or drawing previews.
+    var requestsPreview = true
 
     var body: some View {
         let cache = services.themePreviews
         ZStack {
-            if let image = cache.image(for: set, dark: dark, variant: variant) {
+            if requestsPreview, let image = cache.image(for: set, dark: dark, variant: variant) {
                 Image(nsImage: image).resizable().aspectRatio(contentMode: .fill).transition(.opacity)
             } else {
                 Rectangle().fill(DS.Surface.raised)
-                    .overlay(ProgressView().controlSize(.small))
+                    .overlay { if requestsPreview { ProgressView().controlSize(.small) } }
             }
         }
         .aspectRatio(fills ? nil : variant.aspect, contentMode: fills ? .fill : .fit)
-        .motion(Motion.standard, value: cache.image(for: set, dark: dark, variant: variant) != nil)
+        .motion(Motion.standard, value: requestsPreview && cache.image(for: set, dark: dark, variant: variant) != nil)
         // Keyed on the purge generation too: a purge (memory pressure) drops
         // queued requests, and a card still waiting must ask again.
-        .task(id: "\(cache.key(set, dark: dark, variant: variant))#\(cache.generation)") {
+        .task(id: requestsPreview ? "\(cache.key(set, dark: dark, variant: variant))#\(cache.generation)" : "offscreen") {
+            guard requestsPreview else { return }
             cache.request(set, dark: dark, variant: variant, services: services)
             defer { cache.cancel(set, dark: dark, variant: variant) }
             while !Task.isCancelled { try? await Task.sleep(for: .seconds(3600)) }

@@ -367,8 +367,11 @@ final class ThemePreviewCache {
         inFlight.insert(name)
         let asked = generation
         Task {
+            // Disk hits also decode images and update the view. A shelf entering
+            // the viewport must not do that work during an active scroll.
+            guard await waitUntilQuiet(name: name, generation: asked) else { return }
             if let cached = await Self.load(folder.appendingPathComponent(name + ".png")) {
-                guard asked == generation else { return }
+                guard await waitUntilQuiet(name: name, generation: asked) else { return }
                 keep(cached, as: name, of: set, variant: variant)
                 inFlight.remove(name)
                 return
@@ -401,10 +404,32 @@ final class ThemePreviewCache {
     @ObservationIgnored private var scrollObservers: [NSObjectProtocol] = []
     @ObservationIgnored private var scrollsUnderWay = 0
     @ObservationIgnored private var lastScrollEnd: CFTimeInterval = 0
+    /// Mouse wheels and scrollbar drags can move without live-scroll
+    /// notifications. Keep preview rendering off the main thread's next frame.
+    func noteScrollMovement() { lastScrollEnd = CACurrentMediaTime() }
     /// Scrolling now, or stopped too recently for a stall to go unnoticed
     /// (a flick keeps moving for a moment after the fingers lift).
     private var isScrolling: Bool {
         scrollsUnderWay > 0 || CACurrentMediaTime() - lastScrollEnd < 0.35
+    }
+
+    func waitUntilScrollSettles() async -> Bool {
+        while isScrolling {
+            do { try await Task.sleep(for: .milliseconds(120)) } catch { return false }
+        }
+        return !Task.isCancelled
+    }
+
+    private func waitUntilQuiet(name: String, generation asked: Int) async -> Bool {
+        while asked == generation, showing[name] != nil, isScrolling {
+            do { try await Task.sleep(for: .milliseconds(120)) } catch { break }
+        }
+        guard asked == generation else { return false }
+        guard showing[name] != nil, !Task.isCancelled else {
+            inFlight.remove(name)
+            return false
+        }
+        return true
     }
 
     @ObservationIgnored private var queue: [(name: String, set: ThemeSet, dark: Bool, variant: ThemePreviewVariant,
@@ -419,7 +444,8 @@ final class ThemePreviewCache {
                 guard !queue.isEmpty else { break }
                 let (name, set, dark, variant, prepared) = queue.removeFirst()
                 let asked = generation
-                var drawn = await render(set, dark: dark, variant: variant, widgets: await prepared.value, services: services)
+                var drawn = await render(set, dark: dark, variant: variant, widgets: await prepared.value,
+                                         services: services, name: name, generation: asked)
                 // Blurred and faded now, once, and saved that way: nothing is
                 // blurred when the carousel moves.
                 if variant == .backdrop, let sharp = drawn { drawn = await Self.softened(SendableImage(sharp))?.image }
@@ -487,9 +513,10 @@ final class ThemePreviewCache {
     }
 
     private func render(_ set: ThemeSet, dark: Bool, variant: ThemePreviewVariant, widgets: [WidgetInstance],
-                        services: AppServices) async -> CGImage? {
-        // Its pictures may have arrived mid-scroll; the drawing itself waits.
-        while isScrolling { try? await Task.sleep(for: .milliseconds(120)) }
+                        services: AppServices, name: String, generation asked: Int) async -> CGImage? {
+        // Preparation can finish after the person changes pages. Never mount
+        // a discarded preview, or draw one while the current page is scrolling.
+        guard await waitUntilQuiet(name: name, generation: asked) else { return nil }
         let view: AnyView = switch variant {
         case .desktop:
             AnyView(ThemeComposition(set: set, widgets: widgets, services: services, dark: dark).frame(width: 568, height: 384))

@@ -1,0 +1,12 @@
+{
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/DerivedSources/resource_bundle_accessor.swift" : {
+    "abi-baseline-json" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore.abi.json",
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore-primary.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore-primary.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore-primary.dia",
+    "objc-header" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore-Swift.h",
+    "swiftdoc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore.swiftdoc",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore.swiftmodule",
+    "swiftsourceinfo" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore.swiftsourceinfo"
+  }
+}

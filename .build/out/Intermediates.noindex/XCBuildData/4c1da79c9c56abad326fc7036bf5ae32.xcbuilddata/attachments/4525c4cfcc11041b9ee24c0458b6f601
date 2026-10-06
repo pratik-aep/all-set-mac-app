@@ -1,0 +1,4 @@
+module AllSetCore {
+header "AllSetCore-Swift.h"
+export *
+}

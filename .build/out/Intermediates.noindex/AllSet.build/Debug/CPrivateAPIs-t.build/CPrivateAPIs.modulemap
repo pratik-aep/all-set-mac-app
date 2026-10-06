@@ -1,0 +1,4 @@
+module CPrivateAPIs {
+umbrella header "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/CPrivateAPIs/include/CPrivateAPIs.h"
+export *
+}

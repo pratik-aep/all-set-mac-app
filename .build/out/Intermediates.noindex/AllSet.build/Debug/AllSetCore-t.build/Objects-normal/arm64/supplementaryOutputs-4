@@ -1,0 +1,79 @@
+{
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Media/NowPlayingInfo.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NowPlayingInfo.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NowPlayingInfo.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NowPlayingInfo.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NowPlayingInfo.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NowPlayingInfo.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Notch/NotchGeometry.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NotchGeometry.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NotchGeometry.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NotchGeometry.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NotchGeometry.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NotchGeometry.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Notes/NotesStore.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NotesStore.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NotesStore.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NotesStore.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NotesStore.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/NotesStore.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Power/PowerSourceMonitor.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/PowerSourceMonitor.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/PowerSourceMonitor.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/PowerSourceMonitor.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/PowerSourceMonitor.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/PowerSourceMonitor.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Screenshot/ScreenshotShortcut.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/ScreenshotShortcut.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/ScreenshotShortcut.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/ScreenshotShortcut.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/ScreenshotShortcut.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/ScreenshotShortcut.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Search/AestheticSearch.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AestheticSearch.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AestheticSearch.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AestheticSearch.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AestheticSearch.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AestheticSearch.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Search/SearchMatch.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/SearchMatch.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/SearchMatch.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/SearchMatch.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/SearchMatch.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/SearchMatch.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Search/WallpaperQuery.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WallpaperQuery.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WallpaperQuery.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WallpaperQuery.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WallpaperQuery.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WallpaperQuery.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Settings/AppSettings.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AppSettings.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AppSettings.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AppSettings.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AppSettings.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AppSettings.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/AdminGate.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AdminGate.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AdminGate.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AdminGate.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AdminGate.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AdminGate.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/CommandRunner.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/CommandRunner.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/CommandRunner.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/CommandRunner.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/CommandRunner.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/CommandRunner.swiftdeps"
+  }
+}

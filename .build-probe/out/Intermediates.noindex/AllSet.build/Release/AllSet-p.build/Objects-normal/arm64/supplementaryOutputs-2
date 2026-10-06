@@ -1,0 +1,11 @@
+{
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/AllSetApp.swift" : {
+    "abi-baseline-json" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build-probe/out/Intermediates.noindex/AllSet.build/Release/AllSet-p.build/Objects-normal/arm64/AllSet.abi.json",
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build-probe/out/Intermediates.noindex/AllSet.build/Release/AllSet-p.build/Objects-normal/arm64/AllSet-primary.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build-probe/out/Intermediates.noindex/AllSet.build/Release/AllSet-p.build/Objects-normal/arm64/AllSet-primary.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build-probe/out/Intermediates.noindex/AllSet.build/Release/AllSet-p.build/Objects-normal/arm64/AllSet-primary.dia",
+    "swiftdoc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build-probe/out/Intermediates.noindex/AllSet.build/Release/AllSet-p.build/Objects-normal/arm64/AllSet.swiftdoc",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build-probe/out/Intermediates.noindex/AllSet.build/Release/AllSet-p.build/Objects-normal/arm64/AllSet.swiftmodule",
+    "swiftsourceinfo" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build-probe/out/Intermediates.noindex/AllSet.build/Release/AllSet-p.build/Objects-normal/arm64/AllSet.swiftsourceinfo"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Knock/KnockDetector.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockDetector.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockDetector.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockDetector.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockDetector.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockDetector.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Knock/KnockListener.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockListener.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockListener.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockListener.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockListener.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockListener.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Knock/KnockSettings.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockSettings.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockSettings.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockSettings.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockSettings.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/KnockSettings.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Knock/MotionSensor.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MotionSensor.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MotionSensor.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MotionSensor.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MotionSensor.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MotionSensor.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/LidPlane/AutoAnchor.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AutoAnchor.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AutoAnchor.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AutoAnchor.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AutoAnchor.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/AutoAnchor.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/LidPlane/EffectDefaults.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/EffectDefaults.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/EffectDefaults.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/EffectDefaults.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/EffectDefaults.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/EffectDefaults.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/LidPlane/LidPlaneSettings.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/LidPlaneSettings.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/LidPlaneSettings.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/LidPlaneSettings.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/LidPlaneSettings.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/LidPlaneSettings.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/LidPlane/LidSensor.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/LidSensor.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/LidSensor.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/LidSensor.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/LidSensor.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/LidSensor.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/LidPlane/MotionPolicy.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MotionPolicy.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MotionPolicy.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MotionPolicy.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MotionPolicy.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MotionPolicy.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Media/ArtworkPalette.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/ArtworkPalette.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/ArtworkPalette.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/ArtworkPalette.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/ArtworkPalette.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/ArtworkPalette.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Media/MediaController.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MediaController.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MediaController.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MediaController.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MediaController.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MediaController.swiftdeps"
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/AllSetApp.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AllSetApp.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AllSetApp.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AllSetApp.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AllSetApp.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AllSetApp.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/AppDelegate.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppDelegate.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppDelegate.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppDelegate.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppDelegate.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppDelegate.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/AppServices+Themes.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppServices+Themes.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppServices+Themes.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppServices+Themes.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppServices+Themes.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppServices+Themes.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/AppServices.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppServices.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppServices.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppServices.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppServices.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/AppServices.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Clipboard/ClipboardMonitor.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardMonitor.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardMonitor.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardMonitor.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardMonitor.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardMonitor.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Clipboard/ClipboardPages.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardPages.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardPages.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardPages.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardPages.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardPages.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Clipboard/ClipboardPicker.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardPicker.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardPicker.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardPicker.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardPicker.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/ClipboardPicker.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Components/Components.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/Components.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/Components.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/Components.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/Components.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/Components.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Components/DriftingImage.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/DriftingImage.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/DriftingImage.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/DriftingImage.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/DriftingImage.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/DriftingImage.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Components/KeyboardActivatable.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/KeyboardActivatable.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/KeyboardActivatable.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/KeyboardActivatable.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/KeyboardActivatable.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/KeyboardActivatable.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Components/LayerGauges.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/LayerGauges.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/LayerGauges.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/LayerGauges.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/LayerGauges.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/LayerGauges.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Components/LiveLayers.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/LiveLayers.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/LiveLayers.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/LiveLayers.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/LiveLayers.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal/arm64/LiveLayers.swiftdeps"
+  }
+}

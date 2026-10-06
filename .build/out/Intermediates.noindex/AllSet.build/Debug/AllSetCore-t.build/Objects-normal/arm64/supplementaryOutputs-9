@@ -1,0 +1,79 @@
+{
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Wallpaper/WallpaperStore.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WallpaperStore.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WallpaperStore.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WallpaperStore.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WallpaperStore.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WallpaperStore.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Weather/Weather.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/Weather.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/Weather.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/Weather.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/Weather.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/Weather.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/DesignTheme.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/DesignTheme.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/DesignTheme.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/DesignTheme.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/DesignTheme.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/DesignTheme.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/FanModels.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/FanModels.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/FanModels.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/FanModels.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/FanModels.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/FanModels.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/FocusTimerCoordinator.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/FocusTimerCoordinator.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/FocusTimerCoordinator.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/FocusTimerCoordinator.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/FocusTimerCoordinator.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/FocusTimerCoordinator.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/MysticModels.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MysticModels.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MysticModels.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MysticModels.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MysticModels.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/MysticModels.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/StudioDiscovery.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/StudioDiscovery.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/StudioDiscovery.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/StudioDiscovery.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/StudioDiscovery.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/StudioDiscovery.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/Timers.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/Timers.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/Timers.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/Timers.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/Timers.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/Timers.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetCatalog.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetCatalog.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetCatalog.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetCatalog.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetCatalog.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetCatalog.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetGrid.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetGrid.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetGrid.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetGrid.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetGrid.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetGrid.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetMath.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetMath.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetMath.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetMath.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetMath.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCore-t.build/Objects-normal/arm64/WidgetMath.swiftdeps"
+  }
+}

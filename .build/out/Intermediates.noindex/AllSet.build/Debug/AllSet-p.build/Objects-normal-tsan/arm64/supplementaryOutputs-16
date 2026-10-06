@@ -1,0 +1,79 @@
+{
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Studio/StudioThemeStyle.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/StudioThemeStyle.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/StudioThemeStyle.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/StudioThemeStyle.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/StudioThemeStyle.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/StudioThemeStyle.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Studio/ThemePreviews.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemePreviews.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemePreviews.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemePreviews.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemePreviews.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemePreviews.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Studio/ThemeWidgetGallery.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeWidgetGallery.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeWidgetGallery.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeWidgetGallery.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeWidgetGallery.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeWidgetGallery.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Studio/Themes/CardHalo.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CardHalo.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CardHalo.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CardHalo.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CardHalo.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CardHalo.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Studio/Themes/CarouselProbe.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CarouselProbe.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CarouselProbe.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CarouselProbe.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CarouselProbe.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CarouselProbe.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Studio/Themes/CategoryRail.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CategoryRail.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CategoryRail.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CategoryRail.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CategoryRail.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/CategoryRail.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Studio/Themes/HeroCarousel.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/HeroCarousel.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/HeroCarousel.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/HeroCarousel.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/HeroCarousel.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/HeroCarousel.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Studio/Themes/ThemeAtmosphere.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeAtmosphere.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeAtmosphere.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeAtmosphere.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeAtmosphere.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeAtmosphere.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Studio/Themes/ThemePreviewCard.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemePreviewCard.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemePreviewCard.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemePreviewCard.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemePreviewCard.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemePreviewCard.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Studio/Themes/ThemeRail.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeRail.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeRail.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeRail.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeRail.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemeRail.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSet/Studio/Themes/ThemesFilterBar.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemesFilterBar.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemesFilterBar.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemesFilterBar.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemesFilterBar.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSet-p.build/Objects-normal-tsan/arm64/ThemesFilterBar.swiftdeps"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/WidgetPlatformTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetPlatformTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetPlatformTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetPlatformTests.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetPlatformTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetPlatformTests.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/WidgetResizeTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetResizeTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetResizeTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetResizeTests.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetResizeTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetResizeTests.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/WidgetTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetTests.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetTests.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/WorkspaceTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WorkspaceTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WorkspaceTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WorkspaceTests.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WorkspaceTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WorkspaceTests.swiftdeps"
+  }
+}

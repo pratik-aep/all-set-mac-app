@@ -1,0 +1,571 @@
+{
+  "" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore-primary.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore-primary.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore-primary.dia",
+    "emit-module-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore-primary-emit-module.dia",
+    "pch" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AllSetCore-primary.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/DerivedSources/resource_bundle_accessor.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/resource_bundle_accessor.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/resource_bundle_accessor.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/resource_bundle_accessor.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/AI/AIImageEditors.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AIImageEditors.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AIImageEditors.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AIImageEditors.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/AI/ScreenshotEdit.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ScreenshotEdit.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ScreenshotEdit.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ScreenshotEdit.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/AI/ScreenshotStudio.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ScreenshotStudio.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ScreenshotStudio.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ScreenshotStudio.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Aesthetics/Art.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Art.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Art.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Art.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Aesthetics/CuratedBackgrounds.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CuratedBackgrounds.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CuratedBackgrounds.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CuratedBackgrounds.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Aesthetics/ImageLibrary.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ImageLibrary.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ImageLibrary.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ImageLibrary.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Aesthetics/LicensedPhotos.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/LicensedPhotos.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/LicensedPhotos.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/LicensedPhotos.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Aesthetics/PhotoSearch.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/PhotoSearch.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/PhotoSearch.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/PhotoSearch.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Aesthetics/Wallhaven.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Wallhaven.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Wallhaven.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Wallhaven.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Aesthetics/WallpaperColor.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperColor.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperColor.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperColor.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Audio/AppAudioTap.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AppAudioTap.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AppAudioTap.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AppAudioTap.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Audio/AppVolumeStore.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AppVolumeStore.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AppVolumeStore.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AppVolumeStore.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Audio/AudioCapturePermission.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AudioCapturePermission.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AudioCapturePermission.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AudioCapturePermission.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Audio/AudioProcesses.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AudioProcesses.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AudioProcesses.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AudioProcesses.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Audio/VolumeMonitor.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/VolumeMonitor.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/VolumeMonitor.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/VolumeMonitor.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Calendar/CalendarLayout.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CalendarLayout.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CalendarLayout.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CalendarLayout.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Calendar/CalendarService.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CalendarService.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CalendarService.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CalendarService.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Clipboard/ClipboardStore.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ClipboardStore.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ClipboardStore.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ClipboardStore.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Clipboard/PDFMaker.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/PDFMaker.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/PDFMaker.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/PDFMaker.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Clipboard/ShelfStore.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ShelfStore.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ShelfStore.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ShelfStore.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Developer/GitHub.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/GitHub.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/GitHub.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/GitHub.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Developer/StatusService.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/StatusService.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/StatusService.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/StatusService.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Knock/KnockAction.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KnockAction.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KnockAction.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KnockAction.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Knock/KnockDetector.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KnockDetector.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KnockDetector.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KnockDetector.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Knock/KnockListener.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KnockListener.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KnockListener.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KnockListener.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Knock/KnockSettings.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KnockSettings.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KnockSettings.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KnockSettings.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Knock/MotionSensor.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MotionSensor.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MotionSensor.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MotionSensor.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/LidPlane/AutoAnchor.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AutoAnchor.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AutoAnchor.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AutoAnchor.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/LidPlane/EffectDefaults.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/EffectDefaults.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/EffectDefaults.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/EffectDefaults.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/LidPlane/LidPlaneSettings.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/LidPlaneSettings.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/LidPlaneSettings.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/LidPlaneSettings.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/LidPlane/LidSensor.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/LidSensor.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/LidSensor.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/LidSensor.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/LidPlane/MotionPolicy.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MotionPolicy.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MotionPolicy.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MotionPolicy.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Media/ArtworkPalette.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ArtworkPalette.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ArtworkPalette.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ArtworkPalette.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Media/MediaController.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MediaController.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MediaController.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MediaController.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Media/NowPlayingInfo.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NowPlayingInfo.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NowPlayingInfo.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NowPlayingInfo.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Notch/NotchGeometry.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NotchGeometry.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NotchGeometry.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NotchGeometry.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Notes/NotesStore.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NotesStore.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NotesStore.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NotesStore.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Power/PowerSourceMonitor.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/PowerSourceMonitor.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/PowerSourceMonitor.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/PowerSourceMonitor.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Screenshot/ScreenshotShortcut.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ScreenshotShortcut.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ScreenshotShortcut.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ScreenshotShortcut.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Search/AestheticSearch.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AestheticSearch.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AestheticSearch.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AestheticSearch.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Search/SearchMatch.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SearchMatch.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SearchMatch.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SearchMatch.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Search/WallpaperQuery.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperQuery.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperQuery.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperQuery.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Settings/AppSettings.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AppSettings.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AppSettings.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AppSettings.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/AdminGate.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AdminGate.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AdminGate.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/AdminGate.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/CommandRunner.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CommandRunner.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CommandRunner.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CommandRunner.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/ContainedPath.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ContainedPath.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ContainedPath.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ContainedPath.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/CostCache.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CostCache.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CostCache.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CostCache.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/DataArchive.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DataArchive.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DataArchive.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DataArchive.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/DeepLink.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DeepLink.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DeepLink.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DeepLink.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/DisplayIdentity.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DisplayIdentity.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DisplayIdentity.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DisplayIdentity.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/FileDigest.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/FileDigest.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/FileDigest.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/FileDigest.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/Format.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Format.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Format.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Format.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/ImageCost.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ImageCost.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ImageCost.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ImageCost.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/KeychainItem.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KeychainItem.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KeychainItem.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/KeychainItem.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/LineReader.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/LineReader.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/LineReader.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/LineReader.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/NeededTimer.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NeededTimer.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NeededTimer.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NeededTimer.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/PerformancePolicy.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/PerformancePolicy.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/PerformancePolicy.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/PerformancePolicy.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/RetryBackoff.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/RetryBackoff.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/RetryBackoff.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/RetryBackoff.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/RollingSeries.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/RollingSeries.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/RollingSeries.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/RollingSeries.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/ScreenCoverage.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ScreenCoverage.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ScreenCoverage.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ScreenCoverage.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/SharedRequests.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SharedRequests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SharedRequests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SharedRequests.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Support/StoreFile.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/StoreFile.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/StoreFile.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/StoreFile.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/BatteryHealthSource.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/BatteryHealthSource.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/BatteryHealthSource.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/BatteryHealthSource.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/BatteryReader.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/BatteryReader.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/BatteryReader.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/BatteryReader.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/CPUReader.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CPUReader.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CPUReader.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/CPUReader.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/DiskReader.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DiskReader.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DiskReader.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DiskReader.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/GPUReader.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/GPUReader.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/GPUReader.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/GPUReader.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/IORegistry.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/IORegistry.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/IORegistry.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/IORegistry.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/MemoryReader.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MemoryReader.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MemoryReader.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MemoryReader.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/NetworkReader.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NetworkReader.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NetworkReader.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/NetworkReader.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/ProcessEnergyReader.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ProcessEnergyReader.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ProcessEnergyReader.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ProcessEnergyReader.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/SystemMonitor.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SystemMonitor.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SystemMonitor.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SystemMonitor.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/SystemSampler.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SystemSampler.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SystemSampler.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SystemSampler.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/SystemSnapshot.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SystemSnapshot.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SystemSnapshot.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/SystemSnapshot.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/TemperatureReader.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/TemperatureReader.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/TemperatureReader.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/TemperatureReader.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/System/WiFiReader.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WiFiReader.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WiFiReader.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WiFiReader.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Themes/DesktopJournal.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DesktopJournal.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DesktopJournal.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DesktopJournal.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Themes/DesktopSnapshot.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DesktopSnapshot.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DesktopSnapshot.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DesktopSnapshot.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Themes/ThemeAccent.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeAccent.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeAccent.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeAccent.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Themes/ThemeCardArt.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeCardArt.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeCardArt.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeCardArt.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Themes/ThemeCarouselLayout.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeCarouselLayout.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeCarouselLayout.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeCarouselLayout.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Themes/ThemeLibrary.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeLibrary.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeLibrary.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeLibrary.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Themes/ThemePhotos.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemePhotos.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemePhotos.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemePhotos.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Themes/ThemeSet.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeSet.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeSet.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeSet.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Themes/ThemeStats.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeStats.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeStats.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeStats.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Themes/ThemeWidgetCatalog.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeWidgetCatalog.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeWidgetCatalog.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/ThemeWidgetCatalog.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Wallpaper/DeleteAPIKeychain.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DeleteAPIKeychain.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DeleteAPIKeychain.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DeleteAPIKeychain.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Wallpaper/WallpaperCategory.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperCategory.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperCategory.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperCategory.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Wallpaper/WallpaperLibrary.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperLibrary.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperLibrary.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperLibrary.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Wallpaper/WallpaperStore.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperStore.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperStore.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WallpaperStore.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Weather/Weather.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Weather.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Weather.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Weather.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/DesignTheme.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DesignTheme.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DesignTheme.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/DesignTheme.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/FanModels.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/FanModels.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/FanModels.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/FanModels.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/FocusTimerCoordinator.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/FocusTimerCoordinator.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/FocusTimerCoordinator.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/FocusTimerCoordinator.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/MysticModels.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MysticModels.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MysticModels.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/MysticModels.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/StudioDiscovery.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/StudioDiscovery.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/StudioDiscovery.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/StudioDiscovery.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/Timers.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Timers.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Timers.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/Timers.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetCatalog.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetCatalog.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetCatalog.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetCatalog.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetGrid.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetGrid.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetGrid.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetGrid.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetMath.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetMath.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetMath.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetMath.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetModels.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetModels.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetModels.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetModels.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetResize.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetResize.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetResize.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetResize.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetStore.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetStore.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetStore.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetStore.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetTheme+Cinematic.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme+Cinematic.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme+Cinematic.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme+Cinematic.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetTheme+Colour.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme+Colour.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme+Colour.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme+Colour.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetTheme+Fandom.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme+Fandom.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme+Fandom.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme+Fandom.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetTheme+Moodboards.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme+Moodboards.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme+Moodboards.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme+Moodboards.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Widgets/WidgetTheme.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WidgetTheme.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Workspace/WindowLayout.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WindowLayout.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WindowLayout.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WindowLayout.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Workspace/WorkspaceRestore.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WorkspaceRestore.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WorkspaceRestore.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WorkspaceRestore.o"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/AllSetCore/Workspace/WorkspaceStore.swift" : {
+    "index-unit-output-path" : "/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WorkspaceStore.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WorkspaceStore.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Release/AllSetCore-t.build/Objects-normal/arm64/WorkspaceStore.o"
+  }
+}

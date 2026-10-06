@@ -85,9 +85,11 @@ struct LibraryWidgetPreview: View {
 /// Also catches mouse wheels and scrollbar drags, which do not always send
 /// trackpad live-scroll notifications. No polling and no per-card observers.
 struct LibraryScrollActivity: NSViewRepresentable {
+    var onBoundsChange: @MainActor () -> Void = {}
     func makeNSView(context: Context) -> Watcher { Watcher() }
-    func updateNSView(_ view: Watcher, context: Context) {}
+    func updateNSView(_ view: Watcher, context: Context) { view.onBoundsChange = onBoundsChange }
     final class Watcher: NSView {
+        var onBoundsChange: @MainActor () -> Void = {}
         // Installed on the main actor; NotificationCenter removal is safe
         // during nonisolated NSView teardown, as with CinemaWindowPresence.
         nonisolated(unsafe) private var token: NSObjectProtocol?
@@ -97,8 +99,11 @@ struct LibraryScrollActivity: NSViewRepresentable {
             if let token { NotificationCenter.default.removeObserver(token); self.token = nil }
             guard window != nil, let clip = enclosingScrollView?.contentView else { return }
             clip.postsBoundsChangedNotifications = true
-            token = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: clip, queue: .main) { _ in
-                MainActor.assumeIsolated { LibraryPreviewCache.boundsMoved() }
+            token = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: clip, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    LibraryPreviewCache.boundsMoved()
+                    self?.onBoundsChange()
+                }
             }
         }
         deinit { if let token { NotificationCenter.default.removeObserver(token) } }

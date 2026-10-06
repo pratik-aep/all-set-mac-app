@@ -42,6 +42,7 @@ struct ThemesFilterBar: View {
                 if !query.isEmpty {
                     Button { query = "" } label: {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(DS.Ink.secondary)
+                            .frame(width: 24, height: 24).contentShape(Rectangle())
                     }
                     .buttonStyle(.plain).accessibilityLabel("Clear search")
                 }

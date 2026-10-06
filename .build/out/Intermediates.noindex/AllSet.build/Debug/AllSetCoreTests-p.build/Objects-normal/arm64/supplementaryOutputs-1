@@ -1,0 +1,37 @@
+{
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/DerivedSources/test_entry_point.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/test_entry_point.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/test_entry_point.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/test_entry_point.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/test_entry_point.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/test_entry_point.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/AestheticsV2Tests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/AestheticsV2Tests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/AestheticsV2Tests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/AestheticsV2Tests.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/AestheticsV2Tests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/AestheticsV2Tests.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/BatteryHealthTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/BatteryHealthTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/BatteryHealthTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/BatteryHealthTests.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/BatteryHealthTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/BatteryHealthTests.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/BatteryTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/BatteryTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/BatteryTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/BatteryTests.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/BatteryTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/BatteryTests.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/ClipboardTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/ClipboardTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/ClipboardTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/ClipboardTests.dia",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/ClipboardTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal/arm64/ClipboardTests.swiftdeps"
+  }
+}

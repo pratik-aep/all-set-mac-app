@@ -1,0 +1,449 @@
+{
+  "" : {
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/AllSetCoreTests-primary.dia",
+    "emit-module-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/AllSetCoreTests-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/AllSetCoreTests-primary-emit-module.dia",
+    "pch" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/AllSetCoreTests-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/AllSetCoreTests-primary.swiftdeps"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/DerivedSources/test_entry_point.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/test_entry_point.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/test_entry_point.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/test_entry_point.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/test_entry_point.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/test_entry_point.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/test_entry_point.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/test_entry_point.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/test_entry_point~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/AestheticsV2Tests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/AestheticsV2Tests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/AestheticsV2Tests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/AestheticsV2Tests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/AestheticsV2Tests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/AestheticsV2Tests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/AestheticsV2Tests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/AestheticsV2Tests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/AestheticsV2Tests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/BatteryHealthTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryHealthTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryHealthTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryHealthTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryHealthTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryHealthTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryHealthTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryHealthTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryHealthTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/BatteryTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/BatteryTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/ClipboardTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ClipboardTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ClipboardTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ClipboardTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ClipboardTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ClipboardTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ClipboardTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ClipboardTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ClipboardTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/CommandRunnerTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CommandRunnerTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CommandRunnerTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CommandRunnerTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CommandRunnerTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CommandRunnerTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CommandRunnerTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CommandRunnerTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CommandRunnerTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/ContainedPathTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ContainedPathTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ContainedPathTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ContainedPathTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ContainedPathTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ContainedPathTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ContainedPathTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ContainedPathTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ContainedPathTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/CostCacheTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CostCacheTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CostCacheTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CostCacheTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CostCacheTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CostCacheTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CostCacheTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CostCacheTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/CostCacheTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/DesktopJournalTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopJournalTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopJournalTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopJournalTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopJournalTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopJournalTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopJournalTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopJournalTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopJournalTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/DesktopSnapshotTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopSnapshotTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopSnapshotTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopSnapshotTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopSnapshotTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopSnapshotTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopSnapshotTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopSnapshotTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DesktopSnapshotTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/DisplayIdentityTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DisplayIdentityTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DisplayIdentityTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DisplayIdentityTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DisplayIdentityTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DisplayIdentityTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DisplayIdentityTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DisplayIdentityTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/DisplayIdentityTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/FandomTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FandomTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FandomTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FandomTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FandomTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FandomTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FandomTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FandomTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FandomTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/FocusTimerCoordinatorTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FocusTimerCoordinatorTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FocusTimerCoordinatorTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FocusTimerCoordinatorTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FocusTimerCoordinatorTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FocusTimerCoordinatorTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FocusTimerCoordinatorTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FocusTimerCoordinatorTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/FocusTimerCoordinatorTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/GainBoxTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/GainBoxTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/GainBoxTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/GainBoxTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/GainBoxTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/GainBoxTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/GainBoxTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/GainBoxTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/GainBoxTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/HardeningTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/HardeningTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/HardeningTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/HardeningTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/HardeningTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/HardeningTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/HardeningTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/HardeningTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/HardeningTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/ImageImportTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ImageImportTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ImageImportTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ImageImportTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ImageImportTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ImageImportTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ImageImportTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ImageImportTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ImageImportTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/KeychainItemTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KeychainItemTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KeychainItemTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KeychainItemTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KeychainItemTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KeychainItemTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KeychainItemTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KeychainItemTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KeychainItemTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/KnockTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KnockTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KnockTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KnockTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KnockTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KnockTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KnockTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KnockTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/KnockTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/LidPlaneTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LidPlaneTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LidPlaneTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LidPlaneTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LidPlaneTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LidPlaneTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LidPlaneTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LidPlaneTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LidPlaneTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/LiveSystemTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LiveSystemTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LiveSystemTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LiveSystemTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LiveSystemTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LiveSystemTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LiveSystemTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LiveSystemTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LiveSystemTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/LogicTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LogicTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LogicTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LogicTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LogicTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LogicTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LogicTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LogicTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/LogicTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/MixerTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MixerTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MixerTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MixerTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MixerTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MixerTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MixerTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MixerTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MixerTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/MysticTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MysticTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MysticTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MysticTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MysticTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MysticTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MysticTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MysticTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/MysticTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/NeededTimerTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NeededTimerTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NeededTimerTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NeededTimerTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NeededTimerTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NeededTimerTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NeededTimerTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NeededTimerTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NeededTimerTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/NotesAndPDFTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NotesAndPDFTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NotesAndPDFTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NotesAndPDFTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NotesAndPDFTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NotesAndPDFTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NotesAndPDFTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NotesAndPDFTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/NotesAndPDFTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/PerformancePolicyTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/PerformancePolicyTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/PerformancePolicyTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/PerformancePolicyTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/PerformancePolicyTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/PerformancePolicyTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/PerformancePolicyTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/PerformancePolicyTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/PerformancePolicyTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/ScreenshotAITests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotAITests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotAITests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotAITests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotAITests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotAITests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotAITests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotAITests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotAITests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/ScreenshotShortcutTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotShortcutTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotShortcutTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotShortcutTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotShortcutTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotShortcutTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotShortcutTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotShortcutTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotShortcutTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/ScreenshotStudioTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotStudioTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotStudioTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotStudioTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotStudioTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotStudioTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotStudioTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotStudioTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ScreenshotStudioTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/SearchMatchTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/SearchMatchTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/SearchMatchTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/SearchMatchTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/SearchMatchTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/SearchMatchTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/SearchMatchTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/SearchMatchTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/SearchMatchTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/StudioDiscoveryTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/StudioDiscoveryTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/StudioDiscoveryTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/StudioDiscoveryTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/StudioDiscoveryTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/StudioDiscoveryTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/StudioDiscoveryTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/StudioDiscoveryTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/StudioDiscoveryTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/TestEnvironment.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/TestEnvironment.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/TestEnvironment.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/TestEnvironment.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/TestEnvironment.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/TestEnvironment.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/TestEnvironment.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/TestEnvironment.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/TestEnvironment~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/ThemeCarouselLayoutTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeCarouselLayoutTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeCarouselLayoutTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeCarouselLayoutTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeCarouselLayoutTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeCarouselLayoutTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeCarouselLayoutTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeCarouselLayoutTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeCarouselLayoutTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/ThemeLibraryTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeLibraryTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeLibraryTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeLibraryTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeLibraryTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeLibraryTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeLibraryTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeLibraryTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeLibraryTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/ThemeWidgetCatalogTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeWidgetCatalogTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeWidgetCatalogTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeWidgetCatalogTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeWidgetCatalogTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeWidgetCatalogTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeWidgetCatalogTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeWidgetCatalogTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemeWidgetCatalogTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/ThemesAndSearchTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemesAndSearchTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemesAndSearchTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemesAndSearchTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemesAndSearchTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemesAndSearchTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemesAndSearchTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemesAndSearchTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/ThemesAndSearchTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/WallpaperLibraryTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperLibraryTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperLibraryTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperLibraryTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperLibraryTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperLibraryTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperLibraryTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperLibraryTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperLibraryTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/WallpaperSearchTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperSearchTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperSearchTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperSearchTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperSearchTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperSearchTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperSearchTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperSearchTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WallpaperSearchTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/WidgetGridTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetGridTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetGridTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetGridTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetGridTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetGridTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetGridTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetGridTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetGridTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/WidgetNetworkTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetNetworkTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetNetworkTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetNetworkTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetNetworkTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetNetworkTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetNetworkTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetNetworkTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetNetworkTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/WidgetPlatformTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetPlatformTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetPlatformTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetPlatformTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetPlatformTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetPlatformTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetPlatformTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetPlatformTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetPlatformTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/WidgetResizeTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetResizeTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetResizeTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetResizeTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetResizeTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetResizeTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetResizeTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetResizeTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetResizeTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/WidgetTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WidgetTests~partial.swiftmodule"
+  },
+  "/Users/nawdddep/Downloads/all-set-mac-app-main/Tests/AllSetCoreTests/WorkspaceTests.swift" : {
+    "const-values" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WorkspaceTests.swiftconstvalues",
+    "dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WorkspaceTests.d",
+    "diagnostics" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WorkspaceTests.dia",
+    "index-unit-output-path" : "/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WorkspaceTests.o",
+    "llvm-bc" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WorkspaceTests.bc",
+    "object" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WorkspaceTests.o",
+    "swift-dependencies" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WorkspaceTests.swiftdeps",
+    "swiftmodule" : "/Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/AllSet.build/Debug/AllSetCoreTests-p.build/Objects-normal-tsan/arm64/WorkspaceTests~partial.swiftmodule"
+  }
+}

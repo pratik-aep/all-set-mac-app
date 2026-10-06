@@ -20,6 +20,12 @@ enum DS {
 
         /// The page's side margin: a little tighter in small windows.
         static func pageMargin(for width: CGFloat) -> CGFloat { width < 1000 ? 24 : 32 }
+
+        /// Normal windows retain their measurements. Larger, taller windows
+        /// enlarge the main-window UI by at most 25%, retaining room to scroll.
+        static func windowScale(for size: CGSize) -> CGFloat {
+            min(1.25, max(1, min(size.width / 1280, size.height / 800)))
+        }
     }
 
     // MARK: Corners
@@ -139,5 +145,8 @@ extension View {
     func dsFormStyle() -> some View {
         formStyle(.grouped)
             .scrollContentBackground(.hidden)
+            // Native forms otherwise draw scrolled rows into the persistent
+            // navigation's safe-area inset, obscuring its labels and controls.
+            .clipped()
     }
 }

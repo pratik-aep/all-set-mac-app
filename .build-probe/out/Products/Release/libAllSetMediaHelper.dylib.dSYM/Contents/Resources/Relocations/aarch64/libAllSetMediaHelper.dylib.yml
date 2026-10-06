@@ -1,0 +1,42 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     '/Users/nawdddep/Downloads/all-set-mac-app-main/.build-probe/out/Products/Release/libAllSetMediaHelper.dylib'
+relocations:
+  - { offset: 0xB6716, size: 0x8, addend: 0x0, symName: _allset_media_run, symObjAddr: 0x0, symBinAddr: 0x908, symSize: 0x290 }
+  - { offset: 0xB6732, size: 0x8, addend: 0x0, symName: _allset_media_run, symObjAddr: 0x0, symBinAddr: 0x908, symSize: 0x290 }
+  - { offset: 0xB6755, size: 0x8, addend: 0x0, symName: _allset_media_run.timer, symObjAddr: 0x7C88, symBinAddr: 0x8180, symSize: 0x0 }
+  - { offset: 0xB69B8, size: 0x8, addend: 0x0, symName: _fail, symObjAddr: 0x290, symBinAddr: 0x19C8, symSize: 0x78 }
+  - { offset: 0xB69CF, size: 0x8, addend: 0x0, symName: _MRGetNowPlayingInfo, symObjAddr: 0x7C50, symBinAddr: 0x8148, symSize: 0x0 }
+  - { offset: 0xB6A77, size: 0x8, addend: 0x0, symName: _MRGetIsPlaying, symObjAddr: 0x7C58, symBinAddr: 0x8150, symSize: 0x0 }
+  - { offset: 0xB6AF7, size: 0x8, addend: 0x0, symName: _MRGetClient, symObjAddr: 0x7C60, symBinAddr: 0x8158, symSize: 0x0 }
+  - { offset: 0xB6B9A, size: 0x8, addend: 0x0, symName: _MRClientBundleIdentifier, symObjAddr: 0x7C68, symBinAddr: 0x8160, symSize: 0x0 }
+  - { offset: 0xB6BCB, size: 0x8, addend: 0x0, symName: _MRClientParentBundleIdentifier, symObjAddr: 0x7C70, symBinAddr: 0x8168, symSize: 0x0 }
+  - { offset: 0xB6BE1, size: 0x8, addend: 0x0, symName: _MRSendCommand, symObjAddr: 0x7C78, symBinAddr: 0x8170, symSize: 0x0 }
+  - { offset: 0xB6C17, size: 0x8, addend: 0x0, symName: _MRSetElapsedTime, symObjAddr: 0x7C80, symBinAddr: 0x8178, symSize: 0x0 }
+  - { offset: 0xB6C4B, size: 0x8, addend: 0x0, symName: _lastArtworkID, symObjAddr: 0x7C90, symBinAddr: 0x8188, symSize: 0x0 }
+  - { offset: 0xB6C98, size: 0x8, addend: 0x0, symName: _lastMessage, symObjAddr: 0x7C98, symBinAddr: 0x8190, symSize: 0x0 }
+  - { offset: 0xB6CC5, size: 0x8, addend: 0x0, symName: _refreshPending, symObjAddr: 0x7CA0, symBinAddr: 0x8198, symSize: 0x0 }
+  - { offset: 0xB6CDD, size: 0x8, addend: 0x0, symName: _readCommands, symObjAddr: 0x364, symBinAddr: 0xBF4, symSize: 0x100 }
+  - { offset: 0xB6CFF, size: 0x8, addend: 0x0, symName: _readCommands.source, symObjAddr: 0x7CA8, symBinAddr: 0x81A0, symSize: 0x0 }
+  - { offset: 0xB6D15, size: 0x8, addend: 0x0, symName: _readCommands.pending, symObjAddr: 0x7CB0, symBinAddr: 0x81A8, symSize: 0x0 }
+  - { offset: 0xB6E12, size: 0x8, addend: 0x0, symName: _fail, symObjAddr: 0x290, symBinAddr: 0x19C8, symSize: 0x78 }
+  - { offset: 0xB6E4A, size: 0x8, addend: 0x0, symName: ___allset_media_run_block_invoke, symObjAddr: 0x308, symBinAddr: 0xB98, symSize: 0xC }
+  - { offset: 0xB6E74, size: 0x8, addend: 0x0, symName: _writeLine, symObjAddr: 0x464, symBinAddr: 0xCF4, symSize: 0xE0 }
+  - { offset: 0xB6F26, size: 0x8, addend: 0x0, symName: _refresh, symObjAddr: 0x544, symBinAddr: 0xDD4, symSize: 0x7C }
+  - { offset: 0xB6F38, size: 0x8, addend: 0x0, symName: _refresh, symObjAddr: 0x544, symBinAddr: 0xDD4, symSize: 0x7C }
+  - { offset: 0xB702C, size: 0x8, addend: 0x0, symName: ___allset_media_run_block_invoke, symObjAddr: 0x308, symBinAddr: 0xB98, symSize: 0xC }
+  - { offset: 0xB7070, size: 0x8, addend: 0x0, symName: _scheduleRefresh, symObjAddr: 0x314, symBinAddr: 0xBA4, symSize: 0x50 }
+  - { offset: 0xB711A, size: 0x8, addend: 0x0, symName: ___allset_media_run_block_invoke_2, symObjAddr: 0x5C0, symBinAddr: 0xE50, symSize: 0x8 }
+  - { offset: 0xB7151, size: 0x8, addend: 0x0, symName: ___scheduleRefresh_block_invoke, symObjAddr: 0x5C8, symBinAddr: 0xE58, symSize: 0xC }
+  - { offset: 0xB71B9, size: 0x8, addend: 0x0, symName: ___readCommands_block_invoke, symObjAddr: 0x5D4, symBinAddr: 0xE64, symSize: 0x324 }
+  - { offset: 0xB72ED, size: 0x8, addend: 0x0, symName: ___copy_helper_block_e8_32s, symObjAddr: 0x8F8, symBinAddr: 0x1188, symSize: 0x8 }
+  - { offset: 0xB7320, size: 0x8, addend: 0x0, symName: ___copy_helper_block_e8_32s, symObjAddr: 0x8F8, symBinAddr: 0x1188, symSize: 0x8 }
+  - { offset: 0xB7347, size: 0x8, addend: 0x0, symName: ___destroy_helper_block_e8_32s, symObjAddr: 0x900, symBinAddr: 0x1190, symSize: 0x8 }
+  - { offset: 0xB7366, size: 0x8, addend: 0x0, symName: ___refresh_block_invoke, symObjAddr: 0x908, symBinAddr: 0x1198, symSize: 0xA8 }
+  - { offset: 0xB73DC, size: 0x8, addend: 0x0, symName: ___refresh_block_invoke_2, symObjAddr: 0x9B0, symBinAddr: 0x1240, symSize: 0x110 }
+  - { offset: 0xB759E, size: 0x8, addend: 0x0, symName: ___refresh_block_invoke_3, symObjAddr: 0xAC0, symBinAddr: 0x1350, symSize: 0x50C }
+  - { offset: 0xB76F4, size: 0x8, addend: 0x0, symName: ___copy_helper_block_e8_32s40s, symObjAddr: 0xFCC, symBinAddr: 0x185C, symSize: 0x28 }
+  - { offset: 0xB771D, size: 0x8, addend: 0x0, symName: ___destroy_helper_block_e8_32s40s, symObjAddr: 0xFF4, symBinAddr: 0x1884, symSize: 0x28 }
+  - { offset: 0xB773C, size: 0x8, addend: 0x0, symName: ___emit_block_invoke, symObjAddr: 0x101C, symBinAddr: 0x18AC, symSize: 0x80 }
+  - { offset: 0xB77EC, size: 0x8, addend: 0x0, symName: ___emit_block_invoke.96, symObjAddr: 0x109C, symBinAddr: 0x192C, symSize: 0x9C }
+...

@@ -1,0 +1,12 @@
+moduledependenciestarget: \
+  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/SDKSettings.json \
+  /Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/ExplicitPrecompiledModules/_DarwinFoundation1-1JFE2YZBFM8BWN7TZJKLK4DGK.pcm \
+  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/usr/include/DarwinFoundation1.modulemap \
+  /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/21/include/module.modulemap \
+  /Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_stdint-MQY8L2DMBKXUMDYHYMH7C9NL.pcm \
+  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/usr/include/DarwinFoundation2.modulemap \
+  /Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/ExplicitPrecompiledModules/_DarwinFoundation3-5A66Z1C2J1ISA35JQ3QVPYLMD.pcm \
+  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/usr/include/DarwinFoundation3.modulemap \
+  /Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_inttypes-EG7OXAOISSKPJT42WAYBRBZJ.pcm \
+  /Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_limits-7G7J9Y3EZEG7668RG5T1GVHBT.pcm \
+  /Users/nawdddep/Downloads/all-set-mac-app-main/.build/out/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_stdbool-EI456194E89YBWONXC119JSP6.pcm

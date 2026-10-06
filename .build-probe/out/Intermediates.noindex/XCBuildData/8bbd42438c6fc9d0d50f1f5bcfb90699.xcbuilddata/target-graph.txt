@@ -1,0 +1,19 @@
+Target dependency graph (7 targets)
+Target 'AllExcludingTests' in project 'Aggregate'
+➜ Explicit dependency on target 'AllSet-product' in project 'AllSet'
+➜ Explicit dependency on target 'AllSetMediaHelper-product' in project 'AllSet'
+➜ Explicit dependency on target 'MediaHelper' in project 'AllSet'
+➜ Explicit dependency on target 'CPrivateAPIs' in project 'AllSet'
+➜ Explicit dependency on target 'AllSetCore' in project 'AllSet'
+➜ Explicit dependency on target 'AllSet_AllSetCore' in project 'AllSet'
+Target 'AllSetMediaHelper-product' in project 'AllSet'
+➜ Explicit dependency on target 'MediaHelper' in project 'AllSet'
+Target 'MediaHelper' in project 'AllSet' (no dependencies)
+Target 'AllSet-product' in project 'AllSet'
+➜ Explicit dependency on target 'CPrivateAPIs' in project 'AllSet'
+➜ Explicit dependency on target 'AllSetCore' in project 'AllSet'
+Target 'AllSetCore' in project 'AllSet'
+➜ Explicit dependency on target 'AllSet_AllSetCore' in project 'AllSet'
+➜ Explicit dependency on target 'CPrivateAPIs' in project 'AllSet'
+Target 'AllSet_AllSetCore' in project 'AllSet' (no dependencies)
+Target 'CPrivateAPIs' in project 'AllSet' (no dependencies)

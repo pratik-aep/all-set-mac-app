@@ -1,0 +1,4 @@
+module MediaHelper {
+umbrella header "/Users/nawdddep/Downloads/all-set-mac-app-main/Sources/MediaHelper/include/MediaHelper.h"
+export *
+}

@@ -122,7 +122,12 @@ struct GalleryPage: View {
                 HStack(spacing: DS.Space.xs) {
                     Image(systemName: "magnifyingglass")
                     TextField("Search widgets…", text: $query).textFieldStyle(.plain).accessibilityLabel("Search widgets")
-                    if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).accessibilityLabel("Clear widget search") }
+                    if !query.isEmpty {
+                        Button { query = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .frame(width: 24, height: 24).contentShape(Rectangle())
+                        }.buttonStyle(.plain).accessibilityLabel("Clear widget search")
+                    }
                 }.font(.system(size: 12)).foregroundStyle(DS.Ink.secondary)
                     .frame(width: width < 1064 ? 164 : 190, height: 32)
                 Menu {
@@ -199,9 +204,13 @@ struct GalleryPage: View {
     }
     private var controls: some View {
         VStack(spacing: DS.Space.xs) {
-            HStack(spacing: 6) {
+            HStack(spacing: 0) {
                 ForEach(spotlightIDs, id: \.self) { id in
-                    Button { select(id) } label: { Circle().fill(id == selected ? Color.white : Color.white.opacity(0.25)).frame(width: 5, height: 5).padding(3) }
+                    Button { select(id) } label: {
+                        Circle().fill(id == selected ? Color.white : Color.white.opacity(0.25))
+                            .frame(width: 5, height: 5)
+                            .frame(width: 17, height: 24).contentShape(Rectangle())
+                    }
                         .buttonStyle(.plain).accessibilityLabel("Show \(WidgetCatalog.entry(id)?.title ?? id)")
                         .accessibilityAddTraits(id == selected ? .isSelected : [])
                 }

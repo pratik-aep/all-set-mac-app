@@ -43,7 +43,7 @@ struct ThemesHero: View {
                 actions(set)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: carousel.panelSize.height, alignment: .top)
+            .frame(minHeight: carousel.panelSize.height, alignment: .top)
             .padding(.top, DS.Space.xs)
             .onChange(of: set.id, initial: true) { atmosphere.show(set, animation: motion.backdrop) }
             .task(id: items.map(\.id)) {
@@ -91,13 +91,14 @@ struct ThemesHero: View {
     }
 
     private func pagination(_ motion: ThemesMotion) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 0) {
             ForEach(items.indices, id: \.self) { index in
                 Button {
                     withAnimation(motion.snap) { state.index = index }
                 } label: {
                     Circle().fill(index == state.index ? Color.white : Color.white.opacity(0.25))
-                        .frame(width: 5, height: 5).padding(3).contentShape(Rectangle())
+                        .frame(width: 5, height: 5)
+                        .frame(width: 17, height: 24).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).help(items[index].name)
                 .accessibilityLabel("Show \(items[index].name)")

@@ -67,6 +67,7 @@ struct PageScaffold<Content: View>: View {
                 .padding(.vertical, DS.Space.xl)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .clipped()
         }
         .background(AppBackground(accent: accent))
     }

@@ -29,7 +29,7 @@ enum PageCPUProbe {
             await measure(name, seconds: 5)
         }
         if !pages.isEmpty {
-            window.contentViewController = NSHostingController(rootView: MainView(services: services, ui: services.ui))
+            window.contentViewController = MainWindowController.contentController(services: services)
             for (name, page) in pages {
                 services.ui.page = page
                 try? await Task.sleep(for: .seconds(3))
@@ -697,14 +697,16 @@ enum PageCPUProbe {
         window.ignoresMouseEvents = true
         window.level = .floating
         window.isReleasedWhenClosed = false
-        let controller = NSHostingController(rootView: MainView(services: services, ui: services.ui))
-        controller.sizingOptions = []
+        let controller = MainWindowController.contentController(services: services)
         window.contentViewController = controller
         window.setContentSize(NSSize(width: 1280, height: 800))
         window.orderFrontRegardless()
         // Each page twice: the first pass pays for first sight (previews
         // drawn, tiles made); the second is what scrolling feels like after.
         let onlyScroll = ProcessInfo.processInfo.environment["ONLY"]
+        // Wheel/scrollbar movement doesn't necessarily emit trackpad live-scroll
+        // notifications. Exercise the bounds observer used by those inputs too.
+        let sendsLiveNotifications = ProcessInfo.processInfo.environment["SCROLL_INPUT"] != "wheel"
         // `STALL_MS=22` lists every frame slower than that with where the
         // page was, to find what on a page costs a frame.
         let stall = (Double(ProcessInfo.processInfo.environment["STALL_MS"] ?? "") ?? 100) / 1000
@@ -725,7 +727,9 @@ enum PageCPUProbe {
             var gaps: [Double] = []
             // What a trackpad scroll announces, so work that waits for
             // scrolling to stop sees this one.
-            NotificationCenter.default.post(name: NSScrollView.willStartLiveScrollNotification, object: scroll)
+            if sendsLiveNotifications {
+                NotificationCenter.default.post(name: NSScrollView.willStartLiveScrollNotification, object: scroll)
+            }
             let cpu = cpuSeconds(), begin = CACurrentMediaTime()
             var last = begin
             while CACurrentMediaTime() - begin < 6 {
@@ -740,7 +744,9 @@ enum PageCPUProbe {
                 last = now
             }
             let seconds = CACurrentMediaTime() - begin
-            NotificationCenter.default.post(name: NSScrollView.didEndLiveScrollNotification, object: scroll)
+            if sendsLiveNotifications {
+                NotificationCenter.default.post(name: NSScrollView.didEndLiveScrollNotification, object: scroll)
+            }
             gaps.sort()
             let p95 = gaps[min(gaps.count - 1, Int(Double(gaps.count) * 0.95))] * 1000
             print(String(format: "scroll %-10@ %5.1f%% CPU  frames %3d  p50 %4.1f ms  p95 %5.1f ms  max %5.1f ms  hitches(>33ms) %d  range %.0f pt",
@@ -765,8 +771,7 @@ enum PageCPUProbe {
         window.ignoresMouseEvents = true
         window.level = .floating
         window.isReleasedWhenClosed = false
-        let controller = NSHostingController(rootView: MainView(services: services, ui: services.ui))
-        controller.sizingOptions = []
+        let controller = MainWindowController.contentController(services: services)
         window.contentViewController = controller
         window.setContentSize(NSSize(width: 1280, height: 800))
         window.orderFrontRegardless()

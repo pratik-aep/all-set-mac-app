@@ -690,8 +690,7 @@ extension WidgetRenderHarness {
         // Behind the desktop picture: captured, never seen.
         window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
         window.ignoresMouseEvents = true
-        let controller = NSHostingController(rootView: MainView(services: services, ui: services.ui))
-        controller.sizingOptions = []
+        let controller = MainWindowController.contentController(services: services)
         window.contentViewController = controller
         window.orderFrontRegardless()
         try? await Task.sleep(for: .seconds(2))

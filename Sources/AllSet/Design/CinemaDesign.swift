@@ -48,6 +48,7 @@ struct CinemaNavigation: View {
                         Button { navigate(lastPage[option] ?? option.home) } label: {
                             Text(option.title).foregroundStyle(option == section ? .white : .white.opacity(0.65))
                                 .padding(.horizontal, 27.5).frame(height: 34)
+                                .contentShape(Capsule())
                                 .background {
                                     if option == section {
                                         Capsule().fill(.white.opacity(0.17)).matchedGeometryEffect(id: "section", in: selection)
@@ -83,6 +84,7 @@ struct CinemaNavigation: View {
                     Text(item.title).font(.system(size: 13, weight: selected ? .semibold : .regular))
                         .foregroundStyle(selected ? .white : .white.opacity(0.8))
                         .padding(.horizontal, 16).frame(height: 34)
+                        .contentShape(Capsule())
                         .background {
                             if selected {
                                 Capsule().fill(Color(red: 0.08, green: 0.22, blue: 0.42).opacity(0.7))
@@ -107,6 +109,7 @@ struct CinemaChip: View {
             Text(title).font(.system(size: 12, weight: selected ? .semibold : .regular))
                 .foregroundStyle(selected && whiteSelection ? Color.black : Color.white.opacity(selected ? 1 : 0.78))
                 .padding(.horizontal, horizontalPadding).frame(height: 32)
+                .contentShape(Capsule())
                 .background(Capsule().fill(selected ? (whiteSelection ? Color.white : Color(red: 0.3, green: 0.36, blue: 0.52)) : .clear))
         }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -121,6 +124,7 @@ struct CinemaIcon: View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: diameter > 40 ? 20 : 18, weight: .regular))
                 .foregroundStyle(.white).frame(width: diameter, height: diameter)
+                .contentShape(Circle())
                 .background(Circle().fill(Color(red: 0.025, green: 0.045, blue: 0.09).opacity(0.65)))
                 .overlay(Circle().strokeBorder(.white.opacity(0.13)))
         }.buttonStyle(.plain).accessibilityLabel(label).help(label)
@@ -290,6 +294,7 @@ struct CinemaActionStyle: ButtonStyle {
         configuration.label.font(.system(size: 13, weight: .semibold))
             .foregroundStyle(prominent ? Color.black : .white)
             .padding(.horizontal, 16).frame(height: 40)
+            .contentShape(Capsule())
             .background(Capsule().fill(prominent ? .white : .black.opacity(0.2)))
             .overlay(Capsule().strokeBorder(.white.opacity(prominent ? 0 : 0.6), lineWidth: 1.2))
             .opacity(configuration.isPressed ? 0.8 : 1)

@@ -7,6 +7,9 @@ struct ThemeRail: View {
     let sets: [ThemeSet]
     let services: AppServices
     var availableWidth: CGFloat = 1200
+    var viewportHeight: CGFloat = 800
+    @State private var previewsVisible = false
+    @State private var activation: Task<Void, Never>?
     var seeAll: (@MainActor () -> Void)?
     @State private var visibleID: String?
 
@@ -36,13 +39,40 @@ struct ThemeRail: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: DS.Space.s) {
                             ForEach(sets) { set in
-                                RailCard(set: set, services: services).frame(width: cardWidth).id(set.id)
+                                RailCard(set: set, services: services, requestsPreview: previewsVisible).frame(width: cardWidth).id(set.id)
                             }
                         }
                         .scrollTargetLayout().padding(.vertical, DS.Space.xxs)
                     }
                     .scrollTargetBehavior(.viewAligned)
                     .scrollPosition(id: $visibleID, anchor: .leading)
+                    // A stable shelf height prevents lazy vertical layout from
+                    // changing the scroll offset as horizontal cards appear.
+                    .frame(height: cardWidth / ThemePreviewVariant.desktop.aspect + DS.Space.xxs * 2)
+                }
+                .background {
+                    if !previewsVisible {
+                        Color.clear.onGeometryChange(for: Bool.self) { proxy in
+                            let frame = proxy.frame(in: .named("themesViewport"))
+                            return frame.maxY > -160 && frame.minY < viewportHeight + 160
+                        } action: { visible in
+                            // Activate once, then remove the geometry observer:
+                            // scrolling back must not rebuild or reload every card.
+                            if visible, activation == nil {
+                                activation = Task {
+                                    guard await services.themePreviews.waitUntilScrollSettles() else { return }
+                                    previewsVisible = true
+                                }
+                            } else if !visible {
+                                activation?.cancel()
+                                activation = nil
+                            }
+                        }
+                    }
+                }
+                .onDisappear {
+                    activation?.cancel()
+                    activation = nil
                 }
             }
         }
@@ -88,6 +118,7 @@ struct ThemeRail: View {
 struct RailCard: View {
     let set: ThemeSet
     let services: AppServices
+    var requestsPreview = true
     @State private var isHovering = false
 
     var body: some View {
@@ -96,7 +127,7 @@ struct RailCard: View {
         let motion = ThemesMotion(services.ui.performance)
         let shape = RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
         Button { services.ui.page = .themeSet(set.id) } label: {
-            ThemeSnapshot(set: set, dark: set.isDark, services: services)
+            ThemeSnapshot(set: set, dark: set.isDark, services: services, requestsPreview: requestsPreview)
                 .overlay(alignment: .bottomLeading) {
                     ZStack(alignment: .bottomLeading) {
                         LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .top, endPoint: .bottom)
@@ -108,6 +139,7 @@ struct RailCard: View {
                 }
                 .overlay(Color.white.opacity(isHovering ? 0.04 : 0))
                 .clipShape(shape)
+                .contentShape(shape)
                 .overlay(shape.strokeBorder(active ? Color.cyan.opacity(0.8) : Color.white.opacity(isHovering ? 0.25 : 0.14),
                                             lineWidth: active ? 1.5 : 1))
         }

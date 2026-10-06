@@ -77,15 +77,19 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         window.backgroundColor = NSColor(DS.Surface.canvasLift)
     }
 
+    static func contentController(services: AppServices) -> NSViewController {
+        let controller = NSViewController()
+        let host = MainCanvasHostingView(rootView: MainView(services: services, ui: services.ui))
+        // Adaptive grids must not drive the window's size on every layout pass.
+        host.sizingOptions = []
+        controller.view = host
+        return controller
+    }
+
     func show(services: AppServices) {
         self.services = services
         if window == nil {
-            let controller = NSHostingController(rootView: MainView(services: services, ui: services.ui))
-            // The window's size limits are set here, not derived from the
-            // SwiftUI content on every layout pass: pages whose size depends on
-            // the window's width (adaptive grids) could make that loop until
-            // AppKit gave up and ended the app.
-            controller.sizingOptions = []
+            let controller = Self.contentController(services: services)
             let window = NSWindow(contentViewController: controller)
             Self.dress(window)
             window.isReleasedWhenClosed = false
@@ -101,6 +105,12 @@ final class MainWindowController: NSObject, NSWindowDelegate {
     }
 }
 
+/// The canvas paints the entire window. Reporting that to AppKit avoids
+/// rebuilding opaque descendant regions for every card while scrolling.
+private final class MainCanvasHostingView: NSHostingView<MainView> {
+    override var isOpaque: Bool { true }
+}
+
 struct MainView: View {
     let services: AppServices
     @Bindable var ui: UIState
@@ -110,6 +120,18 @@ struct MainView: View {
     }
 
     var body: some View {
+        GeometryReader { viewport in
+            // Keep the same design proportions, but give large windows readable
+            // controls instead of spreading small text across a full screen.
+            let scale = DS.Space.windowScale(for: viewport.size)
+            content
+                .frame(width: viewport.size.width / scale, height: viewport.size.height / scale)
+                .scaleEffect(scale, anchor: .topLeading)
+        }
+        .ignoresSafeArea(.container, edges: .top)
+    }
+
+    private var content: some View {
         GeometryReader { geometry in
             // A page swaps at once and eases in under a Core Animation veil
             // (`PageVeil`); the navigation stays put above it.
@@ -117,9 +139,11 @@ struct MainView: View {
                 detail(ui.page ?? .island)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .id(ui.page)
-                    .transition(.opacity)
             }
-            .motion(Motion.standard, value: ui.page)
+            // Navigation animates its selection, without animating the layout
+            // of both the old and new page throughout the transition.
+            .transaction(value: ui.page) { $0.animation = nil }
+            .overlay(PageVeil(page: ui.page))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .safeAreaInset(edge: .top, spacing: 0) {
                 if ui.page != .wallpaper { navigation(width: geometry.size.width) }

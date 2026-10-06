@@ -1,0 +1,1 @@
+{"main_library":{"exported_symbols":[{"text":{"global":["_allset_media_run"]}}],"flags":[{"attributes":["not_app_extension_safe"]}],"install_names":[{"name":"@rpath/libAllSetMediaHelper.dylib"}],"target_info":[{"min_deployment":"14.2","target":"arm64-macos"}]},"tapi_tbd_version":5}
