@@ -165,9 +165,27 @@ public final class ClipboardStore {
     public var settings: ClipboardSettings {
         didSet {
             guard settings != oldValue else { return }
+            // Turning history off drops captures still being prepared.
+            if oldValue.isEnabled, !settings.isEnabled { captureGeneration &+= 1 }
             if settings.historyLimit != oldValue.historyLimit { trim() }
             save()
         }
+    }
+
+    /// Goes up when history is cleared or turned off. A capture started before
+    /// that (an image still being encoded) must not land in the history after it.
+    @ObservationIgnored public private(set) var captureGeneration = 0
+
+    /// Adds a capture started at `generation`, unless history was cleared or turned
+    /// off since: then it's dropped and its image file deleted. True if added.
+    @discardableResult
+    public func add(_ item: ClipboardItem, ifCurrent generation: Int) -> Bool {
+        guard generation == captureGeneration, settings.isEnabled else {
+            if let file = item.imageFile { deleteImage(file) }
+            return false
+        }
+        add(item)
+        return true
     }
 
     @ObservationIgnored public let imageDirectory: URL
@@ -228,6 +246,7 @@ public final class ClipboardStore {
 
     /// Clears everything except pinned items.
     public func clear() {
+        captureGeneration &+= 1
         for item in items where !item.isPinned {
             if let file = item.imageFile { deleteImage(file) }
         }

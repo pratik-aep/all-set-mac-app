@@ -73,11 +73,14 @@ final class ClipboardMonitor {
             // Scaling and encoding a big screenshot takes a moment; not on the main thread.
             let directory = services.clipboard.imageDirectory
             let date = Date.now
-            Task { [weak self] in
+            // Cleared or turned off while it's encoding: the store drops it and its file.
+            let generation = services.clipboard.captureGeneration
+            let store = services.clipboard
+            Task {
                 let saved = await Task.detached(priority: .utility) { Self.saveImage(cgImage, in: directory) }.value
-                guard let self, let (name, size) = saved else { return }
-                services.clipboard.add(ClipboardItem(kind: .image, imageFile: name, imageSize: size,
-                                                     sourceBundleID: source, date: date))
+                guard let (name, size) = saved else { return }
+                store.add(ClipboardItem(kind: .image, imageFile: name, imageSize: size, sourceBundleID: source, date: date),
+                          ifCurrent: generation)
             }
         } else if let item = read(pasteboard, source: source) {
             services.clipboard.add(item)

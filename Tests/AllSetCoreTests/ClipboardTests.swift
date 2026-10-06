@@ -9,6 +9,36 @@ import Testing
         return (ClipboardStore(directory: folder), folder)
     }
 
+    /// Review D2: an image still being encoded when history is cleared or turned
+    /// off must not land in the history afterwards, nor leave its file behind.
+    @Test func aCaptureFromBeforeClearingOrTurningOffIsDropped() throws {
+        let (store, folder) = temporaryStore()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: store.imageDirectory, withIntermediateDirectories: true)
+        func lateImage() throws -> ClipboardItem {
+            try Data("png".utf8).write(to: store.imageDirectory.appendingPathComponent("late.png"))
+            return ClipboardItem(kind: .image, imageFile: "late.png", imageSize: CGSize(width: 1, height: 1))
+        }
+        let late = store.imageDirectory.appendingPathComponent("late.png")
+
+        var started = store.captureGeneration
+        store.clear()
+        #expect(!store.add(try lateImage(), ifCurrent: started))
+        #expect(store.items.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: late.path))
+
+        started = store.captureGeneration
+        store.settings.isEnabled = false
+        #expect(!store.add(try lateImage(), ifCurrent: started))
+        #expect(store.items.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: late.path))
+
+        // A capture from the current generation, with history on, is kept.
+        store.settings.isEnabled = true
+        #expect(store.add(try lateImage(), ifCurrent: store.captureGeneration))
+        #expect(store.items.count == 1)
+    }
+
     @Test func recognizesLinks() {
         #expect(ClipboardItem.text("https://apple.com/mac", sourceBundleID: nil).kind == .link)
         #expect(ClipboardItem.text("  https://apple.com  \n", sourceBundleID: nil).text == "https://apple.com")
