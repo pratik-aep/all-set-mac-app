@@ -4,9 +4,103 @@ import Testing
 @testable import AllSetCore
 
 @Suite @MainActor struct ClipboardStoreTests {
+    /// A store whose owner has turned history on (a new install starts with it off).
     private func temporaryStore() -> (ClipboardStore, URL) {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("AllSetClipboard-\(UUID().uuidString)")
-        return (ClipboardStore(directory: folder), folder)
+        let store = ClipboardStore(directory: folder)
+        store.choose(collect: true)
+        return (store, folder)
+    }
+
+    // MARK: Review D1: collection is a choice, and history doesn't live for ever
+
+    @Test func aNewInstallCollectsNothingUntilItsOwnerSaysSo() {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("AllSetClipboard-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let store = ClipboardStore(directory: folder)
+        #expect(!store.settings.hasChosen && !store.settings.isEnabled)
+        #expect(!store.add(.text("a secret", sourceBundleID: nil), ifCurrent: store.captureGeneration))
+        #expect(store.items.isEmpty)
+
+        store.choose(collect: true)
+        #expect(store.add(.text("kept", sourceBundleID: nil), ifCurrent: store.captureGeneration))
+        store.save()
+        let reloaded = ClipboardStore(directory: folder)
+        #expect(reloaded.settings.hasChosen && reloaded.settings.isEnabled)
+        #expect(reloaded.settings.expiryDays == 30)
+
+        // Saying no is an answer too: it isn't asked again.
+        reloaded.choose(collect: false)
+        reloaded.save()
+        let declined = ClipboardStore(directory: folder)
+        #expect(declined.settings.hasChosen && !declined.settings.isEnabled)
+    }
+
+    @Test func anInstallFromBeforeTheQuestionKeepsWhatItHad() throws {
+        func decode(_ json: String) throws -> ClipboardSettings {
+            try JSONDecoder().decode(ClipboardSettings.self, from: Data(json.utf8))
+        }
+        // History was on, with no expiry: still on, nothing starts expiring.
+        let wasOn = try decode(#"{"isEnabled": true, "historyLimit": 200}"#)
+        #expect(wasOn.hasChosen && wasOn.isEnabled && wasOn.expiryDays == nil)
+        // Its owner had turned it off: still off, and not asked again.
+        let wasOff = try decode(#"{"isEnabled": false}"#)
+        #expect(wasOff.hasChosen && !wasOff.isEnabled)
+        // "Never" survives a save, and so does a chosen number of days.
+        var settings = wasOn
+        #expect(try JSONDecoder().decode(ClipboardSettings.self, from: JSONEncoder().encode(settings)).expiryDays == nil)
+        settings.expiryDays = 7
+        #expect(try JSONDecoder().decode(ClipboardSettings.self, from: JSONEncoder().encode(settings)).expiryDays == 7)
+    }
+
+    @Test func oldCopiesAreForgottenButPinnedOnesStay() throws {
+        let (store, folder) = temporaryStore()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: store.imageDirectory, withIntermediateDirectories: true)
+        let picture = store.imageDirectory.appendingPathComponent("old.png")
+        try Data("png".utf8).write(to: picture)
+        let now = Date()
+        func copied(_ text: String, daysAgo: Double, image: String? = nil) -> ClipboardItem {
+            var item = image.map { ClipboardItem(kind: .image, imageFile: $0, imageSize: CGSize(width: 1, height: 1)) }
+                ?? ClipboardItem.text(text, sourceBundleID: nil)
+            item.date = now.addingTimeInterval(-daysAgo * 86_400)
+            return item
+        }
+        store.settings.expiryDays = nil
+        store.add(copied("yesterday", daysAgo: 1))
+        store.add(copied("last month", daysAgo: 40))
+        store.add(copied("", daysAgo: 45, image: "old.png"))
+        store.add(copied("an address I pinned", daysAgo: 400))
+        store.togglePin(try #require(store.items.first { $0.text == "an address I pinned" }).id)
+        #expect(store.items.count == 4)   // no expiry: everything is still here
+
+        store.settings.expiryDays = 30
+        #expect(Set(store.items.compactMap(\.text)) == ["yesterday", "an address I pinned"])
+        #expect(!FileManager.default.fileExists(atPath: picture.path))
+        // And as time passes.
+        #expect(store.expire(now: now.addingTimeInterval(31 * 86_400)) == 1)
+        #expect(store.items.compactMap(\.text) == ["an address I pinned"])
+    }
+
+    @Test func erasingEverythingTakesPinnedItemsPicturesAndCapturesInFlight() throws {
+        let (store, folder) = temporaryStore()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: store.imageDirectory, withIntermediateDirectories: true)
+        for name in ["kept.png", "orphan.png"] {
+            try Data("png".utf8).write(to: store.imageDirectory.appendingPathComponent(name))
+        }
+        store.add(.text("pinned", sourceBundleID: nil))
+        store.togglePin(store.items[0].id)
+        store.add(ClipboardItem(kind: .image, imageFile: "kept.png", imageSize: CGSize(width: 1, height: 1)))
+        let inFlight = store.captureGeneration
+
+        #expect(store.eraseEverything())
+        #expect(store.items.isEmpty)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: store.imageDirectory.path).isEmpty)
+        #expect(!store.add(.text("late", sourceBundleID: nil), ifCurrent: inFlight))
+        #expect(ClipboardStore(directory: folder).items.isEmpty)
+        // The choice to collect isn't undone by erasing.
+        #expect(store.settings.isEnabled && store.settings.hasChosen)
     }
 
     /// Review D2: an image still being encoded when history is cleared or turned

@@ -9,6 +9,7 @@ struct ClipboardPage: View {
     @State private var query = ""
     @State private var kind: ClipboardItem.Kind?
     @State private var confirmingClear = false
+    @State private var confirmingErase = false
     @State private var status: String?
 
     var body: some View {
@@ -36,11 +37,16 @@ struct ClipboardPage: View {
                 .padding(.top, DS.Space.l)
                 .padding(.bottom, DS.Space.s)
 
-                if results.isEmpty {
-                    EmptyState(symbol: "doc.on.clipboard", title: store.items.isEmpty ? "Nothing copied yet" : "No matches",
-                               message: store.items.isEmpty
+                if !store.settings.hasChosen {
+                    ClipboardFirstRun(store: store)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                } else if results.isEmpty {
+                    EmptyState(symbol: "doc.on.clipboard",
+                               title: !store.items.isEmpty ? "No matches" : store.settings.isEnabled ? "Nothing copied yet" : "Clipboard history is off",
+                               message: !store.items.isEmpty ? "Try another search or filter."
+                                   : store.settings.isEnabled
                                    ? "Copy some text, a link, an image or files and they\u{2019}ll appear here."
-                                   : "Try another search or filter.")
+                                   : "Nothing you copy is being saved. Turn on \u{201C}Keep clipboard history\u{201D} to start.")
                         .frame(maxHeight: .infinity)
                 } else {
                     List(results) { item in
@@ -72,7 +78,7 @@ struct ClipboardPage: View {
             Divider().opacity(0.5)
 
             Form {
-                ClipboardSettingsSections(services: services, confirmingClear: $confirmingClear)
+                ClipboardSettingsSections(services: services, confirmingClear: $confirmingClear, confirmingErase: $confirmingErase)
             }
             .dsFormStyle()
             .frame(width: 340)
@@ -82,6 +88,13 @@ struct ClipboardPage: View {
             Button("Clear History", role: .destructive) { store.clear() }
         } message: {
             Text("Pinned items stay.")
+        }
+        .confirmationDialog("Erase all \(store.items.count) items, pinned ones too?", isPresented: $confirmingErase) {
+            Button("Erase Everything", role: .destructive) {
+                show(store.eraseEverything() ? "Clipboard history erased" : "Couldn\u{2019}t erase the saved history")
+            }
+        } message: {
+            Text("Every saved copy and picture is removed from this Mac. This can\u{2019}t be undone.")
         }
     }
 
@@ -120,14 +133,60 @@ struct ClipboardPage: View {
     }
 }
 
+/// Asked once, before anything is collected: what turning history on saves,
+/// where, and for how long. Either answer is remembered.
+private struct ClipboardFirstRun: View {
+    let store: ClipboardStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.m) {
+            Text("Keep a history of what you copy?").dsText(.section)
+            VStack(alignment: .leading, spacing: DS.Space.xs) {
+                point("doc.on.clipboard", "Text, links, pictures and the names of files you copy are saved, so you can find and paste them again.")
+                point("internaldrive", "They are kept in a file on this Mac and sent nowhere. They aren\u{2019}t encrypted: anything that can read your files can read them.")
+                point("key", "Copies made in password managers, and anything an app marks as private, are left out. Other copies can still contain something sensitive.")
+                point("clock", "Kept for 30 days, up to 200 items, unless you pin them. You can change both, and erase everything, at any time.")
+            }
+            HStack(spacing: DS.Space.s) {
+                Button("Turn On Clipboard History") { store.choose(collect: true) }
+                    .buttonStyle(.pillProminent)
+                Button("Not Now") { store.choose(collect: false) }
+                    .buttonStyle(.pill)
+            }
+            Text("Nothing is being saved yet. You can change your mind in the settings on the right.")
+                .dsText(.meta)
+        }
+        .padding(DS.Space.l)
+        .frame(maxWidth: 560, alignment: .leading)
+    }
+
+    private func point(_ symbol: String, _ text: String) -> some View {
+        Label {
+            Text(text).dsText(.body).fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: symbol).foregroundStyle(.secondary)
+        }
+    }
+}
+
 private struct ClipboardSettingsSections: View {
     let services: AppServices
     @Binding var confirmingClear: Bool
+    @Binding var confirmingErase: Bool
 
     var body: some View {
         let store = services.clipboard
         Section {
-            SettingToggle("Keep clipboard history", detail: "Stored only on this Mac.", isOn: binding(\.isEnabled))
+            SettingToggle("Keep clipboard history",
+                          detail: "Saved in a file on this Mac, not encrypted, sent nowhere.",
+                          isOn: Binding(get: { store.settings.isEnabled }, set: { store.choose(collect: $0) }))
+            Picker("Forget after", selection: binding(\.expiryDays)) {
+                ForEach(ClipboardSettings.expiryChoices, id: \.self) { days in
+                    Text(days == 1 ? "1 day" : "\(days) days").tag(Int?.some(days))
+                }
+                Text("Never").tag(Int?.none)
+            }
+            .help("Pinned items are kept whatever this says")
             Picker("Remember", selection: binding(\.historyLimit)) {
                 ForEach([50, 100, 200, 500, 1000], id: \.self) { count in
                     Text("\(count) items").tag(count)
@@ -183,6 +242,10 @@ private struct ClipboardSettingsSections: View {
         Section {
             Button("Clear History…", role: .destructive) { confirmingClear = true }
                 .disabled(store.items.allSatisfy(\.isPinned))
+            Button("Erase Everything…", role: .destructive) { confirmingErase = true }
+                .disabled(store.items.isEmpty)
+        } footer: {
+            Text("Clear History keeps pinned items. Erase Everything removes them too, with every saved picture.")
         }
     }
 

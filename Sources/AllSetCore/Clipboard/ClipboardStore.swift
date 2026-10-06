@@ -101,7 +101,19 @@ public struct ClipboardItem: Codable, Identifiable, Hashable, Sendable {
 }
 
 public struct ClipboardSettings: Codable, Equatable, Sendable {
-    public var isEnabled = true
+    /// Off until the person turns it on (`hasChosen`): what gets copied can be
+    /// a password or a private message, so collecting it is asked for, never
+    /// assumed. "Kept on this Mac" says where it goes, not that it's harmless.
+    public var isEnabled = false
+    /// Whether the person has answered that question, either way. Settings
+    /// saved before the question existed count as answered: an install that
+    /// was already collecting keeps doing what its owner had.
+    public var hasChosen = false
+    /// Unpinned items older than this many days are forgotten; nil keeps them
+    /// until `historyLimit` pushes them out. 30 for a new install; an install
+    /// from before this existed keeps everything until its owner picks.
+    public var expiryDays: Int? = 30
+    public static let expiryChoices = [1, 7, 30, 90]
     /// Unpinned items kept.
     public var historyLimit = 200
     /// After choosing an item, paste it into the app in front (needs Accessibility).
@@ -128,13 +140,18 @@ public struct ClipboardSettings: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case isEnabled, historyLimit, pasteOnSelect, pickerShortcut, ignoredApps, clearOnQuit
+        case isEnabled, hasChosen, expiryDays, historyLimit, pasteOnSelect, pickerShortcut, ignoredApps, clearOnQuit
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let defaults = ClipboardSettings()
-        isEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .isEnabled)) ?? defaults.isEnabled
+        // Saved settings without these keys are from before they existed: that
+        // person already had history on (or had turned it off) and nothing of
+        // theirs expires until they say so.
+        hasChosen = (try? container.decodeIfPresent(Bool.self, forKey: .hasChosen)) ?? true
+        isEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .isEnabled)) ?? (hasChosen ? true : defaults.isEnabled)
+        expiryDays = container.contains(.expiryDays) ? ((try? container.decode(Int?.self, forKey: .expiryDays)) ?? nil) : nil
         historyLimit = (try? container.decodeIfPresent(Int.self, forKey: .historyLimit)) ?? defaults.historyLimit
         pasteOnSelect = (try? container.decodeIfPresent(Bool.self, forKey: .pasteOnSelect)) ?? defaults.pasteOnSelect
         pickerShortcut = container.contains(.pickerShortcut)
@@ -149,6 +166,9 @@ public struct ClipboardSettings: Codable, Equatable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(isEnabled, forKey: .isEnabled)
+        try container.encode(hasChosen, forKey: .hasChosen)
+        // Null, not left out, for "never": left out reads back as a file from before expiry existed.
+        try container.encode(expiryDays, forKey: .expiryDays)
         try container.encode(historyLimit, forKey: .historyLimit)
         try container.encode(pasteOnSelect, forKey: .pasteOnSelect)
         try container.encode(pickerShortcut, forKey: .pickerShortcut)
@@ -168,6 +188,7 @@ public final class ClipboardStore {
             // Turning history off drops captures still being prepared.
             if oldValue.isEnabled, !settings.isEnabled { captureGeneration &+= 1 }
             if settings.historyLimit != oldValue.historyLimit { trim() }
+            if settings.expiryDays != oldValue.expiryDays { expire() }
             save()
         }
     }
@@ -207,6 +228,47 @@ public final class ClipboardStore {
         let saved = StoreFile.load(Saved.self, from: fileURL)
         settings = saved?.settings ?? ClipboardSettings()
         items = saved?.items ?? []
+        expire()
+    }
+
+    /// The answer to "keep a history of what you copy?", asked once on the
+    /// Clipboard page. Nothing is collected before it's answered.
+    public func choose(collect: Bool) {
+        var chosen = settings
+        chosen.hasChosen = true
+        chosen.isEnabled = collect
+        settings = chosen
+    }
+
+    /// Forgets unpinned items older than `settings.expiryDays`, with their
+    /// pictures. Returns how many went. Called on launch, on every copy, and
+    /// when the setting changes.
+    @discardableResult
+    public func expire(now: Date = .now) -> Int {
+        guard let days = settings.expiryDays, days > 0 else { return 0 }
+        let cutoff = now.addingTimeInterval(-Double(days) * 86_400)
+        let old = items.filter { !$0.isPinned && $0.date < cutoff }
+        guard !old.isEmpty else { return 0 }
+        for item in old {
+            if let file = item.imageFile { deleteImage(file) }
+        }
+        let gone = Set(old.map(\.id))
+        items.removeAll { gone.contains($0.id) }
+        scheduleSave()
+        return old.count
+    }
+
+    /// Erases the whole history now: pinned items too, every saved picture
+    /// (including any no item points at any more), and anything still being
+    /// captured. Settings stay. True once the emptied history is on disk.
+    @discardableResult
+    public func eraseEverything() -> Bool {
+        captureGeneration &+= 1
+        items = []
+        for file in (try? FileManager.default.contentsOfDirectory(atPath: imageDirectory.path)) ?? [] {
+            deleteImage(file)
+        }
+        return save()
     }
 
     /// Adds a copy to the top, or moves an identical earlier copy there.
@@ -222,6 +284,7 @@ public final class ClipboardStore {
             items.insert(item, at: position(for: item.date))
         }
         trim()
+        expire()
         scheduleSave()
     }
 
