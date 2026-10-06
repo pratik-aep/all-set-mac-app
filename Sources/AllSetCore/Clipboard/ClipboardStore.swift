@@ -294,27 +294,44 @@ public final class ClipboardStore {
             guard !Task.isCancelled, let self else { return }
             let saved = Saved(settings: settings, items: items)
             let url = fileURL, log = log
-            Self.writer.async { Self.write(saved, to: url, log: log) }
+            Self.writer.async { [weak self] in
+                let error = Self.write(saved, to: url, log: log)
+                Task { @MainActor in self?.record(error) }
+            }
         }
+    }
+
+    /// Why the last save failed; nil once one works. Shown in the main window.
+    public private(set) var saveError: String?
+
+    private func record(_ error: String?) {
+        if saveError != error { saveError = error }
     }
 
     /// Writes now, and returns once it's on disk (after any background write
     /// still queued, so an older one can't land on top), e.g. before quitting.
-    public func save() {
+    /// True when the history is on disk; on failure `saveError` says why.
+    @discardableResult
+    public func save() -> Bool {
         pendingSave?.cancel()
         let saved = Saved(settings: settings, items: items)
         let url = fileURL, log = log
-        Self.writer.sync { Self.write(saved, to: url, log: log) }
+        let error = Self.writer.sync { Self.write(saved, to: url, log: log) }
+        record(error)
+        return error == nil
     }
 
     /// One queue, so writes land in the order they were made.
     private nonisolated static let writer = DispatchQueue(label: "com.pratik.allset.clipboard.save", qos: .utility)
 
-    private nonisolated static func write(_ saved: Saved, to url: URL, log: Logger) {
+    /// Nil when written, else why not.
+    private nonisolated static func write(_ saved: Saved, to url: URL, log: Logger) -> String? {
         do {
             try JSONEncoder().encode(saved).write(to: url, options: .atomic)
+            return nil
         } catch {
             log.error("Couldn't save clipboard history: \(error.localizedDescription, privacy: .public)")
+            return error.localizedDescription
         }
     }
 }

@@ -52,6 +52,52 @@ import Testing
         #expect(original == #"[{"text": 42}]"#)
     }
 
+    /// Review D6: the clipboard, shelf, workspace and wallpaper stores only logged
+    /// a failed save; each now reports it until a save works.
+    @Test @MainActor func everyStoreReportsFailedSaves() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("stores-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        // A folder where each file should be: no write can succeed.
+        func block(_ path: String) throws -> URL {
+            let file = root.appendingPathComponent(path)
+            try FileManager.default.createDirectory(at: file, withIntermediateDirectories: true)
+            return file
+        }
+        func unblock(_ file: URL) throws { try FileManager.default.removeItem(at: file) }
+
+        let workspacesFile = try block("workspaces.json")
+        let workspaces = WorkspaceStore(fileURL: workspacesFile)
+        workspaces.workspaces = [Workspace(name: "Write", apps: [])]
+        #expect(workspaces.saveError != nil)
+        try unblock(workspacesFile)
+        #expect(workspaces.saveNow())
+        #expect(workspaces.saveError == nil)
+
+        let shelfFile = try block("Shelf/shelf.json")
+        let shelf = ShelfStore(directory: root.appendingPathComponent("Shelf"))
+        shelf.add([root])
+        #expect(shelf.saveError != nil)
+        try unblock(shelfFile)
+        #expect(shelf.saveNow())
+        #expect(shelf.saveError == nil)
+
+        let wallpaperFile = try block("Wallpaper/wallpaper.json")
+        let wallpaper = WallpaperStore(directory: root.appendingPathComponent("Wallpaper"))
+        wallpaper.config.isEnabled.toggle()
+        #expect(wallpaper.saveError != nil)
+        try unblock(wallpaperFile)
+        #expect(wallpaper.saveNow())
+        #expect(wallpaper.saveError == nil)
+
+        let clipboardFile = try block("Clipboard/history.json")
+        let clipboard = ClipboardStore(directory: root.appendingPathComponent("Clipboard"))
+        #expect(!clipboard.save())
+        #expect(clipboard.saveError != nil)
+        try unblock(clipboardFile)
+        #expect(clipboard.save())
+        #expect(clipboard.saveError == nil)
+    }
+
     @Test @MainActor func widgetSavesReportFailures() throws {
         // A folder where the file should be: the write can't succeed.
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("widgets-\(UUID().uuidString)", isDirectory: true)

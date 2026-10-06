@@ -166,16 +166,21 @@ struct MainView: View {
     private func navigation(width: CGFloat) -> some View {
         VStack(spacing: 0) {
             CinemaNavigation(services: services)
-            if let error = services.widgets.saveError {
-                Label("Your widget layout couldn't be saved: \(error)", systemImage: "exclamationmark.triangle.fill")
-                    .dsText(.body)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, DS.Space.m)
-                    .padding(.vertical, DS.Space.xs)
-                    .background(RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous).fill(Color.orange.opacity(0.22)))
-                    .padding(.horizontal, DS.Space.pageMargin(for: width))
-                    .padding(.bottom, DS.Space.xs)
-                    .accessibilityAddTraits(.isStaticText)
+            let problems = services.saveProblems
+            if !problems.isEmpty {
+                HStack(alignment: .firstTextBaseline, spacing: DS.Space.s) {
+                    Label(problems.map { "Couldn't save \($0.what): \($0.why)" }.joined(separator: "\n")
+                            + "\nYour changes stay while All Set is open and are saved with the next change, or now with Try Again.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .dsText(.body)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button("Try Again") { services.retrySaves() }
+                }
+                .padding(.horizontal, DS.Space.m)
+                .padding(.vertical, DS.Space.xs)
+                .background(RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous).fill(Color.orange.opacity(0.22)))
+                .padding(.horizontal, DS.Space.pageMargin(for: width))
+                .padding(.bottom, DS.Space.xs)
             }
             if services.widgets.unreadableCount > 0 {
                 Label("\(services.widgets.unreadableCount) saved widget(s) can't be shown by this version. They're kept and will return in a version that knows them.",

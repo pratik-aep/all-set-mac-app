@@ -65,11 +65,23 @@ public final class ShelfStore {
         }
     }
 
-    private func save() {
+    /// Why the last save failed; nil once one works. Shown in the main window.
+    public private(set) var saveError: String?
+
+    /// Writes now. True when the shelf is on disk; on failure `saveError` says why.
+    @discardableResult
+    public func saveNow() -> Bool { save() }
+
+    @discardableResult
+    private func save() -> Bool {
         do {
             try JSONEncoder().encode(items).write(to: fileURL, options: .atomic)
+            if saveError != nil { saveError = nil }
+            return true
         } catch {
             log.error("Couldn't save the shelf: \(error.localizedDescription, privacy: .public)")
+            saveError = error.localizedDescription
+            return false
         }
     }
 }

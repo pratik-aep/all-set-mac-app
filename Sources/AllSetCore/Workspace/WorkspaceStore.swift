@@ -169,14 +169,26 @@ public final class WorkspaceStore {
         change(&workspaces[index])
     }
 
-    private func save() {
+    /// Why the last save failed; nil once one works. Shown in the main window.
+    public private(set) var saveError: String?
+
+    /// Writes now. True when the workspaces are on disk; on failure `saveError` says why.
+    @discardableResult
+    public func saveNow() -> Bool { save() }
+
+    @discardableResult
+    private func save() -> Bool {
         do {
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             try encoder.encode(Saved(settings: settings, workspaces: workspaces)).write(to: fileURL, options: .atomic)
+            if saveError != nil { saveError = nil }
+            return true
         } catch {
             log.error("Couldn't save workspaces: \(error.localizedDescription, privacy: .public)")
+            saveError = error.localizedDescription
+            return false
         }
     }
 }

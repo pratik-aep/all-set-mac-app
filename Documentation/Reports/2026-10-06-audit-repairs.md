@@ -49,7 +49,7 @@ Findings from `2026-10-06-comprehensive-review.md`. Every fixed item has a test 
 | D3 | GitHub cache not scoped to credential | Fixed (token fingerprint; external Keychain edits not detected) | `0a922e1` |
 | D4 | Key replacement deletes first | Fixed (failure path verified by reading, not by test) | `48e612f` |
 | D5 | Unreadable widgets erased by save | Fixed | `ea52076` |
-| D6 | Inconsistent save-failure semantics | Partly: local delete and Notes report failures; other stores (clipboard, workspace, wallpaper config writes) still only log | `1b323e2` |
+| D6 | Inconsistent save-failure semantics | Fixed for user data: local delete, Notes, widgets, clipboard, shelf, workspaces and wallpaper settings each expose `saveError` until a save works; the main window lists them in one banner with Try Again. Still open: the review's export/restore backup format (a feature, not a fix) | `1b323e2`, see log |
 | P2 | Screenshot history by count only | Fixed (600 MB byte budget) | `3734315` |
 | P1 | Focus-timer completion owned by a view | Fixed (`FocusTimerCoordinator` in AppServices) | see log |
 | P7 | Command timeout not an upper bound | Fixed (TERM, then KILL; bounded drain and output; task cancellation) | see log |

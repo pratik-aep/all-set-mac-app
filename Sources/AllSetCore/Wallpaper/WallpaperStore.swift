@@ -841,11 +841,16 @@ public final class WallpaperStore {
         return StoreFile.load(WallpaperConfig.self, from: fileURL) == config
     }
 
+    /// Why the last settings save failed; nil once one works. Shown in the main window.
+    public private(set) var saveError: String?
+
     private func save() {
         do {
             try JSONEncoder().encode(config).write(to: fileURL, options: .atomic)
+            if saveError != nil { saveError = nil }
         } catch {
             log.error("Couldn't save wallpaper settings: \(error.localizedDescription, privacy: .public)")
+            saveError = error.localizedDescription
         }
     }
 }

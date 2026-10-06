@@ -486,3 +486,25 @@ extension AppServices {
         for (id, offset) in moved { widgets.update(id) { $0.offset = offset } }
     }
 }
+
+// MARK: Saving
+
+extension AppServices {
+    /// What couldn't be saved, and why: one list, shown in one place, whichever store failed.
+    var saveProblems: [(what: String, why: String)] {
+        [("your widget layout", widgets.saveError), ("your notes", notes.saveError),
+         ("clipboard history", clipboard.saveError), ("the shelf", shelf.saveError),
+         ("your workspaces", workspaces.saveError), ("wallpaper settings", wallpaper.saveError)]
+            .compactMap { what, why in why.map { (what, $0) } }
+    }
+
+    /// Writes again every store whose last save failed.
+    func retrySaves() {
+        if widgets.saveError != nil { widgets.saveNow() }
+        if notes.saveError != nil { notes.save() }
+        if clipboard.saveError != nil { clipboard.save() }
+        if shelf.saveError != nil { shelf.saveNow() }
+        if workspaces.saveError != nil { workspaces.saveNow() }
+        if wallpaper.saveError != nil { wallpaper.saveNow() }
+    }
+}
