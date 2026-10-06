@@ -4,7 +4,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 APP_NAME="AllSet"
-APP_DIR="build/${APP_NAME}.app"
+# ALLSET_APP_DIR builds somewhere else (to check a package without replacing
+# the app you run).
+APP_DIR="${ALLSET_APP_DIR:-build/${APP_NAME}.app}"
 HELPER="libAllSetMediaHelper.dylib"
 
 # Builds every product, including the media helper the app loads at runtime.
@@ -16,6 +18,27 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Frameworks" "$APP_DIR/Cont
 cp "$BIN_DIR/$APP_NAME" "$APP_DIR/Contents/MacOS/$APP_NAME"
 cp "$BIN_DIR/$HELPER" "$APP_DIR/Contents/Frameworks/$HELPER"
 cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
+
+# Version: ALLSET_VERSION sets the marketing version (else Info.plist's);
+# the build number is the commit count, so every package says which build it is.
+PLIST="$APP_DIR/Contents/Info.plist"
+if [ -n "${ALLSET_VERSION:-}" ]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $ALLSET_VERSION" "$PLIST"
+fi
+if BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null)"; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
+fi
+
+# Third-party notices travel with the app: what's in Documentation/third-party
+# (Lid Plane's copyright and licence) goes into Contents/Resources/Notices. A
+# package without them isn't built.
+NOTICES="$APP_DIR/Contents/Resources/Notices"
+mkdir -p "$NOTICES"
+cp Documentation/third-party/* "$NOTICES/"
+if [ -z "$(ls -A "$NOTICES")" ]; then
+  echo "error: no third-party notices copied" >&2
+  exit 1
+fi
 
 # Plain HTTP for exactly one host: the personal, Tailscale-only library server.
 # Its address isn't in the source; set ALLSET_LIBRARY_SERVER_HOST, or put
@@ -49,5 +72,8 @@ if security find-certificate -c "All Set Development" >/dev/null 2>&1; then
 fi
 codesign --force --sign "$IDENTITY" "$APP_DIR/Contents/Frameworks/$HELPER"
 codesign --force --sign "$IDENTITY" "$APP_DIR"
+codesign --verify --deep --strict "$APP_DIR"
 
-echo "Built $APP_DIR"
+VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST")"
+BUILD="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST")"
+echo "Built $APP_DIR: version $VERSION ($BUILD), signed ${IDENTITY/-/ad hoc}, notices: $(ls "$NOTICES" | tr '\n' ' ')"
