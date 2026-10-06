@@ -40,6 +40,40 @@ import Testing
         #expect(store.saveError == nil)
     }
 
+    /// Review U4: removing notes (one, Clear Done, or editing one to nothing)
+    /// could not be taken back; the last removal can now be undone in place.
+    @Test @MainActor func removedNotesComeBackWhereTheyWere() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("notes-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let store = NotesStore(fileURL: folder.appendingPathComponent("notes.json"))
+        store.add("a\nb\nc\nd\ne")
+        let original = store.notes
+        store.toggle(original[1].id)
+        store.toggle(original[3].id)
+        let ticked = store.notes
+
+        #expect(store.doneCount == 2)
+        store.removeDone()
+        #expect(store.notes.count == 3 && store.lastRemoval?.count == 2)
+        store.undoRemoval()
+        #expect(store.notes == ticked)
+        #expect(store.lastRemoval == nil)
+
+        store.remove(original[0].id)
+        store.undoRemoval()
+        #expect(store.notes == ticked)
+
+        store.update(original[4].id, text: "   ")
+        #expect(store.notes.count == 4)
+        store.undoRemoval()
+        #expect(store.notes == ticked)
+
+        store.remove(original[2].id)
+        store.forgetRemoval()
+        store.undoRemoval()
+        #expect(store.notes.count == 4)
+    }
+
     @Test @MainActor func aCorruptNotesFileSurvivesTheNextSave() throws {
         let file = try temporaryFile(#"[{"text": 42}]"#)
         let store = NotesStore(fileURL: file)

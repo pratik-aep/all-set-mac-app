@@ -20,6 +20,20 @@ public struct QuickNote: Codable, Equatable, Identifiable, Sendable {
 @Observable @MainActor
 public final class NotesStore {
     public private(set) var notes: [QuickNote] = []
+    /// The last notes removed (by hand, by Clear Done, or edited to nothing),
+    /// until they're brought back or something else is removed.
+    public private(set) var lastRemoval: Removal?
+
+    public struct Removal: Equatable, Sendable {
+        /// Each note with the place it had, in order.
+        public var notes: [Placed]
+        public var count: Int { notes.count }
+
+        public struct Placed: Equatable, Sendable {
+            public var index: Int
+            public var note: QuickNote
+        }
+    }
 
     @ObservationIgnored private let fileURL: URL
     @ObservationIgnored private var pendingSave: Task<Void, Never>?
@@ -46,6 +60,7 @@ public final class NotesStore {
         guard let index = notes.firstIndex(where: { $0.id == id }) else { return }
         let cleaned = Self.clean(text)
         if cleaned.isEmpty {
+            lastRemoval = Removal(notes: [.init(index: index, note: notes[index])])
             notes.remove(at: index)
         } else {
             notes[index].text = cleaned
@@ -60,13 +75,36 @@ public final class NotesStore {
     }
 
     public func remove(_ id: UUID) {
-        notes.removeAll { $0.id == id }
-        scheduleSave()
+        remove { $0.id == id }
     }
 
     public func removeDone() {
-        notes.removeAll(where: \.isDone)
+        remove(where: \.isDone)
+    }
+
+    public var doneCount: Int { notes.count(where: \.isDone) }
+
+    private func remove(where shouldRemove: (QuickNote) -> Bool) {
+        let removed = notes.enumerated().filter { shouldRemove($0.element) }.map { Removal.Placed(index: $0.offset, note: $0.element) }
+        guard !removed.isEmpty else { return }
+        lastRemoval = Removal(notes: removed)
+        notes.removeAll(where: shouldRemove)
         scheduleSave()
+    }
+
+    /// Puts the last removed notes back where they were.
+    public func undoRemoval() {
+        guard let removal = lastRemoval else { return }
+        lastRemoval = nil
+        for placed in removal.notes where !notes.contains(where: { $0.id == placed.note.id }) {
+            notes.insert(placed.note, at: min(placed.index, notes.count))
+        }
+        scheduleSave()
+    }
+
+    /// Lets the last removal go for good (the Undo offer is dismissed).
+    public func forgetRemoval() {
+        lastRemoval = nil
     }
 
     public func move(from source: IndexSet, to destination: Int) {

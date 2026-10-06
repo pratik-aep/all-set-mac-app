@@ -30,12 +30,19 @@ struct NotesTab: View {
                         isTyping = false
                     }
                 Spacer(minLength: 4)
-                if notes.notes.contains(where: \.isDone) {
-                    Button("Clear done") {
+                if let removal = notes.lastRemoval {
+                    Button("Undo") {
+                        withMotion(Motion.quick) { notes.undoRemoval() }
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .help(removal.count == 1 ? "Bring back the removed note" : "Bring back the \(removal.count) removed notes")
+                }
+                if notes.doneCount > 0 {
+                    Button("Clear \(notes.doneCount) done") {
                         withMotion(Motion.quick) { notes.removeDone() }
                     }
                     .font(.system(size: 11, weight: .semibold))
-                    .help("Remove the ticked notes")
+                    .help("Remove the ticked notes (Undo brings them back)")
                 }
                 Button(action: openNotes) {
                     Image(systemName: "arrow.up.forward.app")
@@ -69,7 +76,9 @@ struct NotesTab: View {
     }
 }
 
-/// A point: tick it off, click the text to change it, or remove it.
+/// A point: tick it off, change it (click the text, the pencil, or Edit in its
+/// menu), or remove it. Every action is in the context menu and VoiceOver's
+/// actions too, not only on hover.
 struct NoteRow: View {
     let note: QuickNote
     let notes: NotesStore
@@ -108,14 +117,21 @@ struct NoteRow: View {
                     .lineLimit(dark ? 2 : nil)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
-                    .onTapGesture {
-                        text = note.text
-                        isEditing = true
-                        isFocused = true
-                    }
+                    .onTapGesture(perform: startEditing)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint("Edits the note")
+                    .accessibilityAction(named: "Edit", startEditing)
+                    .accessibilityAction(named: "Remove") { notes.remove(note.id) }
             }
 
             if isHovering, !isEditing {
+                Button(action: startEditing) {
+                    Image(systemName: "pencil")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Edit")
+                .accessibilityLabel("Edit note")
                 Button {
                     withMotion(Motion.quick) { notes.remove(note.id) }
                 } label: {
@@ -123,7 +139,8 @@ struct NoteRow: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Remove")
+                .help("Remove (Undo brings it back)")
+                .accessibilityLabel("Remove note")
             }
         }
         .font(.system(size: dark ? 12 : 13, weight: dark ? .medium : .regular))
@@ -136,10 +153,17 @@ struct NoteRow: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(note.text, forType: .string)
             }
+            Button("Edit", action: startEditing)
             Button(note.isDone ? "Mark Not Done" : "Mark Done") { notes.toggle(note.id) }
             Divider()
             Button("Remove", role: .destructive) { notes.remove(note.id) }
         }
+    }
+
+    private func startEditing() {
+        text = note.text
+        isEditing = true
+        isFocused = true
     }
 
     private func finishEditing() {
@@ -168,9 +192,29 @@ struct NotesPage: View {
                     }
                     .buttonStyle(.pill)
                     .disabled(notes.notes.isEmpty)
-                    Button("Clear Done") { withMotion(Motion.standard) { notes.removeDone() } }
+                    Button(done > 0 ? "Clear \(done) Done" : "Clear Done") { withMotion(Motion.standard) { notes.removeDone() } }
                         .buttonStyle(.pill)
-                        .disabled(!notes.notes.contains(where: \.isDone))
+                        .disabled(done == 0)
+                        .help("Remove the ticked notes (Undo brings them back)")
+                }
+            }
+            if let removal = notes.lastRemoval {
+                HStack(spacing: DS.Space.s) {
+                    Label(removal.count == 1 ? "Removed \u{201C}\(removal.notes[0].note.text)\u{201D}" : "Removed \(removal.count) notes",
+                          systemImage: "trash")
+                        .dsText(.body)
+                        .lineLimit(1)
+                    Spacer()
+                    Button("Undo") { withMotion(Motion.standard) { notes.undoRemoval() } }
+                        .buttonStyle(.pill)
+                    Button {
+                        notes.forgetRemoval()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Dismiss")
+                    .accessibilityLabel("Dismiss")
                 }
             }
             if let error = notes.saveError {
