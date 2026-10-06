@@ -23,6 +23,11 @@ public final class WidgetStore {
     public private(set) var hasSavedLayout = false
     /// Why the last save failed (a full or read-only disk); nil once one works.
     public private(set) var saveError: String?
+    /// Saved widgets this version couldn't read (say, a kind from a newer version).
+    /// They aren't shown, but they're kept exactly as they were and written back
+    /// with every save, so a downgrade or a schema change never erases them.
+    public private(set) var unreadableCount = 0
+    @ObservationIgnored private var unreadableRecords: [Any] = []
 
     @ObservationIgnored private let fileURL: URL
     @ObservationIgnored private var pendingSave: Task<Void, Never>?
@@ -112,7 +117,7 @@ public final class WidgetStore {
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            try encoder.encode(widgets).write(to: fileURL, options: .atomic)
+            try encodedLayout(encoder).write(to: fileURL, options: .atomic)
             hasSavedLayout = true
             if saveError != nil { saveError = nil }
             return true
@@ -133,11 +138,37 @@ public final class WidgetStore {
         }
     }
 
+    /// The widgets, then any records this version couldn't read, unchanged.
+    private func encodedLayout(_ encoder: JSONEncoder) throws -> Data {
+        guard !unreadableRecords.isEmpty else { return try encoder.encode(widgets) }
+        let known = try JSONSerialization.jsonObject(with: encoder.encode(widgets)) as? [Any] ?? []
+        return try JSONSerialization.data(withJSONObject: known + unreadableRecords, options: [.prettyPrinted, .sortedKeys])
+    }
+
     private func load() {
         guard let data = try? Data(contentsOf: fileURL) else { return }
         hasSavedLayout = true
         do {
-            widgets = try JSONDecoder().decode(LossyList<WidgetInstance>.self, from: data).elements
+            guard let records = try JSONSerialization.jsonObject(with: data) as? [Any] else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            let decoder = JSONDecoder()
+            var readable: [WidgetInstance] = []
+            for record in records {
+                if JSONSerialization.isValidJSONObject(record),
+                   let widget = try? decoder.decode(WidgetInstance.self, from: JSONSerialization.data(withJSONObject: record)) {
+                    readable.append(widget)
+                } else {
+                    unreadableRecords.append(record)
+                }
+            }
+            widgets = readable
+            unreadableCount = unreadableRecords.count
+            if unreadableCount > 0 {
+                // A copy of the file as it was, as well as keeping the records themselves.
+                let kept = StoreFile.preserve(fileURL)
+                log.error("\(self.unreadableCount) widget(s) couldn't be read and are kept as they were. Copy: \(kept?.lastPathComponent ?? "none", privacy: .public)")
+            }
         } catch {
             // Keep the unreadable file, or the next save would replace the only copy.
             let kept = StoreFile.preserve(fileURL)

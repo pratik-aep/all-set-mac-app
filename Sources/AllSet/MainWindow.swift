@@ -177,6 +177,18 @@ struct MainView: View {
                     .padding(.bottom, DS.Space.xs)
                     .accessibilityAddTraits(.isStaticText)
             }
+            if services.widgets.unreadableCount > 0 {
+                Label("\(services.widgets.unreadableCount) saved widget(s) can't be shown by this version. They're kept and will return in a version that knows them.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .dsText(.body)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, DS.Space.m)
+                    .padding(.vertical, DS.Space.xs)
+                    .background(RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous).fill(Color.orange.opacity(0.22)))
+                    .padding(.horizontal, DS.Space.pageMargin(for: width))
+                    .padding(.bottom, DS.Space.xs)
+                    .accessibilityAddTraits(.isStaticText)
+            }
         }
     }
 

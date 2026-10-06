@@ -47,6 +47,34 @@ import Testing
         store.saveNow()
         #expect(store.saveError != nil)
     }
+
+    /// Review D5: a widget this version can't read (a kind from a newer version)
+    /// used to be skipped on load and then erased by the next save.
+    @Test @MainActor func widgetsThisVersionCantReadSurviveSaves() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("widgets-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("widgets.json")
+        let known = try JSONSerialization.jsonObject(with: JSONEncoder().encode(WidgetInstance(kind: .clock)))
+        let future: [String: Any] = ["id": UUID().uuidString, "kind": "hologram", "futureField": [1, 2, 3]]
+        try JSONSerialization.data(withJSONObject: [known, future]).write(to: file)
+
+        let store = WidgetStore(fileURL: file)
+        #expect(store.widgets.map(\.kind) == [.clock])
+        #expect(store.unreadableCount == 1)
+        // The file as it was is copied aside too.
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).contains { $0.contains("unreadable") })
+
+        store.add(WidgetInstance(kind: .calendar))
+        #expect(store.saveNow())
+        let saved = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [[String: Any]])
+        #expect(saved.count == 3)
+        let kept = try #require(saved.first { $0["kind"] as? String == "hologram" })
+        #expect(kept["futureField"] as? [Int] == [1, 2, 3])
+        #expect(kept["id"] as? String == future["id"] as? String)
+        // And a later launch still reads the two it knows.
+        #expect(WidgetStore(fileURL: file).widgets.map(\.kind) == [.clock, .calendar])
+    }
 }
 
 @Suite struct PhotoURLTests {
