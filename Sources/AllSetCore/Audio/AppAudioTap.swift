@@ -1,4 +1,5 @@
 import CoreAudio
+import CPrivateAPIs
 import Foundation
 import OSLog
 
@@ -21,21 +22,27 @@ public struct AudioRoutingError: Error, CustomStringConvertible {
 
 /// One app's gain, shared with the audio thread.
 public final class GainBox: @unchecked Sendable {
-    /// Written by the app, read by the audio thread once per buffer. A
-    /// 32-bit float is written and read whole, so no lock is needed.
-    let target = UnsafeMutablePointer<Float>.allocate(capacity: 1)
+    /// Written by the app, read by the audio thread once per buffer: the Float's
+    /// bits, through atomic load/store (lock-free, so the audio thread never waits).
+    /// A plain load/store of the same size isn't synchronisation (review R3).
+    private let target = UnsafeMutablePointer<UInt32>.allocate(capacity: 1)
     /// The audio thread's own: where the last buffer ended, for the next to ramp from.
     let current = UnsafeMutablePointer<Float>.allocate(capacity: 1)
 
     public init(_ gain: Float) {
-        target.initialize(to: gain)
+        target.initialize(to: gain.bitPattern)
         current.initialize(to: gain)
     }
 
     /// Takes effect over the next buffer.
     public var gain: Float {
-        get { target.pointee }
-        set { target.pointee = newValue }
+        get { loadTarget() }
+        set { allset_atomic_store_u32(target, newValue.bitPattern) }
+    }
+
+    /// The gain the app last set, as the audio thread reads it.
+    func loadTarget() -> Float {
+        Float(bitPattern: allset_atomic_load_u32(target))
     }
 
     deinit {
@@ -175,7 +182,7 @@ final class AppAudioTap {
         let gain = self.gain
         var procID: AudioDeviceIOProcID?
         let status = AudioDeviceCreateIOProcIDWithBlock(&procID, id, nil) { _, input, _, output, _ in
-            let target = gain.target.pointee
+            let target = gain.loadTarget()
             AudioPassthrough.render(input: UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input)),
                                     skippingBuffers: skipped,
                                     output: UnsafeMutableAudioBufferListPointer(output),

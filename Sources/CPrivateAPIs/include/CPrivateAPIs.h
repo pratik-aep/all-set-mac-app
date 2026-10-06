@@ -25,4 +25,9 @@ CF_IMPLICIT_BRIDGING_DISABLED
 /// `mach_task_self()` is a macro over a mutable global, which Swift 6 rejects.
 static inline mach_port_t allset_mach_task_self(void) { return mach_task_self(); }
 
+/// Lock-free 32-bit load and store, for a value shared with a real-time audio
+/// thread (which must never wait on a lock). Swift's `Atomic` needs macOS 15.
+static inline uint32_t allset_atomic_load_u32(const uint32_t * _Nonnull value) { return __atomic_load_n(value, __ATOMIC_ACQUIRE); }
+static inline void allset_atomic_store_u32(uint32_t * _Nonnull value, uint32_t newValue) { __atomic_store_n(value, newValue, __ATOMIC_RELEASE); }
+
 #endif
