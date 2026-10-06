@@ -477,8 +477,8 @@ final class ThemePreviewCache {
         // Give the forecast a moment to arrive.
         for _ in 0..<20 where widgets.contains(where: { widget in
             widget.options.location.map { location in
-                (widget.kind == .weather && services.weather.reports[location] == nil && services.weather.failures[location] == nil)
-                    || (widget.kind == .airQuality && services.weather.airQuality[location] == nil && services.weather.failures[location] == nil)
+                (widget.kind == .weather && services.weather.reports[location] == nil && services.weather.forecastFailures[location] == nil)
+                    || (widget.kind == .airQuality && services.weather.airQuality[location] == nil && services.weather.airQualityFailures[location] == nil)
             } ?? false
         }) {
             try? await Task.sleep(for: .milliseconds(150))

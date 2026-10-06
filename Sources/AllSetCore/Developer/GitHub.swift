@@ -116,6 +116,8 @@ public struct GitHubClient: Sendable {
     public enum Failure: Error, CustomStringConvertible {
         case notFound
         case rateLimited(until: Date)
+        /// The saved token was refused: retrying won't help until it changes.
+        case unauthorized
         case http(Int)
 
         public var description: String {
@@ -123,6 +125,7 @@ public struct GitHubClient: Sendable {
             case .notFound: "Not found on GitHub"
             case .rateLimited(let until):
                 "GitHub's hourly limit is used up until \(until.formatted(date: .omitted, time: .shortened))"
+            case .unauthorized: "GitHub refused the saved token. Update it in Settings."
             case .http(let code): "GitHub answered \(code)"
             }
         }
@@ -175,6 +178,8 @@ public struct GitHubClient: Sendable {
         switch http.statusCode {
         case 200..<300:
             return (data, http)
+        case 401:
+            throw Failure.unauthorized
         case 404, 422:
             throw Failure.notFound
         case 403, 429:
@@ -341,17 +346,21 @@ public final class GitHubService {
     public private(set) var snapshots: [String: Snapshot] = [:]
     public private(set) var errors: [String: String] = [:]
 
-    @ObservationIgnored private var inFlight = Set<String>()
+    @ObservationIgnored private let requests = SharedRequests()
+    @ObservationIgnored private var backoff = RetryBackoff()
     @ObservationIgnored private var pausedUntil: Date?
     @ObservationIgnored private let cacheURL: URL?
     @ObservationIgnored private let scope: () -> String
+    @ObservationIgnored private let fetch: @Sendable (GitHubConfig) async throws -> GitHubData
     @ObservationIgnored private let log = Logger(subsystem: "com.pratik.allset", category: "github")
 
     public init(cacheURL: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
                     .appendingPathComponent("AllSet", isDirectory: true).appendingPathComponent("github.json"),
-                scope: @escaping () -> String = { GitHubKeychain.credentialScope }) {
+                scope: @escaping () -> String = { GitHubKeychain.credentialScope },
+                fetch: @escaping @Sendable (GitHubConfig) async throws -> GitHubData = { try await GitHubClient().fetch($0) }) {
         self.cacheURL = cacheURL
         self.scope = scope
+        self.fetch = fetch
         if let cacheURL, let data = try? Data(contentsOf: cacheURL),
            let saved = try? JSONDecoder().decode([String: Snapshot].self, from: data) {
             // Only what the current credential fetched; anything else is dropped from disk too.
@@ -366,6 +375,8 @@ public final class GitHubService {
     public func purgeCache() {
         snapshots = [:]
         errors = [:]
+        backoff.reset()
+        pausedUntil = nil
         if let cacheURL { try? FileManager.default.removeItem(at: cacheURL) }
     }
 
@@ -385,28 +396,44 @@ public final class GitHubService {
     public func snapshot(_ config: GitHubConfig) -> Snapshot? { snapshots[scopedKey(config)] }
     public func error(_ config: GitHubConfig) -> String? { errors[scopedKey(config)] }
 
-    public func refreshIfNeeded(_ config: GitHubConfig, maxAge: TimeInterval) {
+    /// Fetches if the snapshot is older than `maxAge`, unless GitHub's limit is
+    /// used up or a recent failure (keyed by credential, so a new token starts
+    /// fresh) is still being waited out, and waits for it. Cancelling every
+    /// caller waiting on the fetch cancels it.
+    public func refresh(_ config: GitHubConfig, maxAge: TimeInterval) async {
         guard Self.isConfigured(config) else { return }
         let key = scopedKey(config)
         if let snapshot = snapshots[key], Date.now.timeIntervalSince(snapshot.fetched) < maxAge { return }
         if let pausedUntil, pausedUntil > .now { return }
-        guard !inFlight.contains(key) else { return }
-        inFlight.insert(key)
-        Task {
-            defer { inFlight.remove(key) }
+        guard requests.isRunning(key) || backoff.allows(key) else { return }
+        await requests.run(key) { [self] in
             do {
-                let data = try await GitHubClient().fetch(config)
+                let data = try await fetch(config)
                 snapshots[key] = Snapshot(data: data, fetched: .now)
                 errors[key] = nil
+                backoff.succeeded(key)
                 save()
+            } catch where WeatherService.isCancellation(error) {
+                // Every widget asking for it left the screen: not a failure.
             } catch let failure as GitHubClient.Failure {
-                if case .rateLimited(let until) = failure { pausedUntil = until }
+                switch failure {
+                case .rateLimited(let until): pausedUntil = until
+                case .unauthorized: backoff.failed(key, atLeast: backoff.longest)
+                default: backoff.failed(key)
+                }
                 errors[key] = failure.description
             } catch {
                 log.error("GitHub failed: \(error.localizedDescription, privacy: .public)")
                 errors[key] = error.localizedDescription
+                backoff.failed(key)
             }
         }
+    }
+
+    /// Asked for by hand: fetches now, whatever failed before (GitHub's own limit still applies).
+    public func refreshNow(_ config: GitHubConfig) async {
+        backoff.succeeded(scopedKey(config))
+        await refresh(config, maxAge: 0)
     }
 
     private func save() {

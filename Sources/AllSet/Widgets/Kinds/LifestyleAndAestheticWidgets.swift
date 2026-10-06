@@ -19,14 +19,22 @@ struct AirQualityWidget: View {
             Group {
                 if let report = weather.airQuality[location] {
                     content(report, location: location)
-                } else if weather.failures[location] != nil {
-                    WidgetStateView(kind: .error, symbol: "aqi.medium", title: "Air quality unavailable", message: weather.failures[location])
+                        .overlay(alignment: .bottomTrailing) {
+                            WidgetStaleBadge(updated: report.fetchedAt, problem: weather.airQualityFailures[location], interval: interval)
+                        }
+                } else if let failure = weather.airQualityFailures[location] {
+                    WidgetStateView(kind: .error, symbol: "aqi.medium", title: "Air quality unavailable", message: failure)
                 } else {
                     WidgetStateView(kind: .loading, symbol: "", title: "Checking the air…")
                 }
             }
             .widgetRefresh(every: interval, id: location) {
-                weather.refreshAirQualityIfNeeded(location, maxAge: interval ?? WeatherService.refreshInterval)
+                await weather.refreshAirQuality(location, maxAge: interval ?? WeatherService.refreshInterval)
+            }
+            .contextMenu {
+                Button("Refresh Now") { Task { await weather.refreshNow(location) } }
+                Divider()
+                WidgetMenuItems()
             }
         } else {
             WidgetStateView(kind: .empty, symbol: "aqi.medium", title: "Choose a city", actionTitle: "Set City…", action: onConfigure)

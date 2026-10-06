@@ -317,7 +317,7 @@ extension View {
     /// Runs `action` at once and then every `interval` seconds, only while the
     /// widget is on screen (and just once in a preview). The action decides
     /// whether anything is actually due, so a quick recheck is cheap.
-    func widgetRefresh(every interval: TimeInterval?, id: some Hashable, perform action: @escaping @MainActor () -> Void) -> some View {
+    func widgetRefresh(every interval: TimeInterval?, id: some Hashable, perform action: @escaping @MainActor () async -> Void) -> some View {
         modifier(WidgetRefresh(interval: interval, id: AnyHashable(id), action: action))
     }
 }
@@ -325,7 +325,9 @@ extension View {
 private struct WidgetRefresh: ViewModifier {
     let interval: TimeInterval?
     let id: AnyHashable
-    let action: @MainActor () -> Void
+    /// Awaited, so a fetch it starts belongs to this widget being on screen:
+    /// leaving the screen cancels the loop and, with it, the fetch.
+    let action: @MainActor () async -> Void
     @Environment(\.widgetIsOnScreen) private var isOnScreen
     @Environment(\.widgetIsPreview) private var isPreview
 
@@ -338,12 +340,48 @@ private struct WidgetRefresh: ViewModifier {
     func body(content: Content) -> some View {
         content.task(id: Key(id: id, active: isOnScreen || isPreview, interval: interval)) {
             guard isOnScreen || isPreview else { return }
-            action()
+            await action()
             guard !isPreview, let interval else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(min(interval, 60)))
                 guard !Task.isCancelled else { return }
-                action()
+                await action()
+            }
+        }
+    }
+}
+
+/// A small mark on a widget showing data it couldn't update, or that has gone
+/// stale: how old the data is, and why on hover and to VoiceOver. Nothing
+/// while the data is fresh.
+struct WidgetStaleBadge: View {
+    let updated: Date
+    let problem: String?
+    /// The widget's refresh interval; nil (refreshed by hand) is never stale by age.
+    let interval: TimeInterval?
+    @Environment(\.widgetStyle) private var style
+
+    static func isStale(updated: Date, interval: TimeInterval?, now: Date) -> Bool {
+        guard let interval else { return false }
+        return now.timeIntervalSince(updated) > max(interval * 2, 15 * 60)
+    }
+
+    var body: some View {
+        if problem != nil || interval != nil {
+            WidgetTimeline(.everyMinute) { context in
+                if problem != nil || Self.isStale(updated: updated, interval: interval, now: context.date) {
+                    let age = updated.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated))
+                    HStack(spacing: 3) {
+                        Image(systemName: "exclamationmark.icloud")
+                        Text(age)
+                    }
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(style.secondary)
+                    .padding(8)
+                    .help(["Updated \(age)", problem].compactMap(\.self).joined(separator: ". "))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(["Not up to date, updated \(age)", problem].compactMap(\.self).joined(separator: ". "))
+                }
             }
         }
     }

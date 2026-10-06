@@ -74,7 +74,7 @@ struct CinematicWidgetFace: View {
             }.padding(size.height * 0.13).frame(width: size.width * 0.7, height: size.height, alignment: .leading)
         }
         .widgetRefresh(every: interval, id: location) {
-            if let location { services.weather.refreshIfNeeded(location, maxAge: interval ?? WeatherService.refreshInterval) }
+            if let location { await services.weather.refresh(location, maxAge: interval ?? WeatherService.refreshInterval) }
         }
         .accessibilityElement(children: .combine)
     }

@@ -385,10 +385,17 @@ public struct WeatherClient: Sendable {
 public final class WeatherService {
     public private(set) var reports: [WeatherLocation: WeatherReport] = [:]
     public private(set) var airQuality: [WeatherLocation: AirQualityReport] = [:]
-    public private(set) var failures: [WeatherLocation: String] = [:]
+    /// Why the last forecast or air-quality fetch failed, kept apart so one
+    /// doesn't hide or fake the other. Cleared by that fetch succeeding.
+    public private(set) var forecastFailures: [WeatherLocation: String] = [:]
+    public private(set) var airQualityFailures: [WeatherLocation: String] = [:]
 
-    @ObservationIgnored private var inFlight = Set<String>()
-    @ObservationIgnored private let client = WeatherClient()
+    public typealias Fetch<Report> = @Sendable (WeatherLocation) async throws -> Report
+
+    @ObservationIgnored private let requests = SharedRequests()
+    @ObservationIgnored private var backoff = RetryBackoff()
+    @ObservationIgnored private let fetchForecast: Fetch<WeatherReport>
+    @ObservationIgnored private let fetchAirQuality: Fetch<AirQualityReport>
     @ObservationIgnored private let cacheURL: URL?
     @ObservationIgnored private let log = Logger(subsystem: "com.pratik.allset", category: "weather")
 
@@ -405,16 +412,20 @@ public final class WeatherService {
     }
 
     /// `cacheURL` nil keeps nothing on disk (for tests).
-    public init(cacheURL: URL? = WeatherService.defaultCacheURL) {
+    public init(cacheURL: URL? = WeatherService.defaultCacheURL,
+                forecast: @escaping Fetch<WeatherReport> = { try await WeatherClient().forecast(for: $0) },
+                airQuality: @escaping Fetch<AirQualityReport> = { try await WeatherClient().airQuality(for: $0) }) {
         self.cacheURL = cacheURL
+        fetchForecast = forecast
+        fetchAirQuality = airQuality
         if let cacheURL, let data = try? Data(contentsOf: cacheURL),
            let cache = try? JSONDecoder().decode(Cache.self, from: data) {
             // Anything older than a day is too stale to show.
             let recent = Date.now.addingTimeInterval(-86_400)
             reports = Dictionary(cache.reports.filter { $0.value.fetchedAt > recent }.map { ($0.location, $0.value) },
                                  uniquingKeysWith: { first, _ in first })
-            airQuality = Dictionary(cache.airQuality.filter { $0.value.fetchedAt > recent }.map { ($0.location, $0.value) },
-                                    uniquingKeysWith: { first, _ in first })
+            self.airQuality = Dictionary(cache.airQuality.filter { $0.value.fetchedAt > recent }.map { ($0.location, $0.value) },
+                                         uniquingKeysWith: { first, _ in first })
         }
     }
 
@@ -423,40 +434,65 @@ public final class WeatherService {
             .appendingPathComponent("AllSet", isDirectory: true).appendingPathComponent("weather.json")
     }
 
-    public func refreshIfNeeded(_ location: WeatherLocation, maxAge: TimeInterval = WeatherService.refreshInterval) {
+    /// Fetches the forecast if it's older than `maxAge` and a recent failure isn't
+    /// still being waited out, and waits for it. Cancelling every caller waiting
+    /// on the fetch cancels it.
+    public func refresh(_ location: WeatherLocation, maxAge: TimeInterval = WeatherService.refreshInterval) async {
         if let report = reports[location], Date.now.timeIntervalSince(report.fetchedAt) < maxAge { return }
-        let key = "forecast|\(location.latitude),\(location.longitude)"
-        guard !inFlight.contains(key) else { return }
-        inFlight.insert(key)
-        Task {
-            defer { inFlight.remove(key) }
+        await fetch("forecast", location, using: fetchForecast, into: \.reports, failures: \.forecastFailures)
+    }
+
+    public func refreshAirQuality(_ location: WeatherLocation, maxAge: TimeInterval = WeatherService.refreshInterval) async {
+        if let report = airQuality[location], Date.now.timeIntervalSince(report.fetchedAt) < maxAge { return }
+        await fetch("air", location, using: fetchAirQuality, into: \.airQuality, failures: \.airQualityFailures)
+    }
+
+    /// Asked for by hand: fetches both now, whatever failed before.
+    public func refreshNow(_ location: WeatherLocation) async {
+        backoff.succeeded(Self.key("forecast", location))
+        backoff.succeeded(Self.key("air", location))
+        async let forecast: Void = refresh(location, maxAge: 0)
+        async let air: Void = refreshAirQuality(location, maxAge: 0)
+        _ = await (forecast, air)
+    }
+
+    /// For callers with nothing to own the fetch (previews, renders).
+    public func refreshIfNeeded(_ location: WeatherLocation, maxAge: TimeInterval = WeatherService.refreshInterval) {
+        Task { await refresh(location, maxAge: maxAge) }
+    }
+
+    public func refreshAirQualityIfNeeded(_ location: WeatherLocation, maxAge: TimeInterval = WeatherService.refreshInterval) {
+        Task { await refreshAirQuality(location, maxAge: maxAge) }
+    }
+
+    private static func key(_ kind: String, _ location: WeatherLocation) -> String {
+        "\(kind)|\(location.latitude),\(location.longitude)"
+    }
+
+    private func fetch<Report: Sendable>(_ kind: String, _ location: WeatherLocation, using fetch: @escaping Fetch<Report>,
+                                         into store: ReferenceWritableKeyPath<WeatherService, [WeatherLocation: Report]>,
+                                         failures: ReferenceWritableKeyPath<WeatherService, [WeatherLocation: String]>) async {
+        let key = Self.key(kind, location)
+        guard requests.isRunning(key) || backoff.allows(key) else { return }
+        await requests.run(key) { [self] in
             do {
-                reports[location] = try await client.forecast(for: location)
-                failures[location] = nil
+                let report = try await fetch(location)
+                self[keyPath: store][location] = report
+                self[keyPath: failures][location] = nil
+                backoff.succeeded(key)
                 save()
+            } catch where Self.isCancellation(error) {
+                // Every widget asking for it left the screen: not a failure.
             } catch {
-                log.error("Weather for \(location.name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
-                failures[location] = error.localizedDescription
+                log.error("Weather (\(kind, privacy: .public)) for \(location.name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+                self[keyPath: failures][location] = error.localizedDescription
+                backoff.failed(key)
             }
         }
     }
 
-    public func refreshAirQualityIfNeeded(_ location: WeatherLocation, maxAge: TimeInterval = WeatherService.refreshInterval) {
-        if let report = airQuality[location], Date.now.timeIntervalSince(report.fetchedAt) < maxAge { return }
-        let key = "air|\(location.latitude),\(location.longitude)"
-        guard !inFlight.contains(key) else { return }
-        inFlight.insert(key)
-        Task {
-            defer { inFlight.remove(key) }
-            do {
-                airQuality[location] = try await client.airQuality(for: location)
-                failures[location] = nil
-                save()
-            } catch {
-                log.error("Air quality for \(location.name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
-                failures[location] = error.localizedDescription
-            }
-        }
+    nonisolated static func isCancellation(_ error: Error) -> Bool {
+        error is CancellationError || (error as? URLError)?.code == .cancelled
     }
 
     private func save() {
@@ -468,7 +504,7 @@ public final class WeatherService {
     }
 
     public func searchLocations(_ query: String) async throws -> [WeatherLocation] {
-        try await client.searchLocations(query)
+        try await WeatherClient().searchLocations(query)
     }
 }
 

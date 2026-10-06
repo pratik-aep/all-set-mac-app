@@ -30,13 +30,7 @@ struct GitHubWidget: View {
                     .padding(WidgetMetrics.padding(size))
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .overlay(alignment: .bottomTrailing) {
-                        if github.error(config) != nil {
-                            Image(systemName: "exclamationmark.icloud")
-                                .font(.system(size: 10))
-                                .foregroundStyle(style.secondary)
-                                .padding(8)
-                                .help(github.error(config) ?? "")
-                        }
+                        WidgetStaleBadge(updated: snapshot.fetched, problem: github.error(config), interval: interval)
                     }
             } else if let error = github.error(config) {
                 WidgetStateView(kind: .error, symbol: "exclamationmark.triangle", title: "Couldn't reach GitHub", message: error)
@@ -47,13 +41,13 @@ struct GitHubWidget: View {
         .contentShape(Rectangle())
         .onTapGesture { openOnGitHub() }
         .contextMenu {
-            Button("Refresh Now") { github.refreshIfNeeded(config, maxAge: 0) }
+            Button("Refresh Now") { Task { await github.refreshNow(config) } }
             Button("Open on GitHub") { openOnGitHub() }
             Divider()
             WidgetMenuItems()
         }
         .widgetRefresh(every: interval, id: GitHubService.key(config)) {
-            github.refreshIfNeeded(config, maxAge: interval ?? .infinity)
+            await github.refresh(config, maxAge: interval ?? .infinity)
         }
     }
 

@@ -22,16 +22,19 @@ struct WeatherWidget: View {
                     forecast(report, location: location)
                         .padding(WidgetMetrics.padding(instance.size))
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .overlay(alignment: .bottomTrailing) {
+                            WidgetStaleBadge(updated: report.fetchedAt, problem: weather.forecastFailures[location], interval: interval)
+                        }
                 } else {
                     status(location)
                 }
             }
             // Only while it can be seen; the service fetches when the report is stale.
             .widgetRefresh(every: interval, id: location) {
-                weather.refreshIfNeeded(location, maxAge: interval ?? WeatherService.refreshInterval)
+                await weather.refresh(location, maxAge: interval ?? WeatherService.refreshInterval)
             }
             .contextMenu {
-                Button("Refresh Now") { weather.refreshIfNeeded(location, maxAge: 0) }
+                Button("Refresh Now") { Task { await weather.refreshNow(location) } }
                 Divider()
                 WidgetMenuItems()
             }
@@ -209,7 +212,7 @@ struct WeatherWidget: View {
     @ViewBuilder
     private func status(_ location: WeatherLocation) -> some View {
         VStack(spacing: 6) {
-            if weather.failures[location] != nil {
+            if weather.forecastFailures[location] != nil {
                 Image(systemName: "wifi.exclamationmark")
                     .font(.system(size: 22))
                 Text("Couldn't load weather for \(location.name)")
