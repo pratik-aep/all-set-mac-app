@@ -410,14 +410,9 @@ public enum GitHubKeychain {
         return String(data: data, encoding: .utf8)
     }
 
+    /// Replaces the token (nil or empty removes it). A failed save keeps the previous token.
     @discardableResult
     public static func setToken(_ token: String?) -> Bool {
-        let base: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-                                   kSecAttrAccount as String: "token"]
-        SecItemDelete(base as CFDictionary)
-        guard let token = token?.trimmingCharacters(in: .whitespacesAndNewlines), !token.isEmpty else { return true }
-        var item = base
-        item[kSecValueData as String] = Data(token.utf8)
-        return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
+        KeychainItem.store(token, service: service, account: "token")
     }
 }

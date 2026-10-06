@@ -49,18 +49,10 @@ public enum AIKeychain {
         return String(data: data, encoding: .utf8)
     }
 
+    /// Replaces the key (nil or empty removes it). A failed save keeps the previous key.
     @discardableResult
     public static func setKey(_ key: String?, for provider: AIProvider) -> Bool {
-        let base: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: provider.rawValue,
-        ]
-        SecItemDelete(base as CFDictionary)
-        guard let key = key?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else { return true }
-        var item = base
-        item[kSecValueData as String] = Data(key.utf8)
-        return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
+        KeychainItem.store(key, service: service, account: provider.rawValue)
     }
 }
 

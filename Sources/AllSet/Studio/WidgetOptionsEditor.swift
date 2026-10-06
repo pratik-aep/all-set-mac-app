@@ -1359,6 +1359,7 @@ private struct GitHubEditor: View {
 
     @State private var token = ""
     @State private var hasToken = GitHubKeychain.token != nil
+    @State private var tokenProblem: String?
 
     var body: some View {
         if let instance = services.widgets.instance(id) {
@@ -1394,6 +1395,9 @@ private struct GitHubEditor: View {
                     SecureField("Personal access token (optional)", text: $token)
                         .onSubmit(saveToken)
                     Button("Save Token", action: saveToken).disabled(token.isEmpty)
+                    if let tokenProblem {
+                        Text(tokenProblem).foregroundStyle(.red)
+                    }
                 }
             } footer: {
                 Text("A token raises the limit to 5,000 an hour. It's kept in your keychain, and a read-only public token is enough.")
@@ -1403,8 +1407,10 @@ private struct GitHubEditor: View {
 
     private func saveToken() {
         guard !token.isEmpty else { return }
-        hasToken = GitHubKeychain.setToken(token)
-        token = ""
+        let saved = GitHubKeychain.setToken(token)
+        hasToken = GitHubKeychain.token != nil
+        tokenProblem = saved ? nil : "Couldn't save the token in your keychain. The previous one, if any, is unchanged."
+        if saved { token = "" }
     }
 
     private func binding<Value>(_ keyPath: WritableKeyPath<GitHubConfig, Value>, _ fallback: Value) -> Binding<Value> {

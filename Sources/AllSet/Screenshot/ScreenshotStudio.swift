@@ -172,6 +172,7 @@ private struct AIPanel: View {
     @State private var keyDraft = ""
     @State private var hasKey = false
     @State private var editingKey = false
+    @State private var keyProblem: String?
 
     private let suggestions = [
         "Blur any personal info",
@@ -260,6 +261,9 @@ private struct AIPanel: View {
             SecureField(studio.provider.keyPrefix + "…", text: $keyDraft)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit(saveKey)
+            if let keyProblem {
+                Text(keyProblem).font(.caption).foregroundStyle(.red)
+            }
             HStack {
                 Link("Get a key", destination: studio.provider.keyPageURL)
                 Spacer()
@@ -310,7 +314,11 @@ private struct AIPanel: View {
     }
 
     private func saveKey() {
-        guard AIKeychain.setKey(keyDraft, for: studio.provider) else { return }
+        guard AIKeychain.setKey(keyDraft, for: studio.provider) else {
+            keyProblem = "Couldn't save the key in your keychain. The previous key, if any, is unchanged."
+            return
+        }
+        keyProblem = nil
         keyDraft = ""
         editingKey = false
         refreshKey()
