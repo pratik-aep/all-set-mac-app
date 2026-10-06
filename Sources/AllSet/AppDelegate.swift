@@ -4,7 +4,12 @@ import MetalKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let services = AppServices()
+    /// A restore chosen before the last quit is swapped in first, so every
+    /// store the services create reads the restored files.
+    let services: AppServices = {
+        AppData.applyStagedRestore()
+        return AppServices()
+    }()
     private var notch: NotchController?
     private var widgets: DesktopWidgetController?
     private var wallpaper: WallpaperController?
@@ -295,6 +300,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if services.settings.showInDock, !skipped.contains("window") {
             services.openWindow()
         }
+        // If a restore was waiting, say how it went, once everything is up.
+        AppData.presentLaunchRestoreOutcome()
     }
 
     /// A Dock icon and app menu, or menu-bar-only.

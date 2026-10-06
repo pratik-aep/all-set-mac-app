@@ -248,8 +248,9 @@ struct MainView: View {
         case .lidPlane:
             LidPlanePage(services: services)
         case .general:
-            FormPage(eyebrow: "System", title: "General", subtitle: "Startup, the Dock and the menu bar.") {
+            FormPage(eyebrow: "System", title: "General", subtitle: "Startup, the Dock, the menu bar, and your data.") {
                 GeneralSettings(settings: services.settings)
+                DataPrivacySettings(services: services)
             }
         case .about:
             FormPage(eyebrow: "System", title: "About") { AboutSettings() }
