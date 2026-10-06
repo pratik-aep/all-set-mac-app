@@ -40,7 +40,10 @@ def tunnel_is_open(port=5432):
         return probe.connect_ex(("127.0.0.1", port)) == 0
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PSQL = "/opt/homebrew/bin/psql" if os.path.exists("/opt/homebrew/bin/psql") else "psql"
+sys.path.insert(0, HERE)
+import catalog_lock  # noqa: E402
+
+PSQL ="/opt/homebrew/bin/psql" if os.path.exists("/opt/homebrew/bin/psql") else "psql"
 
 COLUMNS = ["id", "title", "kind", "category", "tags", "origin_root", "origin_file",
            "playback_key", "still_key", "thumbnail_key", "duration", "width", "height",
@@ -141,11 +144,16 @@ drop table if exists staging.wallpapers;
 create table staging.wallpapers (like wallpapers including all);
 \\copy staging.wallpapers ({cols}) from stdin with (format csv, header true)
 {buf.getvalue()}\\.
+begin;
+-- The lock every catalog writer takes (catalog_lock.py): a delete on the server
+-- can't interleave with this.
+select pg_advisory_xact_lock({catalog_lock.ASSET_LOCK});
 insert into wallpapers ({cols}, synced_at)
 select {cols}, now() from staging.wallpapers
 on conflict (id) do update set
     {updates},
     synced_at = now();
+commit;
 drop table staging.wallpapers;
 select count(*) as total_in_cloud from wallpapers;
 """

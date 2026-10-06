@@ -46,6 +46,18 @@ The app's own "checked on your server" count is stronger evidence than any of th
 
 A delete needs three things in order: this Mac's SSH key (for the tunnel), the delete token, and Touch ID or the Mac password in the app.
 
+## Deleting, and writing storage keys
+
+A delete from the app removes the wallpaper's row and retires its files. Retired files move to `~/AllSetStorage/wallpapers/.retired/<id>/<time>/` and stay there for 7 days (`--retention-days`), so **a delete frees the server's disk space a week later, not at once**.
+
+That window is what protects a file another wallpaper comes to use:
+
+- Anything that deletes a row, or sets or changes `playback_key`, `still_key` or `thumbnail_key`, must do it in a transaction that first runs `select pg_advisory_xact_lock(<ASSET_LOCK>)`. The number is in `scripts/cloud/catalog_lock.py`. The delete service and `sync_catalog.py` both take it. A writer must also only point a key at a file that exists in storage.
+- A writer that skips the lock, such as a manual `UPDATE` in psql, is still covered while the file is retired. The delete service puts back any retired file that a row references. It checks after every delete, at startup and every 10 minutes.
+- After the retention, an unreferenced retired file is removed for good. A reference written later than that points at nothing.
+
+`.trash/<id>/` is different: it holds files only while one delete is in progress, and is settled at the next start if the service stopped midway.
+
 ## Tests
 
 `/usr/bin/python3 -m unittest scripts/cloud/test_sync_catalog.py scripts/cloud/test_delete_service.py scripts/cloud/test_catalog_service.py` runs the server scripts against a throwaway Postgres 17 (`pgtest.py`). CI runs the same tests and fails if any are skipped.
@@ -58,6 +70,7 @@ These are gaps, listed so nobody assumes they exist.
 - **Backups.** Nothing in this repository backs up the database or the files. `push_wallpapers.sh` makes the server a second copy of the Mac's files, but a wallpaper freed from the Mac then exists only on the server.
 - **Restore drill.** No restore has been rehearsed. Until one has, treat the server as a convenience copy and not as a backup.
 - **Migrations.** `schema.sql` is `create table if not exists`. There is no versioned migration, so a column change has to be applied by hand.
+- **The upload step.** Something outside this repository fills in the storage keys after files are pushed. Whatever does that must follow the lock rule above; nothing here can check that it does.
 - **Scale.** The catalog service runs `psql` once per request and returns the whole list, with no pagination and no limit on concurrent requests. This is fine for one tester.
 
 A reasonable first step for backups, not yet done or tested: on the server, a nightly `pg_dump allset` and an rsync of `~/AllSetStorage/wallpapers` to a second disk, followed by one rehearsed restore into a scratch database and folder.

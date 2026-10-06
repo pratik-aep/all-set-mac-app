@@ -135,41 +135,132 @@ class DeleteServiceTests(unittest.TestCase):
         self.assertTrue(self.has_row("bbbb"))
 
     def test_a_file_another_row_starts_using_during_the_delete_goes_back(self):
-        """The reference check is repeated after the row is gone."""
-        self.row("aaaa")
+        """Recheck S1, its reproduction: right after the delete's reference check
+        said "nobody else", a writer that takes no lock points B at A's file.
+        The delete used to answer 200 and destroy the file B now plays."""
+        self.row("aaaa", playback="live/aaaa.mp4")
+        self.row("bbbb")
         self.file("live/aaaa.mp4", "original")
-        real_sql = delete_service.sql
+        real = delete_service.delete_row_and_find_shared
 
-        def sql_then_reference(statement):
-            out = real_sql(statement)
-            if statement.startswith("delete from wallpapers"):
-                real_sql("insert into wallpapers (id, title, kind, category, playback_key) "
-                         "values ('bbbb', 't', 'video', 'abstract', 'live/aaaa.mp4')")
-            return out
-        delete_service.sql = sql_then_reference
+        def check_then_reference(item_id, relatives):
+            shared = real(item_id, relatives)
+            self.assertEqual(shared, [])
+            self.pg.sql("update wallpapers set playback_key = 'live/aaaa.mp4' where id = 'bbbb'")
+            return shared
+        delete_service.delete_row_and_find_shared = check_then_reference
         try:
-            self.assertEqual(self.request({"id": "aaaa"})[0], 200)
+            status, body = self.request({"id": "aaaa"})
         finally:
-            delete_service.sql = real_sql
+            delete_service.delete_row_and_find_shared = real
+        self.assertEqual(status, 200)
+        self.assertFalse(self.has_row("aaaa"))
+        self.assertEqual(self.pg.sql("select playback_key from wallpapers where id = 'bbbb'"), "live/aaaa.mp4")
+        with open(os.path.join(self.storage, "live/aaaa.mp4")) as handle:
+            self.assertEqual(handle.read(), "original")
+        self.assertNotIn("live/aaaa.mp4", body["removedFiles"])
+        self.assertIn("live/aaaa.mp4", body["keptBecauseShared"])
+
+    def test_a_reference_written_after_the_delete_answered_gets_its_file_back(self):
+        """Recheck S1: later still, with the delete long finished. The file is
+        retired, not destroyed, so the next sweep puts it back."""
+        self.row("aaaa", playback="live/aaaa.mp4")
+        self.row("bbbb")
+        self.file("live/aaaa.mp4", "original")
+        self.assertEqual(self.request({"id": "aaaa"})[0], 200)
+        self.assertFalse(self.exists("live/aaaa.mp4"))
+
+        self.pg.sql("update wallpapers set playback_key = 'live/aaaa.mp4' where id = 'bbbb'")
+        restored, removed = delete_service.sweep_retired()
+        self.assertEqual((restored, removed), (["live/aaaa.mp4"], []))
+        with open(os.path.join(self.storage, "live/aaaa.mp4")) as handle:
+            self.assertEqual(handle.read(), "original")
+        self.assertFalse(os.path.exists(delete_service.retired_dir("aaaa")))
+
+    def test_a_writer_holding_the_catalog_lock_is_waited_for(self):
+        """Recheck S1, the coordinated case: a writer that takes the catalog lock
+        and commits a reference while the delete is under way is seen by the
+        delete's own check, which waits for it."""
+        import subprocess
+        import time
+        import catalog_lock
+        self.row("aaaa", playback="live/aaaa.mp4")
+        self.row("bbbb")
+        self.file("live/aaaa.mp4", "original")
+        writer = subprocess.Popen(
+            [pgtest.PSQL, self.pg.url, "-q", "-v", "ON_ERROR_STOP=1", "-c",
+             f"begin; select pg_advisory_xact_lock({catalog_lock.ASSET_LOCK}); "
+             "update wallpapers set playback_key = 'live/aaaa.mp4' where id = 'bbbb'; "
+             "select pg_sleep(1.2); commit;"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        try:
+            # Once the writer holds the lock, nobody else can take it.
+            for _ in range(100):
+                if self.pg.sql(f"select pg_try_advisory_lock({catalog_lock.ASSET_LOCK})") == "f":
+                    break
+                time.sleep(0.02)
+            else:
+                self.fail("the writer never took the lock")
+            started = time.monotonic()
+            status, body = self.request({"id": "aaaa"})
+            waited = time.monotonic() - started
+        finally:
+            self.assertEqual(writer.wait(timeout=20), 0, writer.stderr.read())
+            writer.stderr.close()
+        self.assertEqual(status, 200)
+        self.assertGreater(waited, 0.5)
         self.assertTrue(self.exists("live/aaaa.mp4"))
+        self.assertEqual(body["keptBecauseShared"], ["live/aaaa.mp4"])
+        self.assertEqual(body["removedFiles"], [])
+
+    def retired_names(self, item_id):
+        return sorted(name for _, _, names in os.walk(delete_service.retired_dir(item_id)) for name in names)
+
+    def test_deleted_files_are_kept_for_the_retention_then_removed(self):
+        import time
+        self.row("aaaa", playback="live/aaaa.mp4")
+        self.file("live/aaaa.mp4", "original")
+        status, body = self.request({"id": "aaaa"})
+        self.assertEqual((status, body["recoverableDays"]), (200, delete_service.RETENTION_DAYS))
+        batches = os.listdir(delete_service.retired_dir("aaaa"))
+        self.assertEqual(len(batches), 1)
+        held = os.path.join(delete_service.retired_dir("aaaa"), batches[0], "live/aaaa.mp4")
+        with open(held) as handle:
+            self.assertEqual(handle.read(), "original")
+
+        day = 86400
+        self.assertEqual(delete_service.sweep_retired(now=time.time() + (delete_service.RETENTION_DAYS - 1) * day), ([], []))
+        self.assertTrue(os.path.exists(held))
+        self.assertEqual(delete_service.sweep_retired(now=time.time() + (delete_service.RETENTION_DAYS + 1) * day),
+                         ([], ["live/aaaa.mp4"]))
+        self.assertFalse(os.path.exists(delete_service.retired_dir("aaaa")))
+
+    def test_a_sweep_that_cant_ask_the_database_removes_nothing(self):
+        import time
+        self.file("live/aaaa.mp4", "original")
+        self.assertEqual(self.request({"id": "aaaa"})[0], 200)
+        good = delete_service.DATABASE_URL
+        delete_service.DATABASE_URL = f"postgres://allset@127.0.0.1:{pgtest.free_port()}/postgres"
+        try:
+            self.assertEqual(delete_service.sweep_retired(now=time.time() + 365 * 86400), ([], []))
+        finally:
+            delete_service.DATABASE_URL = good
+        self.assertEqual(self.retired_names("aaaa"), ["aaaa.mp4"])
 
     def test_rollback_never_discards_an_original_when_its_place_was_taken(self):
         """Review R7: the destination is recreated while the delete is staged and
         the database step then fails: the original stays held, nothing is lost."""
         self.row("aaaa")
         self.file("live/aaaa.mp4", "original")
-        real_sql = delete_service.sql
+        real = delete_service.delete_row_and_find_shared
 
-        def recreate_then_fail(statement):
-            if statement.startswith("delete from wallpapers"):
-                self.file("live/aaaa.mp4", "replacement")
-                raise delete_service.DatabaseError("database says no")
-            return real_sql(statement)
-        delete_service.sql = recreate_then_fail
+        def recreate_then_fail(item_id, relatives):
+            self.file("live/aaaa.mp4", "replacement")
+            raise delete_service.DatabaseError("database says no")
+        delete_service.delete_row_and_find_shared = recreate_then_fail
         try:
             status, body = self.request({"id": "aaaa"})
         finally:
-            delete_service.sql = real_sql
+            delete_service.delete_row_and_find_shared = real
         self.assertEqual(status, 503)
         self.assertEqual(body.get("conflicts"), ["live/aaaa.mp4"])
         with open(os.path.join(self.storage, "live/aaaa.mp4")) as handle:

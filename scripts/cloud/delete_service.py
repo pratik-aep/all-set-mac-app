@@ -26,14 +26,29 @@ A delete is staged so the files and the database can't end up disagreeing:
 the files move into STORAGE/.trash/<id>/ first, then the row is deleted, then
 the quarantine is emptied. If the database step fails, the files move back and
 nothing has changed (503: retry). A quarantine left behind by a crash is
-settled at startup: files go back if the row is still there, or are removed if
+settled at startup: files go back if the row is still there, or are retired if
 it's gone.
+
+Two things keep a file that another wallpaper comes to use from being lost:
+
+- The row is deleted and "does another row use these files?" is asked in one
+  transaction, under the lock every catalog writer takes (catalog_lock.py). A
+  writer that takes the lock either commits first, and its file is kept, or
+  waits and then finds the file no longer in place.
+- Deleted files are retired, not destroyed: they move to
+  STORAGE/.retired/<id>/<time>/ and stay for RETENTION_DAYS. A retired file
+  that any row references, however and whenever that reference was written
+  (a manual UPDATE that takes no lock, say), is put back by the sweep, which
+  runs after every delete, at startup and every few minutes. Only an
+  unreferenced file past the retention is removed for good. So a delete frees
+  the server's disk space RETENTION_DAYS later; --retention-days 0 removes at
+  once, with no such protection.
 
 Replies: 200 deleted, 404 nothing known by that id (already gone), 400/413 a
 malformed request, 503 the database wasn't reachable (nothing changed).
 
 Usage (on the server):
-    /usr/bin/python3 scripts/cloud/delete_service.py [--port 8081]
+    /usr/bin/python3 scripts/cloud/delete_service.py [--port 8081] [--retention-days 7]
 Tests:
     /usr/bin/python3 -m unittest scripts/cloud/test_delete_service.py
 """
@@ -42,10 +57,14 @@ import json
 import os
 import re
 import secrets
-import shutil
 import subprocess
 import sys
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import catalog_lock  # noqa: E402
 
 STORAGE = os.path.expanduser("~/AllSetStorage/wallpapers")
 TOKEN_PATH = os.path.expanduser("~/.allset_delete_token")
@@ -58,6 +77,11 @@ ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MAX_BODY = 16 * 1024
 DATABASE_TIMEOUT = 20  # seconds for one psql call
 KEY_COLUMNS = ("playback_key", "still_key", "thumbnail_key")
+# How long a deleted wallpaper's files stay recoverable before they're removed for good.
+RETENTION_DAYS = 7
+SWEEP_INTERVAL = 600  # seconds between sweeps of the retired files
+# One delete or sweep at a time: both move files in and out of the same places.
+BUSY = threading.Lock()
 
 
 class DatabaseError(Exception):
@@ -92,6 +116,11 @@ def trash_dir(item_id):
     return os.path.join(STORAGE, ".trash", item_id)
 
 
+def retired_dir(item_id=None):
+    root = os.path.join(STORAGE, ".retired")
+    return root if item_id is None else os.path.join(root, item_id)
+
+
 def quote(value):
     # Ids are checked against ID_PATTERN before reaching SQL; quoted regardless.
     return "'" + value.replace("'", "''") + "'"
@@ -106,6 +135,54 @@ def sql(statement):
     if result.returncode != 0:
         raise DatabaseError(result.stderr.strip() or f"psql exited {result.returncode}")
     return result.stdout.strip()
+
+
+def sql_script(script):
+    """Several statements in one session (so one transaction can span them).
+    Returns the output lines."""
+    try:
+        result = subprocess.run([PSQL, DATABASE_URL, "-q", "-At", "-v", "ON_ERROR_STOP=1", "-f", "-"],
+                                input=script, capture_output=True, text=True, timeout=DATABASE_TIMEOUT)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise DatabaseError(str(error))
+    if result.returncode != 0:
+        raise DatabaseError(result.stderr.strip() or f"psql exited {result.returncode}")
+    return result.stdout.splitlines()
+
+
+def text_array(values):
+    return "array[%s]::text[]" % ", ".join(quote(value) for value in values)
+
+
+def delete_row_and_find_shared(item_id, relatives):
+    """Deletes the row and says which of `relatives` another row references, in
+    one transaction under the catalog's asset lock: no writer that takes the
+    lock can add a reference between the question and the delete. The lock is a
+    statement of its own, so the next statement sees what a writer it waited
+    for committed."""
+    marker = "shared:"
+    columns = ", ".join("w." + column for column in KEY_COLUMNS)
+    lines = sql_script(f"""begin;
+select pg_advisory_xact_lock({catalog_lock.ASSET_LOCK});
+with gone as (delete from wallpapers where id = {quote(item_id)} returning 1)
+select '{marker}' || coalesce(json_agg(m.k), '[]')::text from unnest({text_array(relatives)}) as m(k)
+ where exists (select 1 from wallpapers w where w.id <> {quote(item_id)} and m.k in ({columns}));
+commit;
+""")
+    for line in lines:
+        if line.startswith(marker):
+            return json.loads(line[len(marker):])
+    raise DatabaseError("the delete gave no answer")
+
+
+def referenced_keys(relatives):
+    """Which of `relatives` any row references."""
+    if not relatives:
+        return set()
+    out = sql("select coalesce(json_agg(m.k), '[]') from unnest(%s) as m(k) where exists "
+              "(select 1 from wallpapers w where m.k in (%s))"
+              % (text_array(relatives), ", ".join("w." + column for column in KEY_COLUMNS)))
+    return set(json.loads(out or "[]"))
 
 
 def row_keys(item_id):
@@ -191,8 +268,8 @@ def settle_quarantine(item_id):
         held = held_files(item_id)
         reused = [relative for relative in held if key_used_elsewhere(relative, item_id)]
         conflicts = restore_quarantine(item_id, only=set(reused)) if reused else []
-        if not conflicts:
-            shutil.rmtree(trash_dir(item_id), ignore_errors=True)
+        # The rest is what that delete was removing: retired like any other.
+        retire(item_id, keep=set(conflicts))
         return conflicts
     return restore_quarantine(item_id)
 
@@ -201,6 +278,68 @@ def held_files(item_id):
     root = trash_dir(item_id)
     return sorted(os.path.relpath(os.path.join(base, name), root)
                   for base, _, names in os.walk(root) for name in names)
+
+
+def retire(item_id, keep=()):
+    """Moves what the quarantine still holds (but `keep`) into a retirement
+    batch of its own, named by the time. Returns the relative paths retired."""
+    batch = os.path.join(retired_dir(item_id), str(time.time_ns()))
+    retired = []
+    for relative in held_files(item_id):
+        if relative in keep:
+            continue
+        move(os.path.join(trash_dir(item_id), relative), os.path.join(batch, relative))
+        retired.append(relative)
+    remove_if_empty(trash_dir(item_id))
+    return retired
+
+
+def sweep_retired(only=None, now=None):
+    """Retired files that a row references go back to their places; the rest
+    are removed for good once they've been retired RETENTION_DAYS. Returns
+    (restored, removed) relative paths. A database that can't be asked changes
+    nothing: everything stays retired."""
+    restored, removed = [], []
+    now = time.time() if now is None else now
+    root = retired_dir()
+    if not os.path.isdir(root):
+        return restored, removed
+    for item_id in sorted(os.listdir(root)):
+        if not ID_PATTERN.match(item_id) or (only is not None and item_id != only):
+            continue
+        for stamp in sorted(os.listdir(retired_dir(item_id))):
+            batch = os.path.join(retired_dir(item_id), stamp)
+            if not stamp.isdigit() or not os.path.isdir(batch):
+                continue
+            files = sorted(os.path.relpath(os.path.join(base, name), batch)
+                           for base, _, names in os.walk(batch) for name in names)
+            try:
+                referenced = referenced_keys(files)
+            except DatabaseError as error:
+                print(f"Couldn't check retired files of {item_id}: {error}", file=sys.stderr)
+                continue
+            expired = now - int(stamp) / 1e9 >= RETENTION_DAYS * 86400
+            for relative in files:
+                destination = safe_path(relative)
+                if relative in referenced and destination is not None and not os.path.exists(destination):
+                    move(os.path.join(batch, relative), destination)
+                    restored.append(relative)
+                elif expired and relative not in referenced:
+                    os.remove(os.path.join(batch, relative))
+                    removed.append(relative)
+            remove_if_empty(batch)
+        remove_if_empty(retired_dir(item_id))
+    return restored, removed
+
+
+def sweep_forever():
+    while True:
+        time.sleep(SWEEP_INTERVAL)
+        with BUSY:
+            try:
+                sweep_retired()
+            except OSError as error:
+                print(f"Sweeping retired files failed: {error}", file=sys.stderr)
 
 
 def settle_all_quarantines():
@@ -220,6 +359,11 @@ def settle_all_quarantines():
 
 def delete_wallpaper(item_id):
     """(status, body) for deleting one wallpaper everywhere on this server."""
+    with BUSY:
+        return _delete_wallpaper(item_id)
+
+
+def _delete_wallpaper(item_id):
     try:
         conflicts = settle_quarantine(item_id)
         if conflicts:
@@ -242,32 +386,30 @@ def delete_wallpaper(item_id):
         return 500, {"error": "couldn't move the files aside; nothing was deleted", "detail": str(error),
                      **({"conflicts": conflicts} if conflicts else {})}
 
-    if keys is not None:
-        try:
-            sql("delete from wallpapers where id = %s" % quote(item_id))
-        except DatabaseError as error:
-            conflicts = restore_quarantine(item_id)
-            body = {"error": "database delete failed; files restored, nothing was deleted", "detail": error.args[0]}
-            if conflicts:
-                body.update(error="database delete failed; some files' places were taken meanwhile, so those "
-                                  "originals are kept in quarantine (nothing was lost)",
-                            conflicts=conflicts, quarantine=trash_dir(item_id))
-            return 503, body
-
-    # Checked again now the row is gone: a file another row started using meanwhile goes back.
+    # The row goes, and "does another row use these files?" is answered, as one
+    # step under the catalog's lock.
     try:
-        reused = [relative for relative in moved if key_used_elsewhere(relative, item_id)]
-    except DatabaseError:
-        reused = list(moved)  # can't tell: keep everything, settled at the next start
+        reused = delete_row_and_find_shared(item_id, moved)
+    except DatabaseError as error:
+        conflicts = restore_quarantine(item_id)
+        body = {"error": "database delete failed; files restored, nothing was deleted", "detail": error.args[0]}
+        if conflicts:
+            body.update(error="database delete failed; some files' places were taken meanwhile, so those "
+                              "originals are kept in quarantine (nothing was lost)",
+                        conflicts=conflicts, quarantine=trash_dir(item_id))
+        return 503, body
+
     conflicts = restore_quarantine(item_id, only=set(reused)) if reused else []
-    # Everything still held is what this delete removes, except a conflict, which stays.
-    for relative in held_files(item_id):
-        if relative not in conflicts:
-            os.remove(os.path.join(trash_dir(item_id), relative))
-    remove_if_empty(trash_dir(item_id))
-    removed = [relative for relative in moved if relative not in reused]
+    # Everything still held is what this delete removes, except a conflict, which
+    # stays. Retired, not destroyed: a reference written since the check above by
+    # something that doesn't take the lock gets its file back, now or at a later sweep.
+    retire(item_id, keep=set(conflicts))
+    restored, _ = sweep_retired(only=item_id)
+    removed = [relative for relative in moved if relative not in reused and relative not in restored]
+    kept = sorted(set(reused) | set(restored))
     return 200, {"removedFiles": removed, "database": "deleted" if keys is not None else "no row",
-                 **({"keptBecauseShared": sorted(reused)} if reused else {}),
+                 "recoverableDays": RETENTION_DAYS,
+                 **({"keptBecauseShared": kept} if kept else {}),
                  **({"conflicts": conflicts} if conflicts else {})}
 
 
@@ -321,11 +463,20 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    global RETENTION_DAYS
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8081)
+    parser.add_argument("--retention-days", type=float, default=RETENTION_DAYS,
+                        help="how long a deleted wallpaper's files stay recoverable (0: removed at once)")
     args = parser.parse_args()
+    RETENTION_DAYS = args.retention_days
     Handler.token = load_or_create_token()
     settle_all_quarantines()
+    restored, removed = sweep_retired()
+    if restored or removed:
+        print(f"Retired files: {len(restored)} put back (a row uses them), "
+              f"{len(removed)} removed after {RETENTION_DAYS} days")
+    threading.Thread(target=sweep_forever, daemon=True).start()
     server = HTTPServer(("127.0.0.1", args.port), Handler)
     print(f"delete service on 127.0.0.1:{args.port} (localhost only; reach it through the SSH tunnel)")
     server.serve_forever()
