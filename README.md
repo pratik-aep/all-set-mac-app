@@ -1,0 +1,1 @@
+Screenshots of 482a88a3b4fad3c476c9b4e96cedcb32f2ac64a1 (restore-missing-tabs)
