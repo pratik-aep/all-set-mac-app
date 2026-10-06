@@ -202,6 +202,11 @@ import Testing
         #expect(StatusService.statusPage(Data(#"{"status":{"indicator":"major","description":"Major Outage"}}"#.utf8))?.health == .down)
         #expect(StatusService.statusPage(Data("<html>".utf8)) == nil)
         #expect(StatusService.url("example.com")?.absoluteString == "https://example.com")
+        // Review P6: only scheme and host fold case; paths and queries keep theirs.
+        #expect(StatusService.key("HTTPS://Example.COM/Health") == StatusService.key("https://example.com/Health"))
+        #expect(StatusService.key("example.com") == StatusService.key("https://EXAMPLE.com/"))
+        #expect(StatusService.key("https://example.com/Status") != StatusService.key("https://example.com/status"))
+        #expect(StatusService.key("https://example.com/s?token=AbC") != StatusService.key("https://example.com/s?token=abc"))
     }
 }
 

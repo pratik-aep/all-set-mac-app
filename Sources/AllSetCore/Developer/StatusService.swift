@@ -96,7 +96,17 @@ public final class StatusService {
         return (health, page.status.description)
     }
 
-    nonisolated static func key(_ address: String) -> String { address.trimmingCharacters(in: .whitespaces).lowercased() }
+    /// Which checks are the same check: the scheme and host don't care about
+    /// case, but a path or query can (`/Status` and `/status` may differ), so
+    /// only those two are folded. "example.com" is https://example.com/.
+    nonisolated static func key(_ address: String) -> String {
+        let trimmed = address.trimmingCharacters(in: .whitespaces)
+        guard let url = url(trimmed), var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return trimmed }
+        components.scheme = components.scheme?.lowercased()
+        components.percentEncodedHost = components.percentEncodedHost?.lowercased()
+        if components.percentEncodedPath.isEmpty { components.percentEncodedPath = "/" }
+        return components.string ?? trimmed
+    }
 
     /// "example.com" means https://example.com.
     nonisolated static func url(_ address: String) -> URL? {
