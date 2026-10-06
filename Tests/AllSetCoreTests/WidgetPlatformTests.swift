@@ -127,6 +127,39 @@ import Testing
 }
 
 @Suite struct DeveloperDataTests {
+    /// Review D3: cached GitHub data (possibly private) belongs to the credential
+    /// that fetched it; another token, or none, never sees it.
+    @Test @MainActor func cachedGitHubDataIsScopedToTheCredential() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("AllSetGitHub-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let cache = folder.appendingPathComponent("github.json")
+        let config = GitHubConfig(mode: .activity, user: "someone")
+        let key = GitHubService.key(config)
+        let snapshot = GitHubService.Snapshot(data: .events([]), fetched: .now)
+        try JSONEncoder().encode(["tokenA|" + key: snapshot, "tokenB|" + key: snapshot]).write(to: cache)
+
+        let asA = GitHubService(cacheURL: cache, scope: { "tokenA" })
+        #expect(asA.snapshot(config) != nil)
+        // Loading as A dropped B's entry from disk as well.
+        let onDisk = try JSONDecoder().decode([String: GitHubService.Snapshot].self, from: Data(contentsOf: cache))
+        #expect(Array(onDisk.keys) == ["tokenA|" + key])
+
+        let asB = GitHubService(cacheURL: cache, scope: { "tokenB" })
+        #expect(asB.snapshot(config) == nil)
+        let anonymous = GitHubService(cacheURL: cache, scope: { "anonymous" })
+        #expect(anonymous.snapshot(config) == nil)
+
+        asA.purgeCache()
+        #expect(asA.snapshot(config) == nil)
+        #expect(!FileManager.default.fileExists(atPath: cache.path))
+
+        // A fingerprint, never the token itself.
+        #expect(GitHubKeychain.fingerprint("ghp_secret") != "ghp_secret")
+        #expect(GitHubKeychain.fingerprint("ghp_secret").count == 16)
+        #expect(GitHubKeychain.fingerprint(nil) == "anonymous")
+    }
+
     @Test func contributionsParseFromTheProfilePage() {
         let html = """
         <td tabindex="0" data-ix="0" style="width: 10px" data-date="2026-09-20" id="contribution-day-component-0-0" data-level="0" role="gridcell" class="ContributionCalendar-day"></td>

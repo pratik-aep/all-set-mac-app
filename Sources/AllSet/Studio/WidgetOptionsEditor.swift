@@ -1388,7 +1388,8 @@ private struct GitHubEditor: View {
                     LabeledContent("Personal access token") {
                         Button("Remove") {
                             GitHubKeychain.setToken(nil)
-                            hasToken = false
+                            services.github.purgeCache()
+                            hasToken = GitHubKeychain.token != nil
                         }
                     }
                 } else {
@@ -1408,6 +1409,7 @@ private struct GitHubEditor: View {
     private func saveToken() {
         guard !token.isEmpty else { return }
         let saved = GitHubKeychain.setToken(token)
+        if saved { services.github.purgeCache() }
         hasToken = GitHubKeychain.token != nil
         tokenProblem = saved ? nil : "Couldn't save the token in your keychain. The previous one, if any, is unchanged."
         if saved { token = "" }

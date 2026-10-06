@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Observation
 import OSLog
@@ -334,22 +335,41 @@ public final class GitHubService {
         public var fetched: Date
     }
 
+    /// Keyed by the credential's scope (see `GitHubKeychain.credentialScope`) and
+    /// then the widget's configuration: data fetched with one token is never shown
+    /// under another, or without one.
     public private(set) var snapshots: [String: Snapshot] = [:]
     public private(set) var errors: [String: String] = [:]
 
     @ObservationIgnored private var inFlight = Set<String>()
     @ObservationIgnored private var pausedUntil: Date?
     @ObservationIgnored private let cacheURL: URL?
+    @ObservationIgnored private let scope: () -> String
     @ObservationIgnored private let log = Logger(subsystem: "com.pratik.allset", category: "github")
 
     public init(cacheURL: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-                    .appendingPathComponent("AllSet", isDirectory: true).appendingPathComponent("github.json")) {
+                    .appendingPathComponent("AllSet", isDirectory: true).appendingPathComponent("github.json"),
+                scope: @escaping () -> String = { GitHubKeychain.credentialScope }) {
         self.cacheURL = cacheURL
+        self.scope = scope
         if let cacheURL, let data = try? Data(contentsOf: cacheURL),
            let saved = try? JSONDecoder().decode([String: Snapshot].self, from: data) {
-            snapshots = saved
+            // Only what the current credential fetched; anything else is dropped from disk too.
+            let prefix = scope() + "|"
+            snapshots = saved.filter { $0.key.hasPrefix(prefix) }
+            if snapshots.count != saved.count { save() }
         }
     }
+
+    /// Forgets every cached answer and error, on disk too: called when the token
+    /// is saved or removed, so another account's private data can't linger.
+    public func purgeCache() {
+        snapshots = [:]
+        errors = [:]
+        if let cacheURL { try? FileManager.default.removeItem(at: cacheURL) }
+    }
+
+    private func scopedKey(_ config: GitHubConfig) -> String { scope() + "|" + Self.key(config) }
 
     public nonisolated static func key(_ config: GitHubConfig) -> String {
         let who = config.mode.needsRepository ? config.repository : config.user
@@ -362,12 +382,12 @@ public final class GitHubService {
         return !config.user.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    public func snapshot(_ config: GitHubConfig) -> Snapshot? { snapshots[Self.key(config)] }
-    public func error(_ config: GitHubConfig) -> String? { errors[Self.key(config)] }
+    public func snapshot(_ config: GitHubConfig) -> Snapshot? { snapshots[scopedKey(config)] }
+    public func error(_ config: GitHubConfig) -> String? { errors[scopedKey(config)] }
 
     public func refreshIfNeeded(_ config: GitHubConfig, maxAge: TimeInterval) {
         guard Self.isConfigured(config) else { return }
-        let key = Self.key(config)
+        let key = scopedKey(config)
         if let snapshot = snapshots[key], Date.now.timeIntervalSince(snapshot.fetched) < maxAge { return }
         if let pausedUntil, pausedUntil > .now { return }
         guard !inFlight.contains(key) else { return }
@@ -400,6 +420,20 @@ public final class GitHubService {
 public enum GitHubKeychain {
     private static let service = "com.pratik.allset.github"
 
+    /// Which credential cached data belongs to: "anonymous", or a fingerprint (part
+    /// of a SHA-256) of the token, never the token. Kept in UserDefaults and updated
+    /// whenever the token is saved or removed, so launching never reads the Keychain.
+    public static var credentialScope: String {
+        UserDefaults.standard.string(forKey: scopeKey) ?? "anonymous"
+    }
+
+    static let scopeKey = "github.credentialScope"
+
+    public static func fingerprint(_ token: String?) -> String {
+        guard let token = token?.trimmingCharacters(in: .whitespacesAndNewlines), !token.isEmpty else { return "anonymous" }
+        return SHA256.hash(data: Data(token.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
+    }
+
     public static var token: String? {
         var result: CFTypeRef?
         let query: [String: Any] = [
@@ -413,6 +447,8 @@ public enum GitHubKeychain {
     /// Replaces the token (nil or empty removes it). A failed save keeps the previous token.
     @discardableResult
     public static func setToken(_ token: String?) -> Bool {
-        KeychainItem.store(token, service: service, account: "token")
+        let stored = KeychainItem.store(token, service: service, account: "token")
+        if stored { UserDefaults.standard.set(fingerprint(token), forKey: scopeKey) }
+        return stored
     }
 }
