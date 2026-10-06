@@ -79,11 +79,27 @@ The recheck reviewed `e94e675` and found four defects still open. Two were intro
 
 | Finding | What was still wrong | Status | Commit |
 |---|---|---|---|
-| S1 | A reference written during or after a server delete lost its file | Fixed: the row delete and the shared-file check are one transaction under a lock every catalog writer takes (`catalog_lock.py`, also taken by `sync_catalog.py`); deleted files are retired for 7 days and put back if any row references them. Server disk space is freed a week after a delete. The upload step that writes storage keys is outside this repository and must follow the lock rule | `ad11d88` |
+| S1 | A reference written during or after a server delete lost its file | Partly at `ad11d88`, completed by T1 below (the retirement's own final purge had the same gap). As first done: the row delete and the shared-file check are one transaction under a lock every catalog writer takes (`catalog_lock.py`, also taken by `sync_catalog.py`); deleted files are retired for 7 days and put back if any row references them. Server disk space is freed a week after a delete. The upload step that writes storage keys is outside this repository and must follow the lock rule | `ad11d88` |
 | S2 | Cancelling a command only sent TERM and waited without limit; a timeout left the command's children running | Fixed: the command runs in its own process group; cancel and timeout share one TERM-then-KILL stop for the whole group; the error-output reader can be told to stop | `10e9b96` |
 | S3 | Every containment check leaked two path buffers | Fixed: resolves into a temporary buffer; heap growth measured at zero | `84a5a43` |
 | S4 | A replaced screenshot's request ran on; nothing checked the document before submitting; closing released nothing | Fixed: the studio owns and cancels its request; checked again before submission; closing keeps only the current picture; pictures over 8,192 px a side are scaled as they open; Stop button. The window-close hook and Stop button are app-target code, not exercised by tests | `64c9158` |
 
 Still open from the recheck's last section, unchanged: navigation and utility-page design (U1, U2), clipboard collection on by default (D1), no user-data export or downloaded-photo quota, no server backup or rehearsed restore, services started by hand, no versioned migrations or catalog pagination, and the release checks (real-app workspace restore, identical monitors, minimum macOS, permission revocation, VoiceOver, Developer ID and notarization, clean-machine install).
 
-ThreadSanitizer has not been run, by the recheck or by this work.
+ThreadSanitizer has not been run on the recheck fixes, by the recheck or by this work (R3's earlier run predates them).
+
+## Second recheck (2026-10-06, `Documentation/Reports/2026-10-06-recheck-2.md`): status
+
+The second recheck reviewed `b03ca3d`. It accepted S2, S3 and S4 as repaired, called S1 partial, and found the new heap test unreliable.
+
+| Finding | What was still wrong | Status | Commit |
+|---|---|---|---|
+| T1 | The purge of expired retired files asked "is it referenced?" and then removed, holding no lock: a lock-taking writer could commit a reference in between and be left pointing at a purged file | Fixed for writers that follow both rules: the sweep holds the catalog lock (`AssetLock`, a session of its own) from the question to the removal; `set_storage_key.py` is the supported writer (takes the lock, references only a file in its place, restores a retired one, refuses a missing one). **Limit, by design and documented:** a writer that skips the lock or the file check, such as an `UPDATE` typed into psql, is covered only while the file is still retired; a reference it writes at or after the final purge points at nothing | `89a8747` |
+| T2 | The heap-growth test sampled the whole process and failed on unchanged code (1 full run in 12 here) | Fixed: the leak's cause is now checked deterministically through an injectable `realpath`. Running the suite repeatedly found two more unreliable tests, also fixed: one of this work's screenshot tests raced real preparation (now gated through an injectable `prepare`), and the system-monitor test waited a fixed half second. 0 failures in 40 consecutive full runs | `e8cab51` |
+
+Limits the second recheck noted on the accepted repairs, unchanged:
+
+- S2: a descendant that deliberately moves to another process group or session is not stopped with the command.
+- S4: preparation and rendering that have already started off the main actor run to their end before the result is dropped; the history figure is a budget for undo pixels, not a ceiling on the process's memory; the window-close hook and Stop button were reviewed in source, not exercised in the UI.
+
+Nothing sets storage keys automatically after `push_wallpapers.sh`; `set_storage_key.py` sets one key at a time by hand.
