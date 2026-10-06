@@ -110,6 +110,14 @@ struct MainView: View {
     }
 
     var body: some View {
+        if let account = services.libraryAccount, !account.isSignedIn {
+            LibrarySignInGate(account: account)
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         GeometryReader { geometry in
             // A page swaps at once and eases in under a Core Animation veil
             // (`PageVeil`); the navigation stays put above it.
@@ -250,6 +258,7 @@ struct MainView: View {
         case .general:
             FormPage(eyebrow: "System", title: "General", subtitle: "Startup, the Dock, the menu bar, and your data.") {
                 GeneralSettings(settings: services.settings)
+                if let account = services.libraryAccount { LibraryAccountSettings(account: account) }
                 DataPrivacySettings(services: services)
             }
         case .about:

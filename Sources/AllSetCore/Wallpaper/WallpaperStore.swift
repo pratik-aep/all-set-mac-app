@@ -178,6 +178,13 @@ public final class WallpaperStore {
         return URLSession(configuration: configuration)
     }()
 
+    /// The signed-in library session's bearer token, read when a request starts
+    /// (nil when signed out or when there's no library server).
+    @ObservationIgnored public var libraryBearer: (@MainActor () -> String?)?
+    /// Told when the library refuses this session (401/403), so the app can ask
+    /// the person to sign in again.
+    @ObservationIgnored public var libraryRejected: (@MainActor () -> Void)?
+
     @ObservationIgnored private let fileURL: URL
     @ObservationIgnored public let directory: URL
     @ObservationIgnored private let log = Logger(subsystem: "com.pratik.allset", category: "wallpaper")
@@ -327,8 +334,7 @@ public final class WallpaperStore {
         serverCheckInFlight = true
         Task {
             defer { serverCheckInFlight = false }
-            var request = URLRequest(url: url)
-            request.httpMethod = "HEAD"
+            let request = libraryRequest(url, method: "HEAD", bearer: libraryBearer?())
             let reachable: Bool
             if let (_, response) = try? await fetchSession.data(for: request),
                let code = (response as? HTTPURLResponse)?.statusCode {
@@ -462,7 +468,7 @@ public final class WallpaperStore {
         let handle = DownloadHandle()
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                let task = fetchSession.downloadTask(with: remote) { temporary, response, error in
+                let task = fetchSession.downloadTask(with: libraryRequest(remote, bearer: libraryBearer?())) { [weak self] temporary, response, error in
                     // The temporary file is gone once this returns, so move it now.
                     if let error {
                         continuation.resume(throwing: error)
@@ -481,6 +487,9 @@ public final class WallpaperStore {
                             continuation.resume(throwing: error)
                         }
                     } else {
+                        if let code = (response as? HTTPURLResponse)?.statusCode, code == 401 || code == 403 {
+                            Task { @MainActor in self?.libraryRejected?() }
+                        }
                         continuation.resume(throwing: URLError(.badServerResponse))
                     }
                 }
@@ -565,6 +574,7 @@ public final class WallpaperStore {
         }
         let session = fetchSession
         let directory = libraryDirectory
+        let bearer = libraryBearer?()
         offloadProgress = (0, candidates.count)
         defer { offloadProgress = nil }
         var confirmed: [OffloadCandidate] = []
@@ -574,13 +584,13 @@ public final class WallpaperStore {
             var pending = candidates.makeIterator()
             for _ in 0..<8 {
                 guard let next = pending.next() else { break }
-                group.addTask { (next, await Self.serverHolds(next, root: root, session: session, directory: directory)) }
+                group.addTask { (next, await Self.serverHolds(next, root: root, session: session, directory: directory, bearer: bearer)) }
             }
             while let (candidate, held) = await group.next() {
                 if held { confirmed.append(candidate) } else { result.kept.append(candidate.relative) }
                 offloadProgress = ((offloadProgress?.done ?? 0) + 1, candidates.count)
                 if let next = pending.next() {
-                    group.addTask { (next, await Self.serverHolds(next, root: root, session: session, directory: directory)) }
+                    group.addTask { (next, await Self.serverHolds(next, root: root, session: session, directory: directory, bearer: bearer)) }
                 }
             }
         }
@@ -642,15 +652,14 @@ public final class WallpaperStore {
     /// Whether the server's copy of a file is the same as this Mac's: same size
     /// (a cheap HEAD first), then the same SHA-256 over its downloaded bytes.
     private nonisolated static func serverHolds(_ candidate: OffloadCandidate, root: URL, session: URLSession,
-                                                directory: URL) async -> Bool {
+                                                directory: URL, bearer: String?) async -> Bool {
         let remote = root.appendingPathComponent(candidate.relative)
-        var head = URLRequest(url: remote)
-        head.httpMethod = "HEAD"
+        let head = libraryRequest(remote, method: "HEAD", bearer: bearer)
         guard let (_, response) = try? await session.data(for: head),
               let http = response as? HTTPURLResponse, http.statusCode == 200,
               let length = http.value(forHTTPHeaderField: "Content-Length").flatMap(Int64.init),
               length == candidate.size else { return false }
-        guard let (downloaded, getResponse) = try? await session.download(for: URLRequest(url: remote)) else { return false }
+        guard let (downloaded, getResponse) = try? await session.download(for: libraryRequest(remote, bearer: bearer)) else { return false }
         defer { try? FileManager.default.removeItem(at: downloaded) }
         guard (getResponse as? HTTPURLResponse)?.statusCode == 200,
               let theirs = FileDigest.sha256(of: downloaded),
@@ -906,4 +915,14 @@ private final class DownloadHandle: @unchecked Sendable {
         lock.unlock()
         task?.cancel()
     }
+}
+
+/// A request to the library server, carrying the signed-in session's bearer token when there is one.
+private func libraryRequest(_ url: URL, method: String? = nil, bearer: String?) -> URLRequest {
+    var request = URLRequest(url: url)
+    if let method { request.httpMethod = method }
+    if let bearer {
+        request.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+    }
+    return request
 }

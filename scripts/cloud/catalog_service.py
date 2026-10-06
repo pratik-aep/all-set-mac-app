@@ -8,9 +8,18 @@
   GET /file/<id>   -> that wallpaper's playback file. Supports `Range: bytes=`
                       so an interrupted download can resume.
 
-Every request needs `Authorization: Bearer <token>`. First run creates the
-token at ~/.allset_catalog_token (chmod 600) and prints it once; delete that
-file and restart to rotate it. Nothing here writes or deletes.
+  POST /login      -> body {"email", "password"}; returns {"token", "must_change"}
+                      for an invited person (accounts.py). Wrong details: 401.
+  GET /me          -> {"email"} for the signed-in person: 200 when the session is good,
+                      401 when it isn't, 403 while a temporary password is still in use.
+                      Caddy asks this before serving any wallpaper file (see Caddyfile.example).
+  POST /password   -> body {"password"}; sets a new password (required at first
+                      sign-in when must_change is true). Returns a new token.
+  POST /logout     -> ends this session.
+
+Every catalog and file request needs `Authorization: Bearer <session token>`,
+from /login. Accounts are made on the server with accounts.py (invite, reset,
+disable); there is no sign-up. Nothing here writes or deletes wallpapers.
 
 Sharing rule (WallpaperLibrary.swift): only `published` wallpapers are listed
 or served. Quarantined ones have unknown sharing rights; serving them to a
@@ -27,25 +36,32 @@ Tests:
     /usr/bin/python3 -m unittest scripts/cloud/test_catalog_service.py
 """
 import argparse
-import hmac
 import ipaddress
 import json
 import os
 import re
-import secrets
 import shutil
 import subprocess
 import sys
 import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import accounts  # noqa: E402
+from accounts import AccountError  # noqa: E402
 
 # The most rows one page of /catalog may ask for, and requests served at once.
 MAX_PAGE = 500
 MAX_CONCURRENT = 8
+MAX_BODY = 4096
+# Wrong passwords for one email: LOGIN_LIMIT in LOGIN_WINDOW seconds, then a wait.
+LOGIN_LIMIT = 10
+LOGIN_WINDOW = 15 * 60
 
 STORAGE = os.path.expanduser("~/AllSetStorage/wallpapers")
-TOKEN_PATH = os.path.expanduser("~/.allset_catalog_token")
 PSQL = "/opt/homebrew/bin/psql" if os.path.exists("/opt/homebrew/bin/psql") else "psql"
 DATABASE_URL = "postgres://allset@localhost/allset"
 COLUMNS = "id, title, kind, category, tags, duration, width, height, size_bytes"
@@ -56,18 +72,6 @@ TAILSCALE_NET = ipaddress.ip_network("100.64.0.0/10")
 
 class DatabaseError(Exception):
     pass
-
-
-def load_or_create_token():
-    if os.path.exists(TOKEN_PATH):
-        with open(TOKEN_PATH) as handle:
-            return handle.read().strip()
-    token = secrets.token_urlsafe(32)
-    fd = os.open(TOKEN_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as handle:
-        handle.write(token)
-    print(f"New catalog API key (shown once):\n{token}")
-    return token
 
 
 def query(sql):
@@ -135,12 +139,17 @@ def tailscale_address():
 
 
 class Handler(BaseHTTPRequestHandler):
-    token = ""
     include_quarantined = False
     timeout = 30  # seconds a client may stall sending its request
+    accounts = None  # accounts.Accounts, set in main()
 
     # Requests served at once, across every connection.
     slots = threading.BoundedSemaphore(MAX_CONCURRENT)
+
+    # Failed sign-ins per email, in the last LOGIN_WINDOW seconds: the same
+    # answer to a wrong password, and a wait once there are too many.
+    failures = {}
+    failures_lock = threading.Lock()
 
     def _json(self, status, body, headers=None):
         data = json.dumps(body).encode()
@@ -152,21 +161,39 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _session(self):
+        """(email, must_change) for the bearer token, or None."""
+        header = self.headers.get("Authorization", "")
+        return self.accounts.who(header[len("Bearer "):] if header.startswith("Bearer ") else "")
+
+    def _body(self):
+        """The JSON object sent with a POST, or None if it isn't one."""
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            return None
+        if not 0 < length <= MAX_BODY:
+            return None
+        try:
+            data = json.loads(self.rfile.read(length))
+        except ValueError:
+            return None
+        return data if isinstance(data, dict) else None
+
     def do_GET(self):
-        given = self.headers.get("Authorization", "")
-        if not hmac.compare_digest(given, f"Bearer {self.token}"):
-            return self._json(401, {"error": "bad key"})
+        self._serve(self._route_get)
+
+    def do_POST(self):
+        self._serve(self._route_post)
+
+    def _serve(self, route):
         # A fixed number of requests at a time: each one runs psql or streams a
         # file, and a thread per request without a limit is how a small server
         # falls over. Past it, the client is told to come back, not queued.
         if not self.slots.acquire(blocking=False):
             return self._json(503, {"error": "busy; try again shortly"}, {"Retry-After": "1"})
         try:
-            url = urllib.parse.urlsplit(self.path)
-            if url.path == "/catalog":
-                return self._catalog(urllib.parse.parse_qs(url.query))
-            if url.path.startswith("/file/"):
-                return self._file(url.path[len("/file/"):])
+            route(urllib.parse.urlsplit(self.path))
         except DatabaseError as error:
             print(f"{self.path}: database error: {error}", file=sys.stderr)
             return self._json(503, {"error": "catalog database unavailable"})
@@ -174,7 +201,72 @@ class Handler(BaseHTTPRequestHandler):
             return  # the client went away mid-download
         finally:
             self.slots.release()
+
+    def _route_get(self, url):
+        if url.path == "/me":
+            who = self._session()
+            if not who:
+                return self._json(401, {"error": "sign in"})
+            if who[1]:
+                return self._json(403, {"error": "set a new password first"})
+            return self._json(200, {"email": who[0], "must_change": False})
+        if url.path not in ("/catalog",) and not url.path.startswith("/file/"):
+            return self._json(404, {"error": "not found"})
+        who = self._session()
+        if not who:
+            return self._json(401, {"error": "sign in"})
+        if who[1]:
+            return self._json(403, {"error": "set a new password first"})
+        if url.path == "/catalog":
+            return self._catalog(urllib.parse.parse_qs(url.query))
+        return self._file(url.path[len("/file/"):])
+
+    def _route_post(self, url):
+        if url.path == "/login":
+            return self._login()
+        if url.path == "/logout":
+            self.accounts.sign_out(self.headers.get("Authorization", "")[len("Bearer "):])
+            return self._json(200, {"ok": True})
+        if url.path == "/password":
+            return self._set_password()
         self._json(404, {"error": "not found"})
+
+    def _login(self):
+        body = self._body()
+        if body is None:
+            return self._json(400, {"error": "send {\"email\", \"password\"}"})
+        email = str(body.get("email", "")).strip().lower()
+        if self._too_many_failures(email):
+            return self._json(429, {"error": "too many attempts; wait a few minutes"}, {"Retry-After": "600"})
+        result = self.accounts.sign_in(email, str(body.get("password", "")))
+        if not result:
+            self._record_failure(email)
+            return self._json(401, {"error": "wrong email or password"})
+        token, must_change = result
+        self._json(200, {"token": token, "must_change": must_change})
+
+    def _set_password(self):
+        body = self._body()
+        token = self.headers.get("Authorization", "")[len("Bearer "):]
+        if body is None:
+            return self._json(400, {"error": "send {\"password\"}"})
+        try:
+            fresh = self.accounts.change_password(token, str(body.get("password", "")))
+        except AccountError as error:
+            status = 401 if "Sign in" in str(error) else 400
+            return self._json(status, {"error": str(error)})
+        self._json(200, {"token": fresh})
+
+    def _too_many_failures(self, email):
+        cutoff = time.time() - LOGIN_WINDOW
+        with self.failures_lock:
+            recent = [t for t in self.failures.get(email, []) if t > cutoff]
+            self.failures[email] = recent
+            return len(recent) >= LOGIN_LIMIT
+
+    def _record_failure(self, email):
+        with self.failures_lock:
+            self.failures.setdefault(email, []).append(time.time())
 
     def _catalog(self, parameters):
         """The whole list, or with ?limit= (and ?offset=) one page of it. The
@@ -253,7 +345,7 @@ def main():
     host = args.host or tailscale_address()
     if not host:
         sys.exit("No Tailscale address found on this machine. Start Tailscale, or pass --host to choose where to listen.")
-    Handler.token = load_or_create_token()
+    Handler.accounts = accounts.Accounts(query)
     Handler.include_quarantined = args.include_quarantined
     shared = "published + quarantined (your own tester only)" if args.include_quarantined else "published only"
     print(f"catalog API on {host}:{args.port}; serving {shared}")

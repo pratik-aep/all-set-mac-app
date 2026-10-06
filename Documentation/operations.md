@@ -124,3 +124,24 @@ It serves 8 requests at a time. A ninth gets `503` with `Retry-After: 1`. It sti
 - **An off-site copy.** The nightly backup goes to a folder you choose on the server. Nothing copies it anywhere else.
 - **Alerts.** A failed drill is in `backup.log` and in the job's exit code. Nothing tells you unless you look.
 - **Running without a login.** The launch agents run while the server's account is logged in. A server that restarts needs automatic login, as Homebrew's Postgres already does.
+
+## Library accounts (invite only)
+
+The app opens on a sign-in screen whenever a library server is set. Each person has their own account, made by the owner on the server. Nobody can sign up.
+
+**Server, once** (the database change is additive: a new migration, nothing existing is altered):
+
+1. `/usr/bin/python3 scripts/cloud/migrate.py` through the tunnel. Adds `accounts` and `sessions` (migration 0002).
+2. Restart `catalog_service.py` with the new code. Start it with `--include-quarantined` if the whole library should be shared. The old shared key (`~/.allset_catalog_token`) is no longer used, and it can be deleted.
+3. Add the sign-in lines from `scripts/cloud/Caddyfile.example` to the Caddy site on port 8080, replacing the Tailscale address. `caddy validate` first, then reload. Until this is done, the app can't reach `/api/` and shows "Couldn't reach the wallpaper library".
+
+**Accounts** (on the server, through the same Postgres connection):
+
+- `/usr/bin/python3 scripts/cloud/accounts.py invite friend@example.com`: prints a temporary password once. Send it to them.
+- `... reset friend@example.com`: a new temporary password, and their sessions end.
+- `... disable friend@example.com` / `... enable ...`: a disabled account loses access at once.
+- `... list`: everyone, and whether they still need to set a password.
+
+**The app** reads its server address from `ALLSET_LIBRARY_SERVER_URL` in `scripts/local.env` (or the environment) at build time, and bakes it in. A build sent to someone else therefore opens on the sign-in screen with nothing to set up. The session is kept in the Keychain. Sign Out is on the General page.
+
+Tests: `/usr/bin/python3 -m unittest scripts/cloud/test_accounts.py scripts/cloud/test_catalog_service.py` (needs Postgres; set `ALLSET_PG_BIN` if it isn't postgresql@17).

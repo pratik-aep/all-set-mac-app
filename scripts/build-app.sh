@@ -57,6 +57,17 @@ if [ -n "${ALLSET_LIBRARY_SERVER_HOST:-}" ]; then
 else
   echo "No ALLSET_LIBRARY_SERVER_HOST: the app can't fetch wallpapers over plain HTTP from a library server"
 fi
+
+# The library's address, baked in so a copy sent to someone else opens on its
+# sign-in screen with nothing to set up. Same local.env pattern as the host above:
+#   ALLSET_LIBRARY_SERVER_URL=http://100.x.y.z:8080
+if [ -z "${ALLSET_LIBRARY_SERVER_URL:-}" ] && [ -f scripts/local.env ]; then
+  ALLSET_LIBRARY_SERVER_URL="$(sed -n 's/^ALLSET_LIBRARY_SERVER_URL=//p' scripts/local.env | tr -d '"' | head -1)"
+fi
+if [ -n "${ALLSET_LIBRARY_SERVER_URL:-}" ]; then
+  /usr/libexec/PlistBuddy -c "Delete :AllSetLibraryServerURL" "$APP_DIR/Contents/Info.plist" 2>/dev/null || true
+  /usr/libexec/PlistBuddy -c "Add :AllSetLibraryServerURL string $ALLSET_LIBRARY_SERVER_URL" "$APP_DIR/Contents/Info.plist"
+fi
 if [ -f Resources/AppIcon.icns ]; then
   cp Resources/AppIcon.icns "$APP_DIR/Contents/Resources/"
 fi

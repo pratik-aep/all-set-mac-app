@@ -99,6 +99,17 @@ final class AppServices {
     /// Set by the app delegate so pages can drive the island (for "Try it").
     weak var notch: NotchController?
 
+    /// Who is signed in to the library server. Nil when no server is set, and the app works as before.
+    lazy var libraryAccount: LibraryAccount? = {
+        // The owner's own Mac opts out of the sign-in screen with a local setting
+        // (`defaults write com.pratik.allset AllSetSkipLibrarySignIn -bool YES`).
+        // Only this Mac has it; the server still asks for a login for every file.
+        if UserDefaults.standard.bool(forKey: "AllSetSkipLibrarySignIn") { return nil }
+        let configured = wallpaper.config.libraryServerURL ?? Bundle.main.object(forInfoDictionaryKey: "AllSetLibraryServerURL") as? String
+        guard let configured, let url = URL(string: configured) else { return nil }
+        return LibraryAccount(serverURL: url)
+    }()
+
     func start() {
         // A preview the app quit or crashed in the middle of: the real desktop comes back.
         recoverInterruptedPreview()
@@ -130,6 +141,9 @@ final class AppServices {
         themes.start(services: self)
         lidPlane.start()
         screenshotShortcut.start()
+        wallpaper.libraryBearer = { [weak self] in self?.libraryAccount?.bearerToken }
+        wallpaper.libraryRejected = { [weak self] in self?.libraryAccount?.expire() }
+        if let libraryAccount { Task { await libraryAccount.verify() } }
     }
 
     func stop() {
