@@ -119,7 +119,8 @@ def main():
 
     library = env.get("ALLSET_LIBRARY") or os.path.expanduser(
         "~/Library/Application Support/AllSet/Wallpaper/Library")
-    all_items = json.load(open(os.path.join(library, "catalog.json")))["items"]
+    with open(os.path.join(library, "catalog.json")) as handle:
+        all_items = json.load(handle)["items"]
     items = [i for i in all_items if i.get("status") != "unsupported"]
     print(f"{len(items)} wallpapers to sync (of {len(all_items)} total)")
 

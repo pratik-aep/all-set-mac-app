@@ -1470,16 +1470,66 @@ def removed_items(library):
         return {}
 
 
-def clean_orphans(library, catalog):
+class CatalogUnreadable(Exception):
+    """catalog.json exists but can't be read as a catalog. Never treated as an
+    empty library: that would make cleanup remove every other root's files."""
+
+
+def load_catalog(library):
+    """The library's catalog. Missing: a fresh, empty one. Present but unreadable
+    or the wrong shape: a copy is kept next to it and CatalogUnreadable is raised,
+    so nothing is written or cleaned up on the strength of it."""
+    path = os.path.join(library, "catalog.json")
+    if not os.path.exists(path):
+        return {"version": 1, "roots": [], "items": []}
+    try:
+        with open(path) as handle:
+            catalog = json.load(handle)
+        if not isinstance(catalog, dict) or not isinstance(catalog.get("items", []), list):
+            raise ValueError("not a catalog object")
+        return catalog
+    except (OSError, ValueError) as error:
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        copy = os.path.join(library, f"catalog.unreadable-{stamp}.json")
+        try:
+            shutil.copy2(path, copy)
+        except OSError:
+            copy = "(couldn't copy it)"
+        raise CatalogUnreadable(f"{path} can't be read ({error}). Nothing was changed; a copy is at {copy}. "
+                                "Restore a good catalog.json (or move it away to start fresh) and import again.")
+
+
+ORPHAN_FOLDERS = ("stills", "extracted", "transcoded", "thumbnails", "live", "originals")
+ORPHAN_RUNS_KEPT = 3
+
+
+def clean_orphans(library, catalog, stamp=None):
     """Pictures and copies this importer made that no entry uses any more (a
     scene left out, a removed duplicate, a video gone from its folder). Only
-    the importer's own folders are touched."""
+    the importer's own folders are touched, and nothing is deleted outright:
+    files move to .orphans/<time>/, of which the latest few runs are kept.
+    An empty catalog never clears a library that has files."""
     used = {item.get(key) for item in catalog["items"] for key in ("playback", "thumbnail", "still") if item.get(key)}
-    for folder in ("stills", "extracted", "transcoded", "thumbnails", "live", "originals"):
+    orphans = []
+    for folder in ORPHAN_FOLDERS:
         directory = os.path.join(library, folder)
         for name in os.listdir(directory) if os.path.isdir(directory) else []:
             if f"{folder}/{name}" not in used and os.path.isfile(os.path.join(directory, name)):
-                os.remove(os.path.join(directory, name))
+                orphans.append(f"{folder}/{name}")
+    if not orphans:
+        return
+    if not used:
+        print(f"Not cleaning up: the catalog lists nothing, but {len(orphans)} files are in the library.")
+        return
+    run = os.path.join(library, ".orphans", stamp or datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    for relative in orphans:
+        target = os.path.join(run, relative)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        os.replace(os.path.join(library, relative), target)
+    print(f"Moved {len(orphans)} unused files to {run}")
+    runs = sorted(os.listdir(os.path.join(library, ".orphans")))
+    for old in runs[:-ORPHAN_RUNS_KEPT]:
+        shutil.rmtree(os.path.join(library, ".orphans", old), ignore_errors=True)
 
 
 def remove_duplicates(decisions_path, library):
@@ -1489,7 +1539,7 @@ def remove_duplicates(decisions_path, library):
     decisions = json.load(open(decisions_path))
     removed = removed_items(library)
     catalog_path = os.path.join(library, "catalog.json")
-    catalog = json.load(open(catalog_path))
+    catalog = load_catalog(library)
     ids = {item["id"] for item in catalog["items"]}
     for decision in decisions:
         if decision["remove"] in ids and decision.get("keep") in ids and decision["remove"] != decision.get("keep"):
@@ -1515,11 +1565,7 @@ def import_library(root, library, live=True, self_contained=False):
     os.makedirs(os.path.join(library, "thumbnails"), exist_ok=True)
     os.makedirs(os.path.join(library, "transcoded"), exist_ok=True)
     catalog_path = os.path.join(library, "catalog.json")
-    try:
-        with open(catalog_path) as handle:
-            catalog = json.load(handle)
-    except (OSError, json.JSONDecodeError):
-        catalog = {"version": 1, "roots": [], "items": []}
+    catalog = load_catalog(library)
     existing = {item["id"]: item for item in catalog.get("items", [])}
     now = datetime.datetime.now().isoformat(timespec="seconds")
     offloaded = offloaded_items(library)
@@ -1716,4 +1762,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except CatalogUnreadable as error:
+        sys.exit(str(error))
