@@ -91,30 +91,36 @@ import Testing
     }
 }
 
-/// Recheck S3: resolving a path asked libc to allocate the result just to see
-/// whether the path existed, and never freed it: about 2 KB lost per check.
-/// Off the main actor: a second of path checks there starves tests that sample
-/// on it.
+/// Recheck S3: resolving a path asked libc to allocate the result
+/// (`realpath(path, nil)`) just to see whether the path existed, and never freed
+/// it: about 2 KB lost per check.
+///
+/// Second recheck T2: this was first tested by sampling the process's heap,
+/// which other suites allocating at the same time made fail now and then (1 run
+/// in 12 here). It now watches the cause directly and deterministically: every
+/// `realpath` call the helper makes goes through the test's own function, which
+/// counts any call that leaves the allocating to libc.
 @Suite struct ContainedPathLeakTests {
-    @Test func checkingContainmentDoesNotLeak() throws {
+    @Test func resolvingNeverAsksLibcToAllocateTheResult() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("AllSetContained-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("real"), withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        let inside = root.appendingPathComponent("a/b.txt")
-        func heapInUse() -> Int {
-            var stats = malloc_statistics_t()
-            malloc_zone_statistics(nil, &stats)
-            return stats.size_in_use
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("link"),
+                                                   withDestinationURL: root.appendingPathComponent("real"))
+        var calls = 0, allocatedByLibc = 0
+        let counting: ContainedPath.Resolver = { path, buffer in
+            calls += 1
+            if buffer == nil { allocatedByLibc += 1 }
+            return Darwin.realpath(path, buffer)
         }
-        // In rounds, taking the quietest, so other tests allocating at the same
-        // time don't fail it; the leak grew every round by about 4 MB.
-        var quietest = Int.max
-        for _ in 0..<3 {
-            let before = heapInUse()
-            // Drained each time: Foundation's temporaries would otherwise pile up and look like a leak.
-            for _ in 0..<2_000 { autoreleasepool { _ = ContainedPath.contains(inside, in: root) } }
-            quietest = min(quietest, heapInUse() - before)
-        }
-        #expect(quietest < 1 << 20)
+
+        // A file that doesn't exist yet, two folders down, through a symlink:
+        // the helper has to ask about several parents before one exists.
+        let resolved = ContainedPath.resolved(root.appendingPathComponent("link/a/b.txt"), realpath: counting)
+        _ = ContainedPath.resolved(root, realpath: counting)
+
+        #expect(resolved.path.hasSuffix("/real/a/b.txt"))
+        #expect(calls >= 4)
+        #expect(allocatedByLibc == 0)
     }
 }

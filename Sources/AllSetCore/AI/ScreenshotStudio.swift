@@ -11,13 +11,21 @@ public struct ScreenshotAI: Sendable {
     public var claude: @Sendable (String, ClaudeSession, String) async throws -> (ClaudeSession, ClaudeReply)
     /// ChatGPT: the picture, the instruction and the key; the new picture.
     public var openAI: @Sendable (CGImage, String, String) async throws -> CGImage
+    /// Getting a picture ready for Claude (scaled and encoded, off the main
+    /// actor): the picture and its pixels per point; the session, or nil if it
+    /// couldn't be prepared. Takes a moment, in which the document can change.
+    public var prepare: @Sendable (CGImage, Double) async -> ClaudeSession?
 
     public init(key: @escaping @Sendable (AIProvider) -> String?,
                 claude: @escaping @Sendable (String, ClaudeSession, String) async throws -> (ClaudeSession, ClaudeReply),
-                openAI: @escaping @Sendable (CGImage, String, String) async throws -> CGImage) {
+                openAI: @escaping @Sendable (CGImage, String, String) async throws -> CGImage,
+                prepare: @escaping @Sendable (CGImage, Double) async -> ClaudeSession? = { image, pixelsPerPoint in
+                    await Task.detached { ClaudeSession(image: image, pixelsPerPoint: pixelsPerPoint) }.value
+                }) {
         self.key = key
         self.claude = claude
         self.openAI = openAI
+        self.prepare = prepare
     }
 
     public static let live = ScreenshotAI(
@@ -226,8 +234,7 @@ public final class ScreenshotStudio {
                 if let existing = state.session {
                     session = existing
                 } else {
-                    let base = state.base
-                    guard let fresh = await Task.detached(operation: { ClaudeSession(image: base, pixelsPerPoint: ratio) }).value else {
+                    guard let fresh = await ai.prepare(state.base, ratio) else {
                         throw AIEditError("The screenshot couldn't be prepared.")
                     }
                     session = fresh

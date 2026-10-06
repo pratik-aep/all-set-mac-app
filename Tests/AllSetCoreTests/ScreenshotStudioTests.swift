@@ -142,21 +142,45 @@ import Testing
         #expect(studio.image?.width == 128 && studio.messages.isEmpty && !studio.isWorking)
     }
 
+    /// Holds preparation open until the test lets it go.
+    private final class Gate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var entered = false
+        private var open = false
+        var isEntered: Bool { lock.withLock { entered } }
+        func release() { lock.withLock { open = true } }
+        func pass() async {
+            lock.withLock { entered = true }
+            while !lock.withLock({ open }) { try? await Task.sleep(for: .milliseconds(2)) }
+        }
+    }
+
     /// Between preparing the picture for Claude and sending it there was no
     /// check: a picture replaced during preparation was still submitted.
+    ///
+    /// Preparation is held open by the test, the picture replaced, and only then
+    /// is preparation allowed to finish. (An earlier version of this test raced
+    /// the real preparation and lost about one run in eight: when preparation
+    /// had already finished, sending was correct and the test was wrong.)
     @Test func nothingIsSentForAPictureReplacedWhileItWasBeingPrepared() async {
         let calls = Calls()
-        let studio = ScreenshotStudio(ai: waitingClaude(calls))
+        let gate = Gate()
+        var ai = waitingClaude(calls)
+        ai.prepare = { image, pixelsPerPoint in
+            await gate.pass()
+            return ClaudeSession(image: image, pixelsPerPoint: pixelsPerPoint)
+        }
+        let studio = ScreenshotStudio(ai: ai)
         studio.provider = .claude
-        studio.load(picture(width: 2048, height: 2048))
+        studio.load(picture(width: 64))
         let request = Task { await studio.ask("crop it") }
-        // The moment the request exists, before its preparation (off the main
-        // actor) can have handed back: nothing else runs here until `load`.
-        while !studio.isWorking { await Task.yield() }
+        await waitUntil { gate.isEntered }
         studio.load(picture(width: 128))
+        gate.release()
         await settle(request)
-        try? await Task.sleep(for: .milliseconds(200))
+        try? await Task.sleep(for: .milliseconds(100))
 
+        #expect(gate.isEntered)
         #expect(calls.count == 0)
         #expect(studio.image?.width == 128 && !studio.isWorking)
     }

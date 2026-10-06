@@ -11,8 +11,13 @@ import Testing
         monitor.activeInterval = 0.2
         monitor.start()
         defer { monitor.stop() }
-        // CPU usage needs two samples to diff.
-        try await Task.sleep(for: .milliseconds(500))
+        // CPU usage needs two samples to diff. Waited for, not assumed after a
+        // fixed pause: with other suites busy on the main actor, half a second
+        // was sometimes too short (4 runs in 20), which failed this test for
+        // no fault of the monitor's.
+        for _ in 0..<100 where monitor.cpuHistory.values.count < 2 || monitor.snapshot.topApps.isEmpty {
+            try await Task.sleep(for: .milliseconds(100))
+        }
 
         let snapshot = monitor.snapshot
         #expect(snapshot.cpu.perCore.count == ProcessInfo.processInfo.processorCount)

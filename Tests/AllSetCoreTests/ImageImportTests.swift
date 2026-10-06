@@ -14,18 +14,25 @@ import UniformTypeIdentifiers
         return url
     }
 
-    private func writePictures(_ count: Int, side: Int, in folder: URL) throws {
-        let space = CGColorSpace(name: CGColorSpace.sRGB)!
-        for index in 0..<count {
-            let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0, space: space,
-                                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-            context.setFillColor(CGColor(red: Double(index % 7) / 7, green: 0.4, blue: 0.6, alpha: 1))
-            context.fill(CGRect(x: 0, y: 0, width: side, height: side))
-            let file = folder.appendingPathComponent(String(format: "pic%03d.png", index))
-            let output = CGImageDestinationCreateWithURL(file as CFURL, UTType.png.identifier as CFString, 1, nil)!
-            CGImageDestinationAddImage(output, context.makeImage()!, nil)
-            #expect(CGImageDestinationFinalize(output))
-        }
+    /// Drawn and encoded off the main actor: dozens of pictures made here would
+    /// hold it long enough to starve tests in other suites that sample on it.
+    private func writePictures(_ count: Int, side: Int, in folder: URL) async throws {
+        let written = await Task.detached { () -> Bool in
+            let space = CGColorSpace(name: CGColorSpace.sRGB)!
+            var allWritten = true
+            for index in 0..<count {
+                let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+                context.setFillColor(CGColor(red: Double(index % 7) / 7, green: 0.4, blue: 0.6, alpha: 1))
+                context.fill(CGRect(x: 0, y: 0, width: side, height: side))
+                let file = folder.appendingPathComponent(String(format: "pic%03d.png", index))
+                let output = CGImageDestinationCreateWithURL(file as CFURL, UTType.png.identifier as CFString, 1, nil)!
+                CGImageDestinationAddImage(output, context.makeImage()!, nil)
+                allWritten = CGImageDestinationFinalize(output) && allWritten
+            }
+            return allWritten
+        }.value
+        #expect(written)
     }
 
     private func library(_ root: URL) -> ImageLibrary {
@@ -37,7 +44,7 @@ import UniformTypeIdentifiers
         defer { try? FileManager.default.removeItem(at: root) }
         let source = root.appendingPathComponent("source")
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
-        try writePictures(6, side: 64, in: source)
+        try await writePictures(6, side: 64, in: source)
         try Data("not a picture".utf8).write(to: source.appendingPathComponent("notes.txt"))
         let images = library(root)
 
@@ -62,7 +69,7 @@ import UniformTypeIdentifiers
         defer { try? FileManager.default.removeItem(at: root) }
         let source = root.appendingPathComponent("source")
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
-        try writePictures(60, side: 900, in: source)
+        try await writePictures(60, side: 900, in: source)
         let images = library(root)
 
         let task = Task { await images.importImages(from: [source]) }
@@ -82,7 +89,7 @@ import UniformTypeIdentifiers
         defer { try? FileManager.default.removeItem(at: root) }
         let source = root.appendingPathComponent("source")
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
-        try writePictures(1, side: 1200, in: source)
+        try await writePictures(1, side: 1200, in: source)
         let images = library(root)
         let name = try #require(await images.importImages(from: [source]).first)
 
