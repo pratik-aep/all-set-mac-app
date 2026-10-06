@@ -113,6 +113,11 @@ jobs:
           cat probe.txt >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Budgets
+        # Fails past a ceiling in scripts/probe-budgets.json, or when a kind of
+        # measurement is missing. The ceilings start wide; tighten them from runs.
+        run: /usr/bin/python3 scripts/check_probe_budgets.py probe.txt
+
   server-scripts:
     # The wallpaper server scripts against a throwaway Postgres: deletes that
     # can't remove another wallpaper's files or leave files and database
@@ -126,6 +131,6 @@ jobs:
       - name: Test
         run: |
           set -o pipefail
-          /usr/bin/python3 -m unittest -v scripts/test_wallpaper_library.py scripts/cloud/test_sync_catalog.py scripts/cloud/test_delete_service.py scripts/cloud/test_catalog_service.py 2>&1 | tee server-tests.log
+          /usr/bin/python3 -m unittest -v scripts/test_wallpaper_library.py scripts/test_check_probe_budgets.py scripts/cloud/test_sync_catalog.py scripts/cloud/test_delete_service.py scripts/cloud/test_catalog_service.py 2>&1 | tee server-tests.log
           # Skipped tests (no Postgres) would pass silently: require that none were.
           ! grep -q "skipped" server-tests.log
