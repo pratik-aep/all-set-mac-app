@@ -62,4 +62,8 @@ Findings from `2026-10-06-comprehensive-review.md`. Every fixed item has a test 
 | U5 | "On your server" without checking | Fixed (`copyLocation`: checked on server only when freed after a hash match; otherwise "to download from your server (not checked)") | see log |
 | U6 | Copy promising more than the code | Fixed (Monitor keeps sampling slower; About; On This Mac help) | see log |
 | U1, U2 | Navigation redesign; compact utility pages | **Open: design decisions** (layout changes not made without seeing them) | |
-| A1–A4, O1–O6 | Architecture, workspace restore, display identity, platform testing, backend ops, tests, CI budgets, release, docs, import input bounds | Open | |
+| A1 | AppServices reached through for everything | Addressed where the review asked first: narrow owners at each failure boundary (`FocusTimerCoordinator`, `SharedRequests`/`RetryBackoff`, `CommandRunner`, `ScreenshotStudio` in Core, per-store `saveError`, `WorkspaceRestoreReport`). No wider refactor, as the review advised against one | see log |
+| A2 | Workspace restore silent about failures | Fixed (`WorkspaceRestoreReport` per app; moves verified by reading the frame back; hide-others skipped when nothing placed; card shows it; layout-not-documents wording; 1 s AX timeout per window). Not run against real apps | see log |
+| A3 | Display identity by name; snap target per zone only; native tiling assumed on macOS 14 | Fixed again (`DisplayIdentity`: display UUID first, name fallback; widgets, workspaces, per-display size and saved wallpapers; wallpaper windows per display; snap target includes the display; native tiling only from macOS 15). Not tried with two identical monitors | see log |
+| A4 | Private integrations not release-tested | **Open: needs a test matrix** (lowest supported macOS 14.2, Intel if supported, permissions denied/revoked). Can't be done on this one Mac | |
+| O1–O6 | Backend ops, tests, CI budgets, release, docs, import input bounds | Open | |
