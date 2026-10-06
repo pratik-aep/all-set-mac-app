@@ -37,12 +37,22 @@ Two things keep a file that another wallpaper comes to use from being lost:
   waits and then finds the file no longer in place.
 - Deleted files are retired, not destroyed: they move to
   STORAGE/.retired/<id>/<time>/ and stay for RETENTION_DAYS. A retired file
-  that any row references, however and whenever that reference was written
-  (a manual UPDATE that takes no lock, say), is put back by the sweep, which
-  runs after every delete, at startup and every few minutes. Only an
-  unreferenced file past the retention is removed for good. So a delete frees
-  the server's disk space RETENTION_DAYS later; --retention-days 0 removes at
-  once, with no such protection.
+  that any row references, however that reference was written (a manual
+  UPDATE that takes no lock, say), is put back by the sweep, which runs after
+  every delete, at startup and every few minutes. Only an unreferenced file
+  past the retention is removed for good. So a delete frees the server's disk
+  space RETENTION_DAYS later; --retention-days 0 removes at once, with no such
+  protection.
+- That final removal holds the same lock from its "is it referenced?" question
+  to the removal. A writer that takes the lock either committed first (its file
+  goes back) or waits until the file is gone.
+
+What this guarantees, and what it doesn't. A writer that follows both rules in
+catalog_lock.py (take the lock; only reference a file that is in its place)
+never ends up pointing at a missing file: set_storage_key.py is that writer,
+and brings a retired file back itself. A writer that breaks a rule is covered
+only while the file is retired: a reference it writes at or after the moment
+of the final removal points at nothing, and nothing here can prevent that.
 
 Replies: 200 deleted, 404 nothing known by that id (already gone), 400/413 a
 malformed request, 503 the database wasn't reachable (nothing changed).
@@ -57,6 +67,7 @@ import json
 import os
 import re
 import secrets
+import select
 import subprocess
 import sys
 import threading
@@ -148,6 +159,58 @@ def sql_script(script):
     if result.returncode != 0:
         raise DatabaseError(result.stderr.strip() or f"psql exited {result.returncode}")
     return result.stdout.splitlines()
+
+
+class AssetLock:
+    """Holds the catalog's asset lock (catalog_lock.py) for as long as the block
+    runs, in a database session of its own. For work that decides something from
+    the catalog and then acts on files, where one transaction can't cover both:
+    while it's held, no writer that takes the lock can change which files are
+    referenced. Raises DatabaseError if the lock can't be had in time."""
+
+    def __enter__(self):
+        try:
+            self.session = subprocess.Popen([PSQL, DATABASE_URL, "-q", "-At", "-v", "ON_ERROR_STOP=1"],
+                                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            self.session.stdin.write(f"select pg_advisory_lock({catalog_lock.ASSET_LOCK});\nselect 'held';\n".encode())
+            self.session.stdin.flush()
+        except OSError as error:
+            raise DatabaseError(str(error))
+        if not self._answered(b"held", DATABASE_TIMEOUT):
+            self._end()
+            raise DatabaseError("couldn't take the catalog lock")
+        return self
+
+    def __exit__(self, *_):
+        self._end()
+
+    def _answered(self, marker, seconds):
+        """Whether the session printed `marker` on a line within `seconds`."""
+        descriptor = self.session.stdout.fileno()
+        deadline, received = time.monotonic() + seconds, b""
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([descriptor], [], [], remaining)[0]:
+                return False
+            chunk = os.read(descriptor, 4096)
+            if not chunk:
+                return False  # the session ended: no connection
+            received += chunk
+            if marker in received.split(b"\n"):
+                return True
+
+    def _end(self):
+        """Closing the session releases the lock."""
+        for pipe in (self.session.stdin, self.session.stdout):
+            try:
+                pipe.close()
+            except OSError:
+                pass
+        try:
+            self.session.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.session.kill()
+            self.session.wait()
 
 
 def text_array(values):
@@ -294,42 +357,99 @@ def retire(item_id, keep=()):
     return retired
 
 
-def sweep_retired(only=None, now=None):
-    """Retired files that a row references go back to their places; the rest
-    are removed for good once they've been retired RETENTION_DAYS. Returns
-    (restored, removed) relative paths. A database that can't be asked changes
-    nothing: everything stays retired."""
-    restored, removed = [], []
-    now = time.time() if now is None else now
+def retired_batches(only=None):
+    """(item id, batch folder, time retired in seconds, relative paths) for every
+    retirement batch, oldest first within an id."""
     root = retired_dir()
     if not os.path.isdir(root):
-        return restored, removed
+        return []
+    batches = []
     for item_id in sorted(os.listdir(root)):
         if not ID_PATTERN.match(item_id) or (only is not None and item_id != only):
             continue
         for stamp in sorted(os.listdir(retired_dir(item_id))):
             batch = os.path.join(retired_dir(item_id), stamp)
-            if not stamp.isdigit() or not os.path.isdir(batch):
-                continue
-            files = sorted(os.path.relpath(os.path.join(base, name), batch)
-                           for base, _, names in os.walk(batch) for name in names)
-            try:
-                referenced = referenced_keys(files)
-            except DatabaseError as error:
-                print(f"Couldn't check retired files of {item_id}: {error}", file=sys.stderr)
-                continue
-            expired = now - int(stamp) / 1e9 >= RETENTION_DAYS * 86400
-            for relative in files:
-                destination = safe_path(relative)
-                if relative in referenced and destination is not None and not os.path.exists(destination):
-                    move(os.path.join(batch, relative), destination)
-                    restored.append(relative)
-                elif expired and relative not in referenced:
-                    os.remove(os.path.join(batch, relative))
-                    removed.append(relative)
-            remove_if_empty(batch)
-        remove_if_empty(retired_dir(item_id))
+            if stamp.isdigit() and os.path.isdir(batch):
+                files = sorted(os.path.relpath(os.path.join(base, name), batch)
+                               for base, _, names in os.walk(batch) for name in names)
+                batches.append((item_id, batch, int(stamp) / 1e9, files))
+    return batches
+
+
+def sweep_retired(only=None, now=None):
+    """Retired files that a row references go back to their places; the rest
+    are removed for good once they've been retired RETENTION_DAYS. Returns
+    (restored, removed) relative paths.
+
+    The catalog lock is held from asking which files are referenced until the
+    files have been moved or removed, so a writer that takes the lock can't
+    commit a reference in between: it either committed first, and its file goes
+    back, or it waits and then finds the file gone (and, following the rule to
+    reference only files that exist, doesn't reference it). A database that
+    can't be asked, or a lock that can't be had, changes nothing: everything
+    stays retired."""
+    restored, removed = [], []
+    now = time.time() if now is None else now
+    batches = retired_batches(only)
+    if not batches:
+        return restored, removed
+    try:
+        with AssetLock():
+            for item_id, batch, retired_at, files in batches:
+                try:
+                    referenced = referenced_keys(files)
+                except DatabaseError as error:
+                    print(f"Couldn't check retired files of {item_id}: {error}", file=sys.stderr)
+                    continue
+                expired = now - retired_at >= RETENTION_DAYS * 86400
+                for relative in files:
+                    destination = safe_path(relative)
+                    if relative in referenced and destination is not None and not os.path.exists(destination):
+                        move(os.path.join(batch, relative), destination)
+                        restored.append(relative)
+                    elif expired and relative not in referenced:
+                        os.remove(os.path.join(batch, relative))
+                        removed.append(relative)
+                remove_if_empty(batch)
+                remove_if_empty(retired_dir(item_id))
+    except DatabaseError as error:
+        print(f"Couldn't sweep retired files: {error}", file=sys.stderr)
     return restored, removed
+
+
+def reference_asset(item_id, column, key):
+    """The supported way to point a row at a file in storage: None when done,
+    or why it wasn't.
+
+    Under the catalog lock, so it can't interleave with a delete or a purge. The
+    file must be in its place; one that's retired (its wallpaper was deleted) is
+    brought back first. A file that's nowhere is never referenced, so a row can't
+    be left pointing at nothing."""
+    if column not in KEY_COLUMNS:
+        return f"not a storage key column: {column} (one of {', '.join(KEY_COLUMNS)})"
+    if not isinstance(item_id, str) or not ID_PATTERN.match(item_id):
+        return "not a valid id"
+    destination = safe_path(key)
+    if destination is None:
+        return f"outside the storage folder: {key}"
+    relative = os.path.relpath(destination, os.path.realpath(STORAGE))
+    try:
+        with AssetLock():
+            if row_keys(item_id) is None:
+                return f"no wallpaper with id {item_id}"
+            if not os.path.isfile(destination):
+                # Retired with the wallpaper it belonged to: the most recent copy comes back.
+                held = [(retired_at, batch) for _, batch, retired_at, files in retired_batches() if relative in files]
+                if not held:
+                    return f"no such file in storage: {relative}"
+                _, batch = max(held)
+                move(os.path.join(batch, relative), destination)
+                remove_if_empty(batch)
+                remove_if_empty(os.path.dirname(batch))
+            sql("update wallpapers set %s = %s where id = %s" % (column, quote(relative), quote(item_id)))
+            return None
+    except DatabaseError as error:
+        return f"database unavailable: {error.args[0]}"
 
 
 def sweep_forever():

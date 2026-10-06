@@ -52,9 +52,10 @@ A delete from the app removes the wallpaper's row and retires its files. Retired
 
 That window is what protects a file another wallpaper comes to use:
 
-- Anything that deletes a row, or sets or changes `playback_key`, `still_key` or `thumbnail_key`, must do it in a transaction that first runs `select pg_advisory_xact_lock(<ASSET_LOCK>)`. The number is in `scripts/cloud/catalog_lock.py`. The delete service and `sync_catalog.py` both take it. A writer must also only point a key at a file that exists in storage.
-- A writer that skips the lock, such as a manual `UPDATE` in psql, is still covered while the file is retired. The delete service puts back any retired file that a row references. It checks after every delete, at startup and every 10 minutes.
-- After the retention, an unreferenced retired file is removed for good. A reference written later than that points at nothing.
+- **Set storage keys with `scripts/cloud/set_storage_key.py <id> <column> <relative path>`**, on the server, after the file has been pushed. It takes the catalog lock, only references a file that is in its place, and brings a retired file back if that is what you point at. A row set this way never points at a missing file.
+- The lock is `select pg_advisory_xact_lock(<ASSET_LOCK>)`, with the number in `scripts/cloud/catalog_lock.py`. The delete service takes it around a row delete and around the final removal of retired files, and `sync_catalog.py` takes it around its upsert.
+- **An `UPDATE` typed into psql is not protected in the same way.** While the file it points at is still retired, the delete service puts it back (it checks after every delete, at startup and every 10 minutes). If the update lands at or after the moment a retired file is finally removed, the row points at nothing, and nothing in these scripts can prevent that. Use the command above instead.
+- After the retention, an unreferenced retired file is removed for good.
 
 `.trash/<id>/` is different: it holds files only while one delete is in progress, and is settled at the next start if the service stopped midway.
 
@@ -70,7 +71,7 @@ These are gaps, listed so nobody assumes they exist.
 - **Backups.** Nothing in this repository backs up the database or the files. `push_wallpapers.sh` makes the server a second copy of the Mac's files, but a wallpaper freed from the Mac then exists only on the server.
 - **Restore drill.** No restore has been rehearsed. Until one has, treat the server as a convenience copy and not as a backup.
 - **Migrations.** `schema.sql` is `create table if not exists`. There is no versioned migration, so a column change has to be applied by hand.
-- **The upload step.** Something outside this repository fills in the storage keys after files are pushed. Whatever does that must follow the lock rule above; nothing here can check that it does.
+- **An automatic upload step.** `push_wallpapers.sh` copies files and stops there; nothing sets the storage keys afterwards except a person running `set_storage_key.py`, one key at a time. A script that pushes and then sets every key does not exist yet.
 - **Scale.** The catalog service runs `psql` once per request and returns the whole list, with no pagination and no limit on concurrent requests. This is fine for one tester.
 
 A reasonable first step for backups, not yet done or tested: on the server, a nightly `pg_dump allset` and an rsync of `~/AllSetStorage/wallpapers` to a second disk, followed by one rehearsed restore into a scratch database and folder.

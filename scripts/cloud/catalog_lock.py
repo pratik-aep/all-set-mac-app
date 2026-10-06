@@ -9,10 +9,18 @@ first runs
 so "does another row use this file?" and "delete this row" can't interleave
 with another writer's change. The lock is released when the transaction ends.
 
-A writer must also only point a key at a file that exists in storage. The
-delete service covers writers that skip either rule (a manual UPDATE, say):
-deleted files are retired for a while rather than destroyed, and a retired
-file that any row references is put back (delete_service.sweep_retired).
+Work that decides from the catalog and then acts on files (the purge of
+retired files) holds the same lock, session-wide, across both
+(delete_service.AssetLock).
+
+Second rule: a writer only points a key at a file that is in its place in
+storage, checked while it holds the lock. set_storage_key.py does both, and is
+the supported way to set a key.
+
+A writer that skips a rule (an UPDATE typed into psql) is covered for a while,
+not for ever: deleted files are retired before they are destroyed, and a
+retired file that any row references is put back. Once a retired file has been
+purged, a reference written to it points at nothing.
 """
 
 # Arbitrary, fixed: the same number in every script and on every machine.

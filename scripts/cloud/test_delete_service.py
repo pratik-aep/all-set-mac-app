@@ -246,6 +246,123 @@ class DeleteServiceTests(unittest.TestCase):
             delete_service.DATABASE_URL = good
         self.assertEqual(self.retired_names("aaaa"), ["aaaa.mp4"])
 
+    # Second recheck T1: the final purge
+
+    def retired_long_ago(self, relative="live/aaaa.mp4", item_id="aaaa", content="original"):
+        """A file retired longer ago than the retention, so the next sweep may purge it."""
+        import time
+        stamp = time.time_ns() - int((delete_service.RETENTION_DAYS + 1) * 86400 * 1e9)
+        return self.file(os.path.join(".retired", item_id, str(stamp), relative), content)
+
+    def test_a_purge_keeps_the_catalog_lock_from_its_check_to_its_removal(self):
+        """The recheck's reproduction: right after the purge's reference check
+        says "nobody", a writer that takes the catalog lock points B at the file.
+        The purge used to hold nothing, so that commit landed between its check
+        and its removal, and B was left pointing at a destroyed file."""
+        import subprocess
+        import time
+        import catalog_lock
+        self.row("bbbb")
+        self.retired_long_ago()
+        real = delete_service.referenced_keys
+        seen = {}
+
+        def check_then_a_writer_arrives(relatives):
+            found = real(relatives)
+            seen["writer"] = subprocess.Popen(
+                [pgtest.PSQL, self.pg.url, "-q", "-v", "ON_ERROR_STOP=1", "-c",
+                 f"begin; select pg_advisory_xact_lock({catalog_lock.ASSET_LOCK}); "
+                 "update wallpapers set playback_key = 'live/aaaa.mp4' where id = 'bbbb'; commit;"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            time.sleep(0.6)  # ample for it to commit, unless something holds it back
+            seen["committed before the removal"] = (
+                self.pg.sql("select coalesce(playback_key, '') from wallpapers where id = 'bbbb'") == "live/aaaa.mp4")
+            return found
+        delete_service.referenced_keys = check_then_a_writer_arrives
+        try:
+            delete_service.sweep_retired()
+        finally:
+            delete_service.referenced_keys = real
+            self.assertEqual(seen["writer"].wait(timeout=20), 0, seen["writer"].stderr.read())
+            seen["writer"].stderr.close()
+        self.assertFalse(seen["committed before the removal"])
+
+    def test_a_writer_that_committed_first_stops_the_purge(self):
+        """The other order: the writer holds the lock when the purge starts. The
+        purge waits for it, sees the reference, and puts the file back."""
+        import subprocess
+        import time
+        import catalog_lock
+        self.row("bbbb")
+        self.retired_long_ago()
+        writer = subprocess.Popen(
+            [pgtest.PSQL, self.pg.url, "-q", "-v", "ON_ERROR_STOP=1", "-c",
+             f"begin; select pg_advisory_xact_lock({catalog_lock.ASSET_LOCK}); "
+             "update wallpapers set playback_key = 'live/aaaa.mp4' where id = 'bbbb'; "
+             "select pg_sleep(1.0); commit;"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        try:
+            for _ in range(100):
+                if self.pg.sql(f"select pg_try_advisory_lock({catalog_lock.ASSET_LOCK})") == "f":
+                    break
+                time.sleep(0.02)
+            else:
+                self.fail("the writer never took the lock")
+            restored, removed = delete_service.sweep_retired()
+        finally:
+            self.assertEqual(writer.wait(timeout=20), 0, writer.stderr.read())
+            writer.stderr.close()
+        self.assertEqual((restored, removed), (["live/aaaa.mp4"], []))
+        with open(os.path.join(self.storage, "live/aaaa.mp4")) as handle:
+            self.assertEqual(handle.read(), "original")
+
+    def test_the_supported_writer_brings_a_retired_file_back_when_it_references_it(self):
+        self.row("bbbb")
+        self.retired_long_ago()
+        self.assertIsNone(delete_service.reference_asset("bbbb", "playback_key", "live/aaaa.mp4"))
+        self.assertEqual(self.pg.sql("select playback_key from wallpapers where id = 'bbbb'"), "live/aaaa.mp4")
+        with open(os.path.join(self.storage, "live/aaaa.mp4")) as handle:
+            self.assertEqual(handle.read(), "original")
+        # Referenced and in place: the purge has nothing to take.
+        self.assertEqual(delete_service.sweep_retired(), ([], []))
+        self.assertTrue(self.exists("live/aaaa.mp4"))
+
+    def test_the_supported_writer_never_references_a_file_that_isnt_there(self):
+        self.row("bbbb")
+        self.assertIn("no such file", delete_service.reference_asset("bbbb", "playback_key", "live/aaaa.mp4"))
+        self.assertIn("outside", delete_service.reference_asset("bbbb", "playback_key", "../elsewhere.mp4"))
+        self.assertIn("column", delete_service.reference_asset("bbbb", "title", "live/aaaa.mp4"))
+        self.file("live/aaaa.mp4")
+        self.assertIn("no wallpaper", delete_service.reference_asset("zzzz", "playback_key", "live/aaaa.mp4"))
+        self.assertEqual(self.pg.sql("select coalesce(playback_key, '-') from wallpapers where id = 'bbbb'"), "-")
+
+    def test_the_supported_writer_racing_the_purge_leaves_no_dangling_reference(self):
+        """It arrives between the purge's check and its removal, waits for the
+        lock, then finds the file gone and refuses: B never points at nothing."""
+        import threading
+        import time
+        self.row("bbbb")
+        self.retired_long_ago()
+        real = delete_service.referenced_keys
+        seen = {}
+
+        def check_then_the_writer_arrives(relatives):
+            found = real(relatives)
+            def write():
+                seen["answer"] = delete_service.reference_asset("bbbb", "playback_key", "live/aaaa.mp4")
+            seen["thread"] = threading.Thread(target=write)
+            seen["thread"].start()
+            time.sleep(0.4)
+            return found
+        delete_service.referenced_keys = check_then_the_writer_arrives
+        try:
+            restored, removed = delete_service.sweep_retired()
+        finally:
+            delete_service.referenced_keys = real
+            seen["thread"].join(timeout=30)
+        self.assertEqual((restored, removed), ([], ["live/aaaa.mp4"]))
+        self.assertIn("no such file", seen["answer"])
+        self.assertEqual(self.pg.sql("select coalesce(playback_key, '-') from wallpapers where id = 'bbbb'"), "-")
+
     def test_rollback_never_discards_an_original_when_its_place_was_taken(self):
         """Review R7: the destination is recreated while the delete is staged and
         the database step then fails: the original stays held, nothing is lost."""
