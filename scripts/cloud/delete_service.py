@@ -123,8 +123,10 @@ def key_used_elsewhere(key, item_id):
 
 
 def owned_files(item_id, keys):
-    """Relative paths of the files that belong to this wallpaper and nothing else."""
-    found = set()
+    """Relative paths of the files that belong to this wallpaper and nothing else:
+    named after it or listed in its row, and in neither case referenced by any
+    other row (a file named after one wallpaper can still be another's key)."""
+    candidates = set()
     for folder in ASSET_DIRS:
         directory = os.path.join(STORAGE, folder)
         if not os.path.isdir(directory):
@@ -132,12 +134,12 @@ def owned_files(item_id, keys):
         for name in os.listdir(directory):
             stem, _ = os.path.splitext(name)
             if stem == item_id and os.path.isfile(os.path.join(directory, name)):
-                found.add(f"{folder}/{name}")
+                candidates.add(f"{folder}/{name}")
     for key in keys or []:
         resolved = safe_path(key)
-        if resolved and os.path.isfile(resolved) and not key_used_elsewhere(key, item_id):
-            found.add(os.path.relpath(resolved, os.path.realpath(STORAGE)))
-    return sorted(found)
+        if resolved and os.path.isfile(resolved):
+            candidates.add(os.path.relpath(resolved, os.path.realpath(STORAGE)))
+    return sorted(c for c in candidates if not key_used_elsewhere(c, item_id))
 
 
 def move(source, destination):
@@ -145,28 +147,60 @@ def move(source, destination):
     os.rename(source, destination)
 
 
-def restore_quarantine(item_id):
-    """Moves a quarantined wallpaper's files back where they were."""
+def restore_quarantine(item_id, only=None):
+    """Moves quarantined files back where they were (all, or the relative paths in
+    `only`). A file whose place has been taken meanwhile is never overwritten and
+    never discarded: it stays held and is returned as a conflict. The quarantine
+    folder goes only once nothing is left in it."""
     root = trash_dir(item_id)
+    conflicts = []
     for base, _, names in os.walk(root):
         for name in names:
             held = os.path.join(base, name)
             relative = os.path.relpath(held, root)
+            if only is not None and relative not in only:
+                continue
             destination = safe_path(relative)
-            if destination and not os.path.exists(destination):
+            if destination is None or os.path.exists(destination):
+                conflicts.append(relative)
+                continue
+            try:
                 move(held, destination)
-    shutil.rmtree(root, ignore_errors=True)
+            except OSError:
+                conflicts.append(relative)
+    remove_if_empty(root)
+    return sorted(conflicts)
+
+
+def remove_if_empty(root):
+    """Removes empty folders under (and including) root; never a file."""
+    for base, _, _ in sorted(os.walk(root), key=lambda entry: -len(entry[0])):
+        try:
+            os.rmdir(base)
+        except OSError:
+            pass
 
 
 def settle_quarantine(item_id):
     """A quarantine left by an interrupted delete: back if the row is still there,
     gone if the row is. Raises DatabaseError if that can't be told."""
     if not os.path.isdir(trash_dir(item_id)):
-        return
+        return []
     if row_keys(item_id) is None:
-        shutil.rmtree(trash_dir(item_id), ignore_errors=True)
-    else:
-        restore_quarantine(item_id)
+        # Finished, except files another row started using meanwhile: those go back.
+        held = held_files(item_id)
+        reused = [relative for relative in held if key_used_elsewhere(relative, item_id)]
+        conflicts = restore_quarantine(item_id, only=set(reused)) if reused else []
+        if not conflicts:
+            shutil.rmtree(trash_dir(item_id), ignore_errors=True)
+        return conflicts
+    return restore_quarantine(item_id)
+
+
+def held_files(item_id):
+    root = trash_dir(item_id)
+    return sorted(os.path.relpath(os.path.join(base, name), root)
+                  for base, _, names in os.walk(root) for name in names)
 
 
 def settle_all_quarantines():
@@ -176,15 +210,21 @@ def settle_all_quarantines():
     for item_id in os.listdir(root):
         if ID_PATTERN.match(item_id):
             try:
-                settle_quarantine(item_id)
+                conflicts = settle_quarantine(item_id)
             except DatabaseError as error:
                 print(f"Couldn't settle the quarantine for {item_id}: {error}", file=sys.stderr)
+                continue
+            if conflicts:
+                print(f"Kept in {trash_dir(item_id)} (their places are taken): {', '.join(conflicts)}", file=sys.stderr)
 
 
 def delete_wallpaper(item_id):
     """(status, body) for deleting one wallpaper everywhere on this server."""
     try:
-        settle_quarantine(item_id)
+        conflicts = settle_quarantine(item_id)
+        if conflicts:
+            return 409, {"error": "an earlier delete left files whose places are taken; resolve them by hand",
+                         "conflicts": conflicts, "quarantine": trash_dir(item_id)}
         keys = row_keys(item_id)
         files = owned_files(item_id, keys)
     except DatabaseError as error:
@@ -198,18 +238,37 @@ def delete_wallpaper(item_id):
             move(os.path.join(STORAGE, relative), os.path.join(trash_dir(item_id), relative))
             moved.append(relative)
     except OSError as error:
-        restore_quarantine(item_id)
-        return 500, {"error": "couldn't move the files aside; nothing was deleted", "detail": str(error)}
+        conflicts = restore_quarantine(item_id)
+        return 500, {"error": "couldn't move the files aside; nothing was deleted", "detail": str(error),
+                     **({"conflicts": conflicts} if conflicts else {})}
 
     if keys is not None:
         try:
             sql("delete from wallpapers where id = %s" % quote(item_id))
         except DatabaseError as error:
-            restore_quarantine(item_id)
-            return 503, {"error": "database delete failed; files restored, nothing was deleted", "detail": error.args[0]}
+            conflicts = restore_quarantine(item_id)
+            body = {"error": "database delete failed; files restored, nothing was deleted", "detail": error.args[0]}
+            if conflicts:
+                body.update(error="database delete failed; some files' places were taken meanwhile, so those "
+                                  "originals are kept in quarantine (nothing was lost)",
+                            conflicts=conflicts, quarantine=trash_dir(item_id))
+            return 503, body
 
-    shutil.rmtree(trash_dir(item_id), ignore_errors=True)
-    return 200, {"removedFiles": moved, "database": "deleted" if keys is not None else "no row"}
+    # Checked again now the row is gone: a file another row started using meanwhile goes back.
+    try:
+        reused = [relative for relative in moved if key_used_elsewhere(relative, item_id)]
+    except DatabaseError:
+        reused = list(moved)  # can't tell: keep everything, settled at the next start
+    conflicts = restore_quarantine(item_id, only=set(reused)) if reused else []
+    # Everything still held is what this delete removes, except a conflict, which stays.
+    for relative in held_files(item_id):
+        if relative not in conflicts:
+            os.remove(os.path.join(trash_dir(item_id), relative))
+    remove_if_empty(trash_dir(item_id))
+    removed = [relative for relative in moved if relative not in reused]
+    return 200, {"removedFiles": removed, "database": "deleted" if keys is not None else "no row",
+                 **({"keptBecauseShared": sorted(reused)} if reused else {}),
+                 **({"conflicts": conflicts} if conflicts else {})}
 
 
 class Handler(BaseHTTPRequestHandler):

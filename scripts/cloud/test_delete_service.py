@@ -120,6 +120,73 @@ class DeleteServiceTests(unittest.TestCase):
         self.assertEqual(self.request({"id": "aaaa"})[0], 200)
         self.assertFalse(self.exists("shared/only-a.mp4"))
 
+    def test_a_file_named_after_one_wallpaper_but_used_by_another_is_kept(self):
+        """Review R6: B also plays live/aaaa.mp4; deleting A must leave it."""
+        self.row("aaaa", playback="live/aaaa.mp4")
+        self.row("bbbb", playback="live/aaaa.mp4")
+        self.file("live/aaaa.mp4", "shared")
+        self.file("thumbnails/aaaa.jpg")
+        status, body = self.request({"id": "aaaa"})
+        self.assertEqual(status, 200)
+        self.assertTrue(self.exists("live/aaaa.mp4"))
+        self.assertNotIn("live/aaaa.mp4", body["removedFiles"])
+        self.assertFalse(self.exists("thumbnails/aaaa.jpg"))
+        self.assertFalse(self.has_row("aaaa"))
+        self.assertTrue(self.has_row("bbbb"))
+
+    def test_a_file_another_row_starts_using_during_the_delete_goes_back(self):
+        """The reference check is repeated after the row is gone."""
+        self.row("aaaa")
+        self.file("live/aaaa.mp4", "original")
+        real_sql = delete_service.sql
+
+        def sql_then_reference(statement):
+            out = real_sql(statement)
+            if statement.startswith("delete from wallpapers"):
+                real_sql("insert into wallpapers (id, title, kind, category, playback_key) "
+                         "values ('bbbb', 't', 'video', 'abstract', 'live/aaaa.mp4')")
+            return out
+        delete_service.sql = sql_then_reference
+        try:
+            self.assertEqual(self.request({"id": "aaaa"})[0], 200)
+        finally:
+            delete_service.sql = real_sql
+        self.assertTrue(self.exists("live/aaaa.mp4"))
+
+    def test_rollback_never_discards_an_original_when_its_place_was_taken(self):
+        """Review R7: the destination is recreated while the delete is staged and
+        the database step then fails: the original stays held, nothing is lost."""
+        self.row("aaaa")
+        self.file("live/aaaa.mp4", "original")
+        real_sql = delete_service.sql
+
+        def recreate_then_fail(statement):
+            if statement.startswith("delete from wallpapers"):
+                self.file("live/aaaa.mp4", "replacement")
+                raise delete_service.DatabaseError("database says no")
+            return real_sql(statement)
+        delete_service.sql = recreate_then_fail
+        try:
+            status, body = self.request({"id": "aaaa"})
+        finally:
+            delete_service.sql = real_sql
+        self.assertEqual(status, 503)
+        self.assertEqual(body.get("conflicts"), ["live/aaaa.mp4"])
+        with open(os.path.join(self.storage, "live/aaaa.mp4")) as handle:
+            self.assertEqual(handle.read(), "replacement")
+        held = os.path.join(delete_service.trash_dir("aaaa"), "live/aaaa.mp4")
+        with open(held) as handle:
+            self.assertEqual(handle.read(), "original")
+        self.assertTrue(self.has_row("aaaa"))
+
+    def test_settling_a_quarantine_keeps_originals_whose_place_was_taken(self):
+        self.row("aaaa")
+        self.file(".trash/aaaa/live/aaaa.mp4", "original")
+        self.file("live/aaaa.mp4", "replacement")
+        delete_service.settle_all_quarantines()
+        with open(os.path.join(delete_service.trash_dir("aaaa"), "live/aaaa.mp4")) as handle:
+            self.assertEqual(handle.read(), "original")
+
     def test_an_unknown_id_is_404_and_touches_nothing(self):
         self.file("live/bbbb.mp4")
         status, _ = self.request({"id": "zzzz"})
