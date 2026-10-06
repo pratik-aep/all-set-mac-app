@@ -148,7 +148,7 @@ struct AboutSettings: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("All Set").font(.title2.bold())
                     Text("Version \(version)").foregroundStyle(.secondary)
-                    Text("A Dynamic Island and system monitor for your Mac.")
+                    Text("Desktop widgets, themes and wallpapers, a Dynamic Island, and a system monitor for your Mac.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }

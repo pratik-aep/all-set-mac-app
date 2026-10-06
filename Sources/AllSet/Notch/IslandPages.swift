@@ -176,7 +176,7 @@ struct MonitorPage: View {
         let unit = settings.temperatureUnit
         PageScaffold {
             PageHeader(eyebrow: "Live", title: "Monitor",
-                       subtitle: "Your Mac right now. It reads \(snapshot.thermal.title.lowercased()), and nothing here runs once the window closes.") {
+                       subtitle: "Your Mac right now. It reads \(snapshot.thermal.title.lowercased()), and once the window closes it keeps reading, just less often, for the menu bar and widgets.") {
                 HStack(spacing: DS.Space.s) {
                     Picker("Update every", selection: $settings.refreshInterval) {
                         Text("½ s").tag(0.5)

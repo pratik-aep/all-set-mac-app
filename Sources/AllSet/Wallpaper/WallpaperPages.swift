@@ -435,7 +435,7 @@ private struct LibrarySection: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())
-        .help("Only wallpapers stored on this Mac right now — delete here removes just this Mac's copy, not the wallpaper.")
+        .help("Only wallpapers stored on this Mac right now. Delete still offers both: Remove Download (this Mac's copy) or Delete Everywhere.")
     }
 
     private func chip(_ value: WallpaperCategory?, title: String, symbol: String) -> some View {
