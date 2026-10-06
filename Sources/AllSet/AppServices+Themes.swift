@@ -270,7 +270,7 @@ extension AppServices {
     /// Asks for photos, then puts the whole set on the desktop with them in
     /// every picture slot. Returns false when nothing was chosen.
     @discardableResult
-    func installWithMyPhotos(_ set: ThemeSet, wallpaper setsWallpaper: Bool) -> Bool {
+    func installWithMyPhotos(_ set: ThemeSet, wallpaper setsWallpaper: Bool) async -> Bool {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = true
@@ -278,7 +278,7 @@ extension AppServices {
         panel.prompt = "Use These"
         panel.message = "Choose photos for \(set.name). They fill every photo, tape and print in the theme."
         guard panel.runModal() == .OK else { return false }
-        let names = images.importImages(from: panel.urls)
+        let names = await images.importImages(from: panel.urls)
         guard !names.isEmpty else { return false }
         themePhotos.set(names, for: set.id)
         install(set, mode: .replace, wallpaper: setsWallpaper)

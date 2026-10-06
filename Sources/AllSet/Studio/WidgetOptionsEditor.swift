@@ -840,8 +840,11 @@ struct WidgetOptionsEditor: View {
         panel.allowedContentTypes = [.image]
         panel.prompt = "Use"
         guard panel.runModal() == .OK else { return }
-        let names = services.images.importImages(from: panel.urls)
-        if let name = names.first { services.widgets.update(id) { $0.options.images = [.file(name)] } }
+        let urls = panel.urls
+        Task {
+            let names = await services.images.importImages(from: urls)
+            if let name = names.first { services.widgets.update(id) { $0.options.images = [.file(name)] } }
+        }
     }
 
     @ViewBuilder
@@ -913,8 +916,12 @@ struct WidgetOptionsEditor: View {
         panel.allowedContentTypes = [.image, .folder]
         panel.prompt = "Add"
         guard panel.runModal() == .OK else { return }
-        let names = services.images.importImages(from: panel.urls)
-        services.widgets.update(id) { $0.options.images += names.map { ImageSource.file($0) } }
+        let urls = panel.urls
+        Task {
+            let names = await services.images.importImages(from: urls)
+            guard !names.isEmpty else { return }
+            services.widgets.update(id) { $0.options.images += names.map { ImageSource.file($0) } }
+        }
     }
 
     /// Width or height as a percentage of the layout's own size (height is `stretch` of the width).

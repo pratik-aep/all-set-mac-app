@@ -131,6 +131,13 @@ public final class ImageLibrary {
     public private(set) var webPhotosError: String?
     /// File names of imported pictures, newest first.
     public private(set) var userImages: [String] = []
+    /// How far running imports have got (pictures done of all found); nil when none are running.
+    public private(set) var importProgress: ImportProgress?
+
+    public struct ImportProgress: Equatable, Sendable {
+        public var done: Int
+        public var total: Int
+    }
 
     @ObservationIgnored private var nextPage = 1
     /// Whole photos (a wallpaper, a big widget), limited by decoded bytes:
@@ -153,6 +160,11 @@ public final class ImageLibrary {
     }
     /// Downloads in progress, so several widgets showing one photo share one.
     @ObservationIgnored private var loading: [ImageSource: Task<NSImage?, Never>] = [:]
+    /// Photos being downloaded to the cache, without being decoded.
+    @ObservationIgnored private var downloading: [String: Task<Bool, Never>] = [:]
+    @ObservationIgnored private var imports: [UUID: Task<[String], Never>] = [:]
+    /// Whole-photo decodes, for tests: a small copy shouldn't need one.
+    @ObservationIgnored private(set) var fullDecodes = 0
     @ObservationIgnored private let userDirectory: URL
     @ObservationIgnored private let cacheDirectory: URL
     @ObservationIgnored private let log = Logger(subsystem: "com.pratik.allset", category: "images")
@@ -206,10 +218,49 @@ public final class ImageLibrary {
 
     // MARK: Imported pictures
 
-    /// Copies pictures (or every picture in dropped folders) into All Set's
-    /// folder, scaled down so a big camera file doesn't sit around at full size.
+    /// Copies pictures (or every picture in dropped folders, up to 100 each) into
+    /// All Set's folder, scaled down so a big camera file doesn't sit around at
+    /// full size. The work happens off the main thread, a few pictures at a
+    /// time, with progress in `importProgress`; cancelling the calling task or
+    /// `cancelImports()` stops it between pictures, keeping those already done.
+    /// Returns the new file names in the order the pictures were given.
     @discardableResult
-    public func importImages(from urls: [URL]) -> [String] {
+    public func importImages(from urls: [URL]) async -> [String] {
+        let id = UUID()
+        let directory = userDirectory
+        let task = Task<[String], Never> {
+            let files = await Task.detached(priority: .userInitiated) { Self.imageFiles(in: urls) }.value
+            guard !Task.isCancelled, !files.isEmpty else { return [] }
+            importProgress = ImportProgress(done: importProgress?.done ?? 0, total: (importProgress?.total ?? 0) + files.count)
+            let work = Task.detached(priority: .userInitiated) {
+                await Self.importFiles(files, into: directory) { await self.importStepped() }
+            }
+            let names = await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
+            for failed in files.indices where names[failed] == nil && !Task.isCancelled {
+                log.error("Couldn't import \(files[failed].lastPathComponent, privacy: .public)")
+            }
+            return names.compactMap(\.self)
+        }
+        imports[id] = task
+        let imported = await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+        imports[id] = nil
+        if imports.isEmpty { importProgress = nil }
+        reloadUserImages()
+        return imported
+    }
+
+    /// Stops every running import after the pictures it's working on.
+    public func cancelImports() {
+        for task in imports.values { task.cancel() }
+    }
+
+    private func importStepped() {
+        importProgress?.done += 1
+    }
+
+    nonisolated static let importWidth = 4
+
+    nonisolated static func imageFiles(in urls: [URL]) -> [URL] {
         var files: [URL] = []
         for url in urls {
             var isDirectory: ObjCBool = false
@@ -221,16 +272,34 @@ public final class ImageLibrary {
                 files.append(url)
             }
         }
-        let imported = files.compactMap { url -> String? in
-            let name = UUID().uuidString + ".jpg"
-            guard Self.writeScaledJPEG(from: url, to: userDirectory.appendingPathComponent(name), maxPixels: 3200) else {
-                log.error("Couldn't import \(url.lastPathComponent, privacy: .public)")
-                return nil
+        return files
+    }
+
+    /// Each picture's new name, or nil if it failed or wasn't reached before cancelling.
+    nonisolated static func importFiles(_ files: [URL], into directory: URL,
+                                        stepped: @escaping @Sendable () async -> Void) async -> [String?] {
+        var names = [String?](repeating: nil, count: files.count)
+        await withTaskGroup(of: (Int, String?).self) { group in
+            var next = 0
+            func startNext() -> Bool {
+                guard next < files.count, !Task.isCancelled else { return false }
+                let index = next, file = files[index]
+                next += 1
+                group.addTask {
+                    let name = UUID().uuidString + ".jpg"
+                    let ok = writeScaledJPEG(from: file, to: directory.appendingPathComponent(name), maxPixels: 3200)
+                    await stepped()
+                    return (index, ok ? name : nil)
+                }
+                return true
             }
-            return name
+            for _ in 0..<importWidth where !startNext() { break }
+            while let (index, name) = await group.next() {
+                names[index] = name
+                _ = startNext()
+            }
         }
-        reloadUserImages()
-        return imported
+        return names
     }
 
     public func deleteUserImage(_ name: String) {
@@ -330,9 +399,8 @@ public final class ImageLibrary {
         if let cached = smallCache.value(forKey: key) { return cached }
         if let running = smallLoading[key] { return await running.value }
         let task = Task<NSImage?, Never> {
-            guard await self.image(for: source) != nil, let file = fileURL(for: source) else { return nil }
-            // The full image stays out of memory; only the small copy is kept.
-            memoryCache.removeValue(forKey: source)
+            // Straight from the file: the whole photo is never decoded for a small copy.
+            guard let file = await availableFile(for: source) else { return nil }
             return await Task.detached(priority: .userInitiated) { Self.thumbnail(of: file, maxPixels: bucket) }.value
         }
         smallLoading[key] = task
@@ -389,50 +457,51 @@ public final class ImageLibrary {
         return image
     }
 
-    /// Reads, re-encodes and decodes off the main thread; only wrapping the
-    /// finished picture happens here.
+    /// Reads and decodes off the main thread; only wrapping the finished
+    /// picture happens here.
     private func load(_ source: ImageSource) async -> NSImage? {
-        let image: NSImage?
-        switch source {
-        case .art:
-            return nil
-        case .file(let name):
-            image = await Self.decoded(userDirectory.appendingPathComponent(name))
-        case .bundled(let name):
-            guard let url = Self.bundledURL(name) else { return nil }
-            image = await Self.decoded(url)
-        case .web(let photo):
-            let file = cacheDirectory.appendingPathComponent(photo.cacheName)
-            if let cached = await Self.decoded(file) {
-                image = cached
-            } else {
-                do {
-                    let (data, response) = try await URLSession.shared.data(from: photo.displayURL)
-                    // An error page isn't a photo: never cache one as if it were.
-                    guard (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true,
-                          CGImageSourceCreateWithData(data as CFData, nil).map({ CGImageSourceGetCount($0) > 0 }) == true else {
-                        log.error("Photo \(photo.id, privacy: .public) didn't come back as an image")
-                        return nil
-                    }
-                    // Originals can be huge; keep a screen-sized copy.
-                    let saved = await Task.detached(priority: .userInitiated) {
-                        if Self.writeScaledJPEG(from: data, to: file, maxPixels: 3200) { return true }
-                        do {
-                            try data.write(to: file, options: .atomic)
-                            return true
-                        } catch {
-                            return false
-                        }
-                    }.value
-                    if !saved { log.error("Couldn't cache photo \(photo.id, privacy: .public)") }
-                    image = await Self.decoded(file)
-                } catch {
-                    log.error("Photo \(photo.id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
-                    image = nil
-                }
-            }
+        guard let file = await availableFile(for: source) else { return nil }
+        fullDecodes += 1
+        return await Self.decoded(file)
+    }
+
+    /// The file behind a source, downloading an online photo to the cache first
+    /// if it isn't there yet, without decoding it. Nil for art, a missing file
+    /// or a failed download.
+    public func availableFile(for source: ImageSource) async -> URL? {
+        guard let file = fileURL(for: source) else { return nil }
+        guard case .web(let photo) = source, !FileManager.default.fileExists(atPath: file.path) else {
+            return FileManager.default.fileExists(atPath: file.path) ? file : nil
         }
-        return image
+        let key = photo.cacheName
+        if let running = downloading[key] { return await running.value ? file : nil }
+        let task = Task { await download(photo, to: file) }
+        downloading[key] = task
+        let saved = await task.value
+        downloading[key] = nil
+        return saved ? file : nil
+    }
+
+    private func download(_ photo: WebPhoto, to file: URL) async -> Bool {
+        do {
+            let (data, response) = try await URLSession.shared.data(from: photo.displayURL)
+            // An error page isn't a photo: never cache one as if it were.
+            guard (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true,
+                  CGImageSourceCreateWithData(data as CFData, nil).map({ CGImageSourceGetCount($0) > 0 }) == true else {
+                log.error("Photo \(photo.id, privacy: .public) didn't come back as an image")
+                return false
+            }
+            // Originals can be huge; keep a screen-sized copy.
+            let saved = await Task.detached(priority: .userInitiated) {
+                if Self.writeScaledJPEG(from: data, to: file, maxPixels: 3200) { return true }
+                return (try? data.write(to: file, options: .atomic)) != nil
+            }.value
+            if !saved { log.error("Couldn't cache photo \(photo.id, privacy: .public)") }
+            return saved
+        } catch {
+            log.error("Photo \(photo.id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
     }
 
     /// The picture at `url`, fully decoded and upright on a background thread,

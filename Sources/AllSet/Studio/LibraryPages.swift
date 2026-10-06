@@ -690,6 +690,16 @@ struct MyPhotosPage: View {
                     .controlSize(.large)
                 }
 
+                if let progress = library.importProgress {
+                    HStack(spacing: 10) {
+                        ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
+                        Text("Importing \(progress.done) of \(progress.total)")
+                            .font(.callout.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        Button("Stop") { library.cancelImports() }
+                    }
+                }
+
                 if library.userImages.isEmpty {
                     VStack(spacing: 10) {
                         Image(systemName: "photo.badge.plus")
@@ -733,8 +743,9 @@ struct MyPhotosPage: View {
             }
         }
         .dropDestination(for: URL.self) { urls, _ in
-            let names = library.importImages(from: urls)
-            return !names.isEmpty
+            // Imported in the background; progress shows above.
+            Task { await library.importImages(from: urls) }
+            return !urls.isEmpty
         } isTargeted: { isDropTarget = $0 }
         .safeAreaInset(edge: .bottom) {
             if !context.isPicking, context.action == nil, !slideshow.isEmpty {
@@ -766,7 +777,8 @@ struct MyPhotosPage: View {
         panel.allowedContentTypes = [.image, .folder]
         panel.prompt = "Import"
         if panel.runModal() == .OK {
-            services.images.importImages(from: panel.urls)
+            let urls = panel.urls
+            Task { await services.images.importImages(from: urls) }
         }
     }
 }

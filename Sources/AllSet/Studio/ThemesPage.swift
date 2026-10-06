@@ -557,12 +557,11 @@ struct ThemeDetailPage: View {
             if Self.hasPhotoSlots(set) {
                 FlowLayout(spacing: DS.Space.xs) {
                     Button {
-                        if services.installWithMyPhotos(set, wallpaper: setsWallpaper) {
+                        Task {
+                            guard await services.installWithMyPhotos(set, wallpaper: setsWallpaper) else { return }
                             withMotion(Motion.standard) { done = "Applied" }
-                            Task {
-                                try? await Task.sleep(for: .seconds(2.5))
-                                withMotion(Motion.standard) { done = nil }
-                            }
+                            try? await Task.sleep(for: .seconds(2.5))
+                            withMotion(Motion.standard) { done = nil }
                         }
                     } label: {
                         Label("Use My Photos…", systemImage: "person.crop.rectangle.stack")

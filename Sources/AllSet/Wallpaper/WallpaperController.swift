@@ -291,8 +291,8 @@ final class WallpaperController {
             if case .art(let piece) = imageSource {
                 return await stillImage(for: .art(piece))
             }
-            _ = await services.images.image(for: imageSource)
-            return services.images.fileURL(for: imageSource)
+            // The file is all the system wallpaper needs: no decode.
+            return await services.images.availableFile(for: imageSource)
         case .video(let name):
             return await videoStill(services.wallpaper.videoURL(name), to: file)
         case .library(let id):
