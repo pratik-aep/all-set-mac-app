@@ -19,6 +19,9 @@ final class WindowManager {
         var checks = 0
         var isMoving = false
         var zone: WindowAction?
+        /// The usable area of the display `zone` is on: the same zone on another
+        /// display (or after the Dock moves) is a different target.
+        var zoneArea: CGRect?
         var target: CGRect?
     }
 
@@ -165,14 +168,16 @@ final class WindowManager {
                 let pointer = NSEvent.mouseLocation
                 if let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }),
                    let zone = WindowLayout.snapZone(at: pointer, screen: screen.frame) {
-                    if zone != state.zone {
+                    if zone != state.zone || screen.visibleFrame != state.zoneArea {
                         state.zone = zone
+                        state.zoneArea = screen.visibleFrame
                         state.target = WindowLayout.frame(for: zone, window: appKit(state.start), visible: screen.visibleFrame,
                                                           gap: services.workspaces.settings.gap, cycle: false)
                         if let target = state.target { preview.show(target) }
                     }
                 } else if state.zone != nil {
                     state.zone = nil
+                    state.zoneArea = nil
                     state.target = nil
                     preview.hide()
                 }

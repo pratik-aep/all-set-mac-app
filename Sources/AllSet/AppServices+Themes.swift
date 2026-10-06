@@ -56,7 +56,7 @@ extension AppServices {
             let screen = target
             let bounds = screen?.visibleFrame.size ?? CGSize(width: 1440, height: 860)
             let added = ThemeSet.personalized(set.widgets(screenName: screen?.localizedName, bounds: bounds),
-                                              with: themePhotos.sources(for: set.id))
+                                              with: themePhotos.sources(for: set.id)).map { $0.placed(on: screen) }
             for widget in prepared(added) { addWidget(widget) }
             themeStats.record(.install, for: set.id)
         case .restyle:
@@ -225,7 +225,7 @@ extension AppServices {
     /// A set's widgets with the person's photos, sized and centered to fill
     /// the chosen screen, whatever its size, and lined up on its grid.
     private func themeWidgets(_ set: ThemeSet, on screen: NSScreen?) -> [WidgetInstance] {
-        let layout = set.widgets(screenName: screen?.localizedName, bounds: Self.unbounded)
+        let layout = set.widgets(screenName: screen?.localizedName, bounds: Self.unbounded).map { $0.placed(on: screen) }
         let personal = ThemeSet.personalized(layout, with: themePhotos.sources(for: set.id))
         let arranged = gridArranged(fittedToScreen(personal, on: screen))
         // Opened up to the screen's edges, so a wide display has no bare sides.

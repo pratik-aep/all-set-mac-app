@@ -65,6 +65,15 @@ public enum WindowAction: String, Codable, CaseIterable, Identifiable, Sendable 
 
 /// Window geometry, in AppKit screen coordinates (origin bottom-left, y up).
 public enum WindowLayout {
+    /// Whether macOS is tiling windows dragged to screen edges itself, which
+    /// All Set's snapping then stays out of the way of. That arrived in macOS
+    /// 15; before it there's nothing to defer to. On 15 and later an absent
+    /// preference means its default, on.
+    public static func nativeTilingIsOn(preference: Bool?, osMajor: Int) -> Bool {
+        guard osMajor >= 15 else { return false }
+        return preference ?? true
+    }
+
     /// Where `action` puts a window on a screen whose usable area is `visible`.
     /// With `cycle`, repeating Left or Right Half steps through ½, ⅔ and ⅓.
     /// Returns nil for actions that need more than one screen or history.

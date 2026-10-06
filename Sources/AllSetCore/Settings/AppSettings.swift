@@ -70,8 +70,8 @@ public final class AppSettings {
         }
     }
     /// Each display's own widget size and the screen size its widgets were last
-    /// laid out for, by display name. A new size (a resolution change, another
-    /// monitor) refits that display's widgets.
+    /// laid out for, by display id (by name when saved before ids). A new size
+    /// (a resolution change, another monitor) refits that display's widgets.
     public var screenFits: [String: ScreenFit] {
         didSet { defaults.set(try? JSONEncoder().encode(screenFits), forKey: Key.screenFits) }
     }
@@ -79,6 +79,15 @@ public final class AppSettings {
     /// The widget size on a display: its own, else the desktop-wide one.
     public func widgetScale(for screenName: String?) -> Double {
         screenName.flatMap { screenFits[$0]?.scale } ?? widgetScale
+    }
+
+    public func widgetScale(for display: DisplayInfo?) -> Double {
+        display.flatMap { DisplayIdentity.value(in: screenFits, for: $0)?.scale } ?? widgetScale
+    }
+
+    /// A display's fit, saved under its id (or found under its name, saved before ids).
+    public func screenFit(for display: DisplayInfo) -> ScreenFit? {
+        DisplayIdentity.value(in: screenFits, for: display)
     }
     public nonisolated static let widgetScaleRange: ClosedRange<Double> = 0.4...2
     /// The widget look before any theme: a fresh install's, and what a

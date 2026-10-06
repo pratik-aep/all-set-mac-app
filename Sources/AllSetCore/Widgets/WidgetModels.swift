@@ -984,8 +984,11 @@ public struct WidgetInstance: Codable, Identifiable, Equatable, Sendable {
     public var size: WidgetSize
     public var material: WidgetMaterial
     public var tint: WidgetColor
-    /// The screen's `localizedName`. Widgets whose screen is disconnected show
-    /// on the primary screen until it's back.
+    /// The display it's on: its stable id, which decides (see `DisplayIdentity`),
+    /// and its name, the fallback for layouts saved before ids and for older
+    /// versions. Widgets whose display is disconnected show on the primary
+    /// screen until it's back.
+    public var screenID: String?
     public var screenName: String?
     /// Top-left corner, measured from the top-left of the screen's visible area.
     public var offset: CGPoint
@@ -1175,6 +1178,7 @@ public struct WidgetInstance: Codable, Identifiable, Equatable, Sendable {
         size = (try? container.decode(WidgetSize.self, forKey: .size)) ?? kind.defaultSize
         material = (try? container.decode(WidgetMaterial.self, forKey: .material)) ?? .glass
         tint = (try? container.decode(WidgetColor.self, forKey: .tint)) ?? WidgetColor.presets[0]
+        screenID = try? container.decodeIfPresent(String.self, forKey: .screenID)
         screenName = try? container.decodeIfPresent(String.self, forKey: .screenName)
         offset = (try? container.decode(CGPoint.self, forKey: .offset)) ?? .zero
         options = (try? container.decode(WidgetOptions.self, forKey: .options)) ?? WidgetOptions()

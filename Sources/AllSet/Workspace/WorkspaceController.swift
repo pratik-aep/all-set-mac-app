@@ -31,7 +31,7 @@ final class WorkspaceController {
                                           y: (frame.minY - visible.minY) / visible.height,
                                           width: frame.width / visible.width,
                                           height: frame.height / visible.height)
-                    return WindowPlacement(title: window.title, screenName: screen.localizedName, frame: relative)
+                    return WindowPlacement(title: window.title, screenID: screen.stableID, screenName: screen.localizedName, frame: relative)
                 }
             guard !placements.isEmpty, let bundleID = app.bundleIdentifier else { return nil }
             return WorkspaceApp(bundleID: bundleID, name: app.localizedName ?? bundleID, windows: placements)
@@ -65,7 +65,7 @@ final class WorkspaceController {
                     ?? (windows.isEmpty ? nil : 0)
                 guard let index else { break }
                 let window = windows.remove(at: index)
-                let screen = NSScreen.screens.first { $0.localizedName == placement.screenName } ?? NSScreen.main
+                let screen = NSScreen.matching(id: placement.screenID, name: placement.screenName) ?? NSScreen.main
                 guard let visible = screen?.visibleFrame else { continue }
                 let target = CGRect(x: visible.minX + placement.frame.minX * visible.width,
                                     y: visible.minY + placement.frame.minY * visible.height,

@@ -60,7 +60,7 @@ final class DesktopWidgetController {
 
     func start() {
         if !services.widgets.hasSavedLayout, let screen = NSScreen.screens.first {
-            services.widgets.add(contentsOf: WidgetLayout.starterSet(screenName: screen.localizedName))
+            services.widgets.add(contentsOf: WidgetLayout.starterSet(screenName: screen.localizedName).map { $0.placed(on: screen) })
         }
         sync(animated: false)
 
@@ -315,7 +315,7 @@ final class DesktopWidgetController {
     /// The window frame for a widget: its saved spot, kept on screen, plus the
     /// margin around it.
     private func frame(for instance: WidgetInstance) -> CGRect? {
-        guard let screen = screen(named: instance.screenName) else { return nil }
+        guard let screen = services.screen(for: instance) else { return nil }
         let visible = screen.visibleFrame
         // Offsets are layout points: position and size both grow with the widget size.
         let scale = services.widgetScale(on: screen)
@@ -339,9 +339,6 @@ final class DesktopWidgetController {
         services.widgetScale(on: services.screen(for: instance)) * instance.scale
     }
 
-    private func screen(named name: String?) -> NSScreen? {
-        NSScreen.screens.first { $0.localizedName == name } ?? NSScreen.screens.first
-    }
 
     /// Stats widgets only need fresh numbers while someone can see them, and
     /// only as often as the most eager visible one asks.
@@ -384,12 +381,13 @@ final class DesktopWidgetController {
                 if let other = slot.swap {
                     services.widgets.update(other) {
                         $0.offset = instance.offset
+                        $0.screenID = instance.screenID
                         $0.screenName = instance.screenName
                     }
                 }
                 services.widgets.update(id) {
                     $0.offset = slot.offset
-                    $0.screenName = slot.screen.localizedName
+                    $0.place(on: slot.screen)
                 }
             }
             // Settle into the slot even if the saved spot didn't change.
@@ -403,7 +401,7 @@ final class DesktopWidgetController {
         let margin = WidgetWindow.margin * contentScale(for: instance)
         let content = window.frame.insetBy(dx: margin, dy: margin)
         let center = CGPoint(x: content.midX, y: content.midY)
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(center) }) ?? screen(named: nil) else { return nil }
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(center) }) ?? NSScreen.screens.first else { return nil }
         let scale = services.widgetScale(on: screen)
         let visible = screen.visibleFrame
         let offset = CGPoint(x: (content.minX - visible.minX) / scale, y: (visible.maxY - content.maxY) / scale)

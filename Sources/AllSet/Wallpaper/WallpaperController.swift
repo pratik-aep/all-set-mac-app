@@ -101,13 +101,15 @@ final class WallpaperController {
             return
         }
 
-        let screens = Dictionary(NSScreen.screens.map { ($0.localizedName, $0) }, uniquingKeysWith: { first, _ in first })
-        for name in windows.keys where screens[name] == nil {
-            if let window = windows.removeValue(forKey: name) { closeWindow(window) }
+        // One window per display, by its id: two monitors of the same model
+        // share a name, and keyed by name one of them had no wallpaper.
+        let screens = Dictionary(NSScreen.screens.map { ($0.stableID, $0) }, uniquingKeysWith: { first, _ in first })
+        for key in windows.keys where screens[key] == nil {
+            if let window = windows.removeValue(forKey: key) { closeWindow(window) }
         }
-        for (name, screen) in screens {
-            let window = windows[name] ?? makeWindow(for: screen)
-            windows[name] = window
+        for (key, screen) in screens {
+            let window = windows[key] ?? makeWindow(for: screen)
+            windows[key] = window
             if window.frame != screen.frame { window.setFrame(screen.frame, display: true) }
             window.orderFront(nil)
         }
@@ -238,11 +240,10 @@ final class WallpaperController {
             UserDefaults.standard.set(Self.stillKey(source), forKey: Self.stillSourceKey)
             UserDefaults.standard.set(still.path, forKey: Self.stillPathKey)
             for screen in NSScreen.screens {
-                let name = screen.localizedName
-                if services.wallpaper.config.originalWallpapers[name] == nil,
+                if DisplayIdentity.value(in: services.wallpaper.config.originalWallpapers, for: screen.displayInfo) == nil,
                    let current = NSWorkspace.shared.desktopImageURL(for: screen),
                    !current.path.hasPrefix(services.wallpaper.directory.path) {
-                    services.wallpaper.config.originalWallpapers[name] = current
+                    services.wallpaper.config.originalWallpapers[screen.stableID] = current
                 }
                 do {
                     try NSWorkspace.shared.setDesktopImageURL(still, for: screen, options: [:])
@@ -267,7 +268,8 @@ final class WallpaperController {
         let originals = services.wallpaper.config.originalWallpapers
         guard !originals.isEmpty else { return }
         for screen in NSScreen.screens {
-            guard let url = originals[screen.localizedName], FileManager.default.fileExists(atPath: url.path) else { continue }
+            guard let url = DisplayIdentity.value(in: originals, for: screen.displayInfo),
+                  FileManager.default.fileExists(atPath: url.path) else { continue }
             try? NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
         }
         services.wallpaper.config.originalWallpapers = [:]

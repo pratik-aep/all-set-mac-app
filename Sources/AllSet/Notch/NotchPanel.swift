@@ -1,3 +1,4 @@
+import AllSetCore
 import AppKit
 import SwiftUI
 
@@ -42,5 +43,39 @@ extension NSScreen {
 
     var isBuiltIn: Bool {
         displayID.map { CGDisplayIsBuiltin($0) != 0 } ?? false
+    }
+
+    /// The display's UUID: the same for a monitor across reconnects and
+    /// restarts, different for two monitors of the same model (which share a
+    /// `localizedName`). Saved with records to say which display they're on.
+    var stableID: String {
+        guard let displayID, let uuid = CGDisplayCreateUUIDFromDisplayID(displayID)?.takeRetainedValue(),
+              let string = CFUUIDCreateString(nil, uuid) as String? else {
+            return "display-\(displayID ?? 0)"
+        }
+        return string
+    }
+
+    var displayInfo: DisplayInfo { DisplayInfo(id: stableID, name: localizedName) }
+
+    /// The connected screen a record saved with this id and name belongs to.
+    static func matching(id: String?, name: String?) -> NSScreen? {
+        let screens = NSScreen.screens
+        return DisplayIdentity.index(id: id, name: name, in: screens.map(\.displayInfo)).map { screens[$0] }
+    }
+}
+
+extension WidgetInstance {
+    /// On `screen`, by id and by name; unchanged for nil.
+    mutating func place(on screen: NSScreen?) {
+        guard let screen else { return }
+        screenID = screen.stableID
+        screenName = screen.localizedName
+    }
+
+    func placed(on screen: NSScreen?) -> WidgetInstance {
+        var copy = self
+        copy.place(on: screen)
+        return copy
     }
 }

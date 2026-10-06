@@ -22,7 +22,9 @@ enum Accessibility {
 /// fighting over one drag would make a mess.
 enum NativeTiling {
     static var isEnabled: Bool {
-        UserDefaults(suiteName: "com.apple.WindowManager")?.object(forKey: "EnableTilingByEdgeDrag") as? Bool ?? true
+        WindowLayout.nativeTilingIsOn(
+            preference: UserDefaults(suiteName: "com.apple.WindowManager")?.object(forKey: "EnableTilingByEdgeDrag") as? Bool,
+            osMajor: ProcessInfo.processInfo.operatingSystemVersion.majorVersion)
     }
 
     static func openSettings() {

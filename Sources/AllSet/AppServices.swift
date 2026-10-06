@@ -311,12 +311,12 @@ final class AppServices {
             instance.options.designTheme = theme
         }
         if let slot {
-            instance.screenName = slot.screen.localizedName
+            instance.place(on: slot.screen)
             instance.offset = slot.offset
         } else if let screen = NSScreen.screens.first {
             let occupied = occupiedRects(on: screen)
             let bounds = layoutBounds(of: screen)
-            instance.screenName = screen.localizedName
+            instance.place(on: screen)
             instance.offset = widgetGrid(on: screen).firstFree(instance.footprint, avoiding: occupied)
                 ?? WidgetLayout.freeOffset(for: instance.footprint, avoiding: occupied, within: bounds)
         }
@@ -331,7 +331,7 @@ extension AppServices {
     /// A screen's visible area in layout points: divided by the widget size.
     /// How large widgets are drawn on a display: its own size, else the desktop-wide one.
     func widgetScale(on screen: NSScreen?) -> Double {
-        settings.widgetScale(for: screen?.localizedName)
+        settings.widgetScale(for: screen?.displayInfo)
     }
 
     func layoutBounds(of screen: NSScreen) -> CGSize {
@@ -343,9 +343,9 @@ extension AppServices {
         WidgetGrid(bounds: layoutBounds(of: screen), margin: WidgetLayout.margin / widgetScale(on: screen))
     }
 
-    /// Where a widget shows: the screen it names, else the first.
+    /// Where a widget shows: its display (by id, else by name), else the first.
     func screen(for instance: WidgetInstance) -> NSScreen? {
-        NSScreen.screens.first { $0.localizedName == instance.screenName } ?? NSScreen.screens.first
+        NSScreen.matching(id: instance.screenID, name: instance.screenName) ?? NSScreen.screens.first
     }
 
     /// Whether a widget shows on `screen`. Compared by display, since
@@ -380,21 +380,23 @@ extension AppServices {
     /// seen for the first time is only noted.
     func refitWidgetsToScreens() {
         for screen in NSScreen.screens {
-            let name = screen.localizedName
+            // Saved under the display's id from now on (found by name when saved before ids).
+            let key = screen.stableID
             let size = screen.frame.size
-            guard let fit = settings.screenFits[name] else {
-                settings.screenFits[name] = ScreenFit(scale: settings.widgetScale(for: name), size: size)
+            guard let fit = settings.screenFit(for: screen.displayInfo) else {
+                settings.screenFits[key] = ScreenFit(scale: settings.widgetScale(for: screen.displayInfo), size: size)
                 continue
             }
+            if settings.screenFits[key] == nil { settings.screenFits[key] = fit }
             guard abs(fit.width - size.width) > 1 || abs(fit.height - size.height) > 1 else { continue }
             let group = widgets.widgets.filter { shows($0, on: screen) }
             guard !group.isEmpty else {
-                settings.screenFits[name] = ScreenFit(scale: fit.scale, size: size)
+                settings.screenFits[key] = ScreenFit(scale: fit.scale, size: size)
                 continue
             }
             let visible = screen.visibleFrame.size
             let refit = WidgetLayout.refit(group, from: fit, toScreen: size, visible: visible, range: AppSettings.widgetScaleRange)
-            settings.screenFits[name] = ScreenFit(scale: refit.scale, size: size)
+            settings.screenFits[key] = ScreenFit(scale: refit.scale, size: size)
             let grid = widgetGrid(on: screen)
             var moved = grid.arranged(refit.widgets)
             // A desktop that filled the old screen fills the new one.
@@ -469,8 +471,8 @@ extension AppServices {
     func fittedToScreen(_ layout: [WidgetInstance], on screen: NSScreen? = NSScreen.screens.first) -> [WidgetInstance] {
         let bounds = screen?.visibleFrame.size ?? CGSize(width: 1440, height: 860)
         let fitted = WidgetLayout.fitted(layout, in: bounds, range: AppSettings.widgetScaleRange)
-        if let name = screen?.localizedName {
-            settings.screenFits[name] = ScreenFit(scale: fitted.scale, size: screen?.frame.size ?? bounds)
+        if let screen {
+            settings.screenFits[screen.stableID] = ScreenFit(scale: fitted.scale, size: screen.frame.size)
         } else {
             settings.widgetScale = fitted.scale
         }
@@ -480,7 +482,7 @@ extension AppServices {
     /// Resizes and recenters the widgets on the primary screen so they fill it.
     func fitWidgetsToScreen() {
         guard let screen = NSScreen.screens.first else { return }
-        let onScreen = widgets.widgets.filter { $0.screenName == screen.localizedName || $0.screenName == nil }
+        let onScreen = widgets.widgets.filter { shows($0, on: screen) }
         guard !onScreen.isEmpty else { return }
         let moved = Dictionary(uniqueKeysWithValues: fittedToScreen(onScreen).map { ($0.id, $0.offset) })
         for (id, offset) in moved { widgets.update(id) { $0.offset = offset } }

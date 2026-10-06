@@ -69,11 +69,14 @@ public struct Shortcut: Codable, Hashable, Sendable {
 public struct WindowPlacement: Codable, Hashable, Sendable {
     /// Used to match the right window when an app has several.
     public var title: String?
+    /// The display's stable id (see `DisplayIdentity`); the name is the fallback.
+    public var screenID: String?
     public var screenName: String?
     public var frame: CGRect
 
-    public init(title: String?, screenName: String?, frame: CGRect) {
+    public init(title: String?, screenID: String? = nil, screenName: String?, frame: CGRect) {
         self.title = title
+        self.screenID = screenID
         self.screenName = screenName
         self.frame = frame
     }
