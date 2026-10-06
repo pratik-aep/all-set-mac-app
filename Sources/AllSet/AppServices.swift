@@ -110,6 +110,16 @@ final class AppServices {
         focusTimers.finishDuePhases()
         focusTimers.reschedule()
         observe({ [widgets] in widgets.widgets.map(\.options.focus.endsAt) }) { [weak self] _ in self?.focusTimers.reschedule() }
+        // What the downloaded-photo cache must never evict: the wallpaper's
+        // photo (the system wallpaper reads that file itself) and every photo
+        // a widget shows. Anything else downloads again if it's wanted.
+        images.photosInUse = { [weak self] in
+            guard let self else { return [] }
+            var sources = widgets.widgets.flatMap(\.options.images)
+            if case .photo(let source) = wallpaper.config.source { sources.append(source) }
+            return sources
+        }
+        Task { await images.trimDownloadedPhotos() }
         monitor.start()
         media.start()
         volume.start()

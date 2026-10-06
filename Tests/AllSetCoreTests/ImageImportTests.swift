@@ -98,4 +98,69 @@ import UniformTypeIdentifiers
         #expect((small?.size.width ?? .infinity) <= 256)
         #expect(images.fullDecodes == 0)
     }
+
+    // MARK: The downloaded-photo cache has a limit
+
+    /// Three cached photos of 400 bytes each, used an hour apart, oldest first.
+    private func cachedPhotos(in root: URL) throws -> [WebPhoto] {
+        let cache = root.appendingPathComponent("Photos")
+        try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+        return try (0..<3).map { index in
+            let photo = WebPhoto(id: "p\(index)", author: "a", width: 10, height: 10)
+            let file = cache.appendingPathComponent(photo.cacheName)
+            try Data(count: 400).write(to: file)
+            try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(Double(index - 3) * 3600)],
+                                                  ofItemAtPath: file.path)
+            return photo
+        }
+    }
+
+    private func cached(_ root: URL) -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("Photos").path)) ?? []).sorted()
+    }
+
+    @Test func theLeastRecentlyUsedPhotosGoWhenTheCacheIsOverItsLimit() async throws {
+        let root = try folder()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let photos = try cachedPhotos(in: root)
+        let images = ImageLibrary(userDirectory: root.appendingPathComponent("Images"),
+                                  cacheDirectory: root.appendingPathComponent("Photos"), photoCacheLimit: 900)
+        images.photosInUse = { [] }
+        let result = await images.trimDownloadedPhotos()
+        #expect(result.removed == 1 && result.freedBytes == 400)
+        #expect(cached(root) == [photos[1].cacheName, photos[2].cacheName])
+        // Under the limit now: nothing more goes.
+        #expect(await images.trimDownloadedPhotos().removed == 0)
+    }
+
+    /// The system wallpaper and widgets read these files directly: one in use
+    /// is never the one removed, however long ago it was used.
+    @Test func aPhotoInUseIsNeverEvicted() async throws {
+        let root = try folder()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let photos = try cachedPhotos(in: root)
+        let images = ImageLibrary(userDirectory: root.appendingPathComponent("Images"),
+                                  cacheDirectory: root.appendingPathComponent("Photos"), photoCacheLimit: 900)
+        images.photosInUse = { [.web(photos[0])] }   // the oldest is the wallpaper
+        await images.trimDownloadedPhotos()
+        #expect(cached(root) == [photos[0].cacheName, photos[2].cacheName])
+
+        // Even when what's in use is itself over the limit, it stays.
+        images.photosInUse = { photos.map { .web($0) } }
+        let tight = ImageLibrary(userDirectory: root.appendingPathComponent("Images"),
+                                 cacheDirectory: root.appendingPathComponent("Photos"), photoCacheLimit: 100)
+        tight.photosInUse = { [.web(photos[0]), .web(photos[2])] }
+        #expect(await tight.trimDownloadedPhotos().removed == 0)
+        #expect(cached(root).count == 2)
+    }
+
+    @Test func nothingIsEvictedUntilTheAppSaysWhatIsInUse() async throws {
+        let root = try folder()
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try cachedPhotos(in: root)
+        let images = ImageLibrary(userDirectory: root.appendingPathComponent("Images"),
+                                  cacheDirectory: root.appendingPathComponent("Photos"), photoCacheLimit: 100)
+        #expect(await images.trimDownloadedPhotos().removed == 0)
+        #expect(cached(root).count == 3)
+    }
 }

@@ -169,7 +169,18 @@ public final class ImageLibrary {
     @ObservationIgnored private let cacheDirectory: URL
     @ObservationIgnored private let log = Logger(subsystem: "com.pratik.allset", category: "images")
 
-    public init(userDirectory: URL? = nil, cacheDirectory: URL? = nil) {
+    /// How much disk the downloaded online photos may take. Past it, the ones
+    /// used longest ago go: they download again if they're wanted.
+    public nonisolated static let photoCacheLimit: Int64 = 1 << 30
+    @ObservationIgnored private let photoCacheLimit: Int64
+    /// The photos something is showing right now (the wallpaper, widgets):
+    /// never evicted, since the system wallpaper and widgets read those files
+    /// directly. Set by the app. Until it is, nothing is ever evicted: without
+    /// knowing what's in use, removing a file could blank someone's desktop.
+    @ObservationIgnored public var photosInUse: (@MainActor () -> [ImageSource])?
+
+    public init(userDirectory: URL? = nil, cacheDirectory: URL? = nil, photoCacheLimit: Int64 = ImageLibrary.photoCacheLimit) {
+        self.photoCacheLimit = photoCacheLimit
         let fileManager = FileManager.default
         self.userDirectory = userDirectory ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("AllSet/Images", isDirectory: true)
@@ -471,7 +482,9 @@ public final class ImageLibrary {
     public func availableFile(for source: ImageSource) async -> URL? {
         guard let file = fileURL(for: source) else { return nil }
         guard case .web(let photo) = source, !FileManager.default.fileExists(atPath: file.path) else {
-            return FileManager.default.fileExists(atPath: file.path) ? file : nil
+            guard FileManager.default.fileExists(atPath: file.path) else { return nil }
+            if case .web = source { Self.markUsed(file) }
+            return file
         }
         let key = photo.cacheName
         if let running = downloading[key] { return await running.value ? file : nil }
@@ -479,7 +492,56 @@ public final class ImageLibrary {
         downloading[key] = task
         let saved = await task.value
         downloading[key] = nil
+        if saved { Task { await trimDownloadedPhotos() } }
         return saved ? file : nil
+    }
+
+    /// Stamps a cached photo as used now (at most once an hour), so the cache
+    /// knows which were used longest ago. The file system's own access time
+    /// isn't kept up to date reliably.
+    private nonisolated static func markUsed(_ file: URL) {
+        let stamped = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        guard stamped.map({ $0.timeIntervalSinceNow < -3600 }) ?? true else { return }
+        try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: file.path)
+    }
+
+    /// Brings the downloaded photos back under the limit: least recently used
+    /// first, never one that's in use or still downloading. Does nothing until
+    /// the app has said how to tell what's in use (`photosInUse`).
+    @discardableResult
+    public func trimDownloadedPhotos() async -> (removed: Int, freedBytes: Int64) {
+        guard let photosInUse else { return (0, 0) }
+        var keeping = Set(downloading.keys)
+        for source in photosInUse() {
+            if case .web(let photo) = source { keeping.insert(photo.cacheName) }
+        }
+        let directory = cacheDirectory, limit = photoCacheLimit
+        let result = await Task.detached(priority: .utility) { Self.trim(directory, toBytes: limit, keeping: keeping) }.value
+        if result.removed > 0 {
+            log.info("Photo cache: removed \(result.removed) photos (\(result.freedBytes) bytes) used longest ago")
+        }
+        return result
+    }
+
+    nonisolated static func trim(_ directory: URL, toBytes limit: Int64, keeping: Set<String>) -> (removed: Int, freedBytes: Int64) {
+        let keys: Set<URLResourceKey> = [.fileSizeKey, .contentModificationDateKey, .isRegularFileKey]
+        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: Array(keys))) ?? []
+        var entries: [(url: URL, size: Int64, used: Date)] = []
+        for url in files {
+            guard let values = try? url.resourceValues(forKeys: keys), values.isRegularFile == true else { continue }
+            entries.append((url, Int64(values.fileSize ?? 0), values.contentModificationDate ?? .distantPast))
+        }
+        var total = entries.reduce(0) { $0 + $1.size }
+        var removed = 0
+        var freed: Int64 = 0
+        for entry in entries.sorted(by: { $0.used < $1.used }) where total > limit {
+            guard !keeping.contains(entry.url.lastPathComponent),
+                  (try? FileManager.default.removeItem(at: entry.url)) != nil else { continue }
+            total -= entry.size
+            freed += entry.size
+            removed += 1
+        }
+        return (removed, freed)
     }
 
     private func download(_ photo: WebPhoto, to file: URL) async -> Bool {
