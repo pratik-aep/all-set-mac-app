@@ -612,7 +612,7 @@ private struct LibraryTile: View {
             .alert("Couldn't finish deleting “\(video.title)”", isPresented: .init(get: { deleteProblem != nil }, set: { if !$0 { deleteProblem = nil } })) {
                 Button("OK") {}
             } message: {
-                Text((deleteProblem ?? "") + " Nothing was deleted: it's still on this Mac and in your library. Delete it again once that's fixed.")
+                Text(deleteProblem ?? "")
             }
             .overlay(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -722,7 +722,10 @@ private struct LibraryTile: View {
             guard await AdminGate.authorize(reason: "delete “\(video.title)” everywhere") else { return }
             switch await deleteActions.deleteEverywhere() {
             case .success, nil: break
-            case .notDeleted(let reason): deleteProblem = reason
+            case .notDeleted(let reason):
+                    deleteProblem = reason + " Nothing was deleted: it's still on this Mac and in your library. Delete it again once that's fixed."
+                case .deletedOnServer(let reason):
+                    deleteProblem = "It's gone from your server, but this Mac's copy couldn't be fully removed (" + reason + "). Delete it again to finish."
             }
         }
     }
@@ -861,7 +864,7 @@ private struct LibraryDetailSheet: View {
         .alert("Couldn't finish deleting “\(video.title)”", isPresented: .init(get: { deleteProblem != nil }, set: { if !$0 { deleteProblem = nil } })) {
             Button("OK") {}
         } message: {
-            Text((deleteProblem ?? "") + " Nothing was deleted: it's still on this Mac and in your library. Delete it again once that's fixed.")
+            Text(deleteProblem ?? "")
         }
     }
 
@@ -885,7 +888,10 @@ private struct LibraryDetailSheet: View {
             guard await AdminGate.authorize(reason: "delete “\(video.title)” everywhere") else { return }
             switch await deleteActions.deleteEverywhere() {
             case .success, nil: onClose()
-            case .notDeleted(let reason): deleteProblem = reason
+            case .notDeleted(let reason):
+                    deleteProblem = reason + " Nothing was deleted: it's still on this Mac and in your library. Delete it again once that's fixed."
+                case .deletedOnServer(let reason):
+                    deleteProblem = "It's gone from your server, but this Mac's copy couldn't be fully removed (" + reason + "). Delete it again to finish."
             }
         }
     }

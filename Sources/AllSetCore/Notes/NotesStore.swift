@@ -100,13 +100,22 @@ public final class NotesStore {
         }
     }
 
-    public func save() {
+    /// Why the last save failed; nil once one works. Shown on the Notes page.
+    public private(set) var saveError: String?
+
+    /// True when the notes are on disk.
+    @discardableResult
+    public func save() -> Bool {
         pendingSave?.cancel()
         do {
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try JSONEncoder().encode(notes).write(to: fileURL, options: .atomic)
+            if saveError != nil { saveError = nil }
+            return true
         } catch {
             log.error("Couldn't save notes: \(error.localizedDescription, privacy: .public)")
+            saveError = error.localizedDescription
+            return false
         }
     }
 }

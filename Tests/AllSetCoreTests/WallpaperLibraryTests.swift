@@ -643,6 +643,27 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 
     /// A server failure deletes nothing anywhere: the wallpaper stays on this Mac and
     /// in the library, the delete is remembered, and asking again finishes it.
+    /// Review D6: the server confirmed, but this Mac's record of the delete couldn't
+    /// be written; that is reported, not called a success, and stays retryable.
+    @MainActor @Test func aLocalCleanupFailureAfterTheServerDeleteIsReported() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        // A folder where removed.json goes: recording the delete fails.
+        try FileManager.default.createDirectory(at: store.libraryDirectory.appendingPathComponent("removed.json"),
+                                                withIntermediateDirectories: true)
+        StubURLProtocol.handler = { _ in (200, Data("{}".utf8)) }
+        store.deleteServiceURL = URL(string: "http://stub.invalid/wallpaper")!
+        store.deleteServiceToken = "test-token"
+
+        let outcome = await store.deleteEverywhere(id)
+
+        guard case .deletedOnServer(let problem) = outcome else {
+            Issue.record("expected .deletedOnServer, got \(String(describing: outcome))"); return
+        }
+        #expect(problem.contains("removed.json"))
+        #expect(store.lastLocalDeleteProblem != nil)
+        #expect(store.pendingDeletes == [id])
+    }
+
     @MainActor @Test func aFailedDeleteEverywhereDeletesNothingAndCanBeRetried() async throws {
         let (store, id) = try await missingLibraryVideo()
         let file = store.libraryDirectory.appendingPathComponent("live/f1.mp4")

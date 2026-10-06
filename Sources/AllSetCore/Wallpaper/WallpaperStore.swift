@@ -643,6 +643,7 @@ public final class WallpaperStore {
     @discardableResult
     public func deleteLibraryVideo(_ id: String) -> LibraryVideo? {
         guard let video = libraryVideo(id) else { return nil }
+        var problems: [String] = []
         if config.source == .library(id) {
             config.isEnabled = false
             config.source = WallpaperConfig().source
@@ -653,15 +654,21 @@ public final class WallpaperStore {
                 log.error("Not deleting \(relative, privacy: .public): it isn't inside the library")
                 continue
             }
-            try? FileManager.default.removeItem(at: url)
+            do {
+                if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+            } catch {
+                problems.append("\(relative): \(error.localizedDescription)")
+            }
         }
         let removedURL = libraryDirectory.appendingPathComponent("removed.json")
         var removed = (try? Data(contentsOf: removedURL)).flatMap {
             try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
         } ?? [:]
         removed[id] = ["reason": "removed by the user in the app"]
-        if let data = try? JSONSerialization.data(withJSONObject: removed, options: [.prettyPrinted, .sortedKeys]) {
-            try? data.write(to: removedURL, options: .atomic)
+        do {
+            try JSONSerialization.data(withJSONObject: removed, options: [.prettyPrinted, .sortedKeys]).write(to: removedURL, options: .atomic)
+        } catch {
+            problems.append("removed.json: \(error.localizedDescription)")
         }
         let catalogURL = libraryDirectory.appendingPathComponent("catalog.json")
         if let data = try? Data(contentsOf: catalogURL),
@@ -669,10 +676,14 @@ public final class WallpaperStore {
            var items = catalog["items"] as? [[String: Any]] {
             items.removeAll { ($0["id"] as? String) == id }
             catalog["items"] = items
-            if let updated = try? JSONSerialization.data(withJSONObject: catalog, options: [.sortedKeys]) {
-                try? updated.write(to: catalogURL, options: .atomic)
+            do {
+                try JSONSerialization.data(withJSONObject: catalog, options: [.sortedKeys]).write(to: catalogURL, options: .atomic)
+            } catch {
+                problems.append("catalog.json: \(error.localizedDescription)")
             }
         }
+        lastLocalDeleteProblem = problems.isEmpty ? nil : problems.joined(separator: "; ")
+        if let problem = lastLocalDeleteProblem { log.error("Local delete of \(id, privacy: .public) incomplete: \(problem, privacy: .public)") }
         library.removeAll { $0.id == id }
         libraryIndex = Dictionary(library.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
         libraryCopies.remove(id)
@@ -690,6 +701,11 @@ public final class WallpaperStore {
     /// it at launch made macOS ask for the login password after every rebuild.
     public var deleteServiceToken: String?
 
+    /// What the last `deleteLibraryVideo` couldn't remove or record, or nil if it
+    /// all went. Without this a failed write was silent and the wallpaper could
+    /// come back at the next import.
+    public private(set) var lastLocalDeleteProblem: String?
+
     public enum DeleteEverywhereOutcome: Sendable, Equatable {
         /// Gone here, on the server, and from the database.
         case success
@@ -697,6 +713,9 @@ public final class WallpaperStore {
         /// either: says why. It stays in the library and in `pendingDeletes`, and
         /// calling `deleteEverywhere` again retries it.
         case notDeleted(String)
+        /// Gone from the server and the database, but this Mac's copy or its record
+        /// couldn't be fully removed: says what. Deleting it again finishes the job.
+        case deletedOnServer(String)
     }
 
     /// Permanent deletes started but not confirmed by the server, by id: written
@@ -762,6 +781,10 @@ public final class WallpaperStore {
             return .notDeleted(body)
         }
         deleteLibraryVideo(id)
+        if let problem = lastLocalDeleteProblem {
+            // Kept pending: asking again finds nothing left on the server (404) and retries here.
+            return .deletedOnServer(problem)
+        }
         updatePendingDeletes { $0[id] = nil }
         return .success
     }

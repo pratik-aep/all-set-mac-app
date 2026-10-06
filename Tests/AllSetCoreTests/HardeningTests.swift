@@ -25,6 +25,21 @@ import Testing
         #expect(siblings.contains { $0.hasPrefix("notes.unreadable-") && $0.hasSuffix(".json") })
     }
 
+    /// Review D6: a failed notes save was only logged; it's now reported.
+    @Test @MainActor func notesSavesReportFailures() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("notes-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("notes.json")
+        try FileManager.default.createDirectory(at: file, withIntermediateDirectories: true)
+        let store = NotesStore(fileURL: file)
+        store.add("buy milk")
+        #expect(!store.save())
+        #expect(store.saveError != nil)
+        try FileManager.default.removeItem(at: file)
+        #expect(store.save())
+        #expect(store.saveError == nil)
+    }
+
     @Test @MainActor func aCorruptNotesFileSurvivesTheNextSave() throws {
         let file = try temporaryFile(#"[{"text": 42}]"#)
         let store = NotesStore(fileURL: file)

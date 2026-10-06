@@ -173,6 +173,12 @@ struct NotesPage: View {
                         .disabled(!notes.notes.contains(where: \.isDone))
                 }
             }
+            if let error = notes.saveError {
+                Label("Your notes couldn't be saved: \(error). They're still here; they'll be saved with the next change.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .dsText(.body)
+                    .foregroundStyle(.orange)
+            }
 
             HStack(spacing: DS.Space.s) {
                 Image(systemName: "plus")
