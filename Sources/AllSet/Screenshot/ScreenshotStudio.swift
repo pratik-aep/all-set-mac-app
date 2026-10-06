@@ -14,6 +14,7 @@ final class ScreenshotStudioController {
 
     let studio = ScreenshotStudio()
     private var window: NSWindow?
+    private var closeObserver: NSObjectProtocol?
 
     /// Lets you drag out an area of the screen (Esc cancels), then opens it in the studio.
     func capture(services: AppServices?) async {
@@ -24,11 +25,11 @@ final class ScreenshotStudioController {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("AllSet-\(UUID().uuidString).png")
         defer { try? FileManager.default.removeItem(at: file) }
         _ = await CommandRunner.run("/usr/sbin/screencapture", ["-i", "-x", file.path], timeout: nil)
-        guard let image = Self.image(at: file) else {
+        guard let picture = ScreenshotStudio.picture(at: file) else {
             if wasShowing { show() }
             return
         }
-        studio.load(image, pixelsPerPoint: Double(NSScreen.main?.backingScaleFactor ?? 2))
+        studio.load(picture.image, pixelsPerPoint: Double(NSScreen.main?.backingScaleFactor ?? 2), reducedFrom: picture.reducedFrom)
         show()
     }
 
@@ -37,8 +38,8 @@ final class ScreenshotStudioController {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
         NSApp.activate()
-        guard panel.runModal() == .OK, let url = panel.url, let image = Self.image(at: url) else { return }
-        studio.load(image)
+        guard panel.runModal() == .OK, let url = panel.url, let picture = ScreenshotStudio.picture(at: url) else { return }
+        studio.load(picture.image, reducedFrom: picture.reducedFrom)
         show()
     }
 
@@ -57,15 +58,17 @@ final class ScreenshotStudioController {
             window.center()
             window.setFrameAutosaveName("AllSetScreenshot")
             self.window = window
+            // Closing the window stops the request in flight and lets go of the
+            // undo history and AI session; the picture as it is now stays, so
+            // reopening shows it. (Hiding it to choose a capture area isn't a close.)
+            closeObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.willCloseNotification, object: window, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.studio.windowClosed() }
+            }
         }
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
-    }
-
-    private static func image(at url: URL) -> CGImage? {
-        // Esc during the capture leaves no file; opening it anyway logs an error.
-        guard FileManager.default.fileExists(atPath: url.path), let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-        return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 }
 
@@ -240,10 +243,19 @@ private struct AIPanel: View {
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...4)
                     .onSubmit { send(instruction) }
-                Button { send(instruction) } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
-                    .buttonStyle(.borderless)
-                    .disabled(instruction.trimmingCharacters(in: .whitespaces).isEmpty || !hasKey || studio.image == nil || studio.isWorking)
-                    .keyboardShortcut(.return, modifiers: .command)
+                if studio.isWorking {
+                    Button { studio.cancel() } label: { Image(systemName: "stop.circle.fill").font(.title2) }
+                        .buttonStyle(.borderless)
+                        .help("Stop")
+                        .accessibilityLabel("Stop")
+                } else {
+                    Button { send(instruction) } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
+                        .buttonStyle(.borderless)
+                        .disabled(instruction.trimmingCharacters(in: .whitespaces).isEmpty || !hasKey || studio.image == nil)
+                        .keyboardShortcut(.return, modifiers: .command)
+                        .help("Send")
+                        .accessibilityLabel("Send")
+                }
             }
         }
         .padding(16)

@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import ImageIO
 import Observation
 
 /// The AI calls the screenshot studio makes, injectable so tests can answer
@@ -70,8 +71,39 @@ public final class ScreenshotStudio {
     /// Versions kept for undo besides the original, by count and by size: each is
     /// a full-size picture (about 60 MB for a 5K screenshot). The oldest edits go
     /// first; the original never does.
+    ///
+    /// The byte figure is a budget for undo history, not a ceiling on memory:
+    /// the original and the current picture are always kept, whatever they
+    /// weigh. What bounds those is `maxSide`, applied when a picture is opened.
     private static let undoDepth = 24
     public nonisolated static let historyByteBudget = 600 << 20
+
+    /// The longest side, in pixels, of a picture the studio edits: an 8K
+    /// screenshot fits; anything larger is scaled down as it's decoded. At
+    /// most 256 MB a version, so the two always kept stay bounded.
+    public nonisolated static let maxSide = 8192
+
+    /// The picture in a file, scaled down while decoding if its longer side is
+    /// over `maxSide` (the full-size pixels are never held). `reducedFrom` is
+    /// its original size when that happened. Nil if the file isn't a picture.
+    public nonisolated static func picture(at url: URL) -> (image: CGImage, reducedFrom: CGSize?)? {
+        // Esc during a capture leaves no file; opening it anyway logs an error.
+        guard FileManager.default.fileExists(atPath: url.path),
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let width = properties?[kCGImagePropertyPixelWidth] as? Int ?? 0
+        let height = properties?[kCGImagePropertyPixelHeight] as? Int ?? 0
+        guard max(width, height) > maxSide else {
+            return CGImageSourceCreateImageAtIndex(source, 0, nil).map { ($0, nil) }
+        }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: false,
+            kCGImageSourceThumbnailMaxPixelSize: maxSide,
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+            .map { ($0, CGSize(width: width, height: height)) }
+    }
 
     private func push(_ state: State) {
         states.append(state)
@@ -108,13 +140,50 @@ public final class ScreenshotStudio {
     public var image: CGImage? { states.last?.image }
     public var versionCount: Int { states.count }
 
-    /// A new document: any answer still on its way for the previous one is dropped.
-    public func load(_ image: CGImage, pixelsPerPoint: Double = 1) {
+    /// The request in flight. Owned here, not by whichever view asked, so that
+    /// replacing the document, Stop, or closing the window can stop it: its
+    /// network call is cancelled and nothing more is prepared or sent for it.
+    /// (A request the provider already received may still be processed there.)
+    @ObservationIgnored private var request: Task<Void, Never>?
+
+    private func cancelRequest() {
+        request?.cancel()
+        request = nil
+    }
+
+    /// A new document: the request for the previous one is cancelled, and any
+    /// answer still on its way for it is dropped. `reducedFrom` is the picture's
+    /// size before it was scaled down to fit (see `picture(at:)`), to say so.
+    public func load(_ image: CGImage, pixelsPerPoint: Double = 1, reducedFrom: CGSize? = nil) {
+        cancelRequest()
         generation += 1
         isWorking = false
         self.pixelsPerPoint = pixelsPerPoint
         states = [State(image: image, base: image)]
-        messages = []
+        messages = reducedFrom.map {
+            [Message(role: .assistant, text: "This picture was \(Int($0.width)) × \(Int($0.height)), larger than All Set edits. "
+                        + "It's been scaled to \(image.width) × \(image.height).")]
+        } ?? []
+    }
+
+    /// Stops the request in flight, if any. The picture and its history stay.
+    public func cancel() {
+        guard isWorking else { return }
+        cancelRequest()
+        isWorking = false
+        messages.append(Message(role: .assistant, text: "Stopped."))
+    }
+
+    /// The studio's window closed: the request in flight is stopped, and only
+    /// the picture as it is now is kept, so reopening the window shows it. The
+    /// earlier versions (undo) and the AI session, which hold most of the
+    /// memory, are let go.
+    public func windowClosed() {
+        cancelRequest()
+        isWorking = false
+        // Work still unwinding for this picture must not land on the trimmed history.
+        generation += 1
+        if let current = states.last?.image { states = [State(image: current, base: current)] }
     }
 
     public func undo() {
@@ -123,19 +192,32 @@ public final class ScreenshotStudio {
         messages.append(Message(role: .assistant, text: "Undone."))
     }
 
+    /// Asks the AI to change the open picture, and returns when it has answered,
+    /// failed, or been stopped. One request at a time.
     public func ask(_ instruction: String) async {
         let instruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !instruction.isEmpty, var state = states.last, !isWorking else { return }
+        guard !instruction.isEmpty, let state = states.last, !isWorking else { return }
         guard let key = ai.key(provider) else {
             messages.append(Message(role: .problem, text: "Add your \(provider.title) API key first."))
             return
         }
         let document = generation
-        /// Whether the picture this request was about is still the one open.
-        func stillCurrent() -> Bool { generation == document }
         messages.append(Message(role: .user, text: instruction))
         isWorking = true
-        defer { if stillCurrent() { isWorking = false } }
+        let task = Task { await answer(instruction, from: state, key: key, document: document) }
+        request = task
+        await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+        if request == task {
+            request = nil
+            isWorking = false
+        }
+    }
+
+    private func answer(_ instruction: String, from state: State, key: String, document: Int) async {
+        var state = state
+        /// Whether this request should go on: its picture is still the one open
+        /// and nobody stopped it.
+        func stillCurrent() -> Bool { generation == document && !Task.isCancelled }
         do {
             switch provider {
             case .claude:
@@ -150,6 +232,9 @@ public final class ScreenshotStudio {
                     }
                     session = fresh
                 }
+                // Preparing took a moment: nothing is sent for a picture that was
+                // replaced, or a request that was stopped, meanwhile.
+                guard stillCurrent() else { return }
                 let (answered, reply) = try await ai.claude(instruction, session, key)
                 guard stillCurrent() else { return }
                 state.session = answered
