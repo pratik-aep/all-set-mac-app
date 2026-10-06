@@ -90,3 +90,31 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: outside.path))
     }
 }
+
+/// Recheck S3: resolving a path asked libc to allocate the result just to see
+/// whether the path existed, and never freed it: about 2 KB lost per check.
+/// Off the main actor: a second of path checks there starves tests that sample
+/// on it.
+@Suite struct ContainedPathLeakTests {
+    @Test func checkingContainmentDoesNotLeak() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("AllSetContained-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let inside = root.appendingPathComponent("a/b.txt")
+        func heapInUse() -> Int {
+            var stats = malloc_statistics_t()
+            malloc_zone_statistics(nil, &stats)
+            return stats.size_in_use
+        }
+        // In rounds, taking the quietest, so other tests allocating at the same
+        // time don't fail it; the leak grew every round by about 4 MB.
+        var quietest = Int.max
+        for _ in 0..<3 {
+            let before = heapInUse()
+            // Drained each time: Foundation's temporaries would otherwise pile up and look like a leak.
+            for _ in 0..<2_000 { autoreleasepool { _ = ContainedPath.contains(inside, in: root) } }
+            quietest = min(quietest, heapInUse() - before)
+        }
+        #expect(quietest < 1 << 20)
+    }
+}

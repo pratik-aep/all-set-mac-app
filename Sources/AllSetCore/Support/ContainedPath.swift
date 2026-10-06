@@ -28,12 +28,23 @@ public enum ContainedPath {
     static func resolved(_ url: URL) -> URL {
         var existing = url.standardizedFileURL
         var rest: [String] = []
-        while existing.path != "/", realpath(existing.path, nil) == nil {
+        var real = realPath(existing.path)
+        while real == nil, existing.path != "/" {
             rest.insert(existing.lastPathComponent, at: 0)
             existing.deleteLastPathComponent()
+            real = realPath(existing.path)
         }
-        guard let real = realpath(existing.path, nil) else { return url.standardizedFileURL }
-        defer { free(real) }
-        return rest.reduce(URL(fileURLWithPath: String(cString: real))) { $0.appendingPathComponent($1) }
+        guard let real else { return url.standardizedFileURL }
+        return rest.reduce(URL(fileURLWithPath: real)) { $0.appendingPathComponent($1) }
+    }
+
+    /// `realpath` into a buffer of our own: asking libc to allocate the result
+    /// (a nil buffer) hands back memory the caller must free, and a call made
+    /// only to see whether the path exists leaked it every time.
+    private static func realPath(_ path: String) -> String? {
+        withUnsafeTemporaryAllocation(of: CChar.self, capacity: Int(PATH_MAX) + 1) { buffer in
+            guard let base = buffer.baseAddress, realpath(path, base) != nil else { return nil }
+            return String(cString: base)
+        }
     }
 }
