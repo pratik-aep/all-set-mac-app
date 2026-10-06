@@ -15,10 +15,9 @@ struct WindowSnappingPage: View {
             AccessibilityBanner()
         } content: {
                 Section {
-                    Toggle(isOn: binding(\.shortcutsEnabled)) {
-                        Text("Keyboard shortcuts")
-                        Text("Press one with any window in front. Press ⌃⌥← or ⌃⌥→ again to step through half, two-thirds and one-third.")
-                    }
+                    SettingToggle("Keyboard shortcuts",
+                                  detail: "Press one with any window in front. Press ⌃⌥← or ⌃⌥→ again to step through half, two-thirds and one-third.",
+                                  isOn: binding(\.shortcutsEnabled))
                     LabeledContent("Gap between windows") {
                         HStack {
                             Slider(value: binding(\.gap), in: 0...24, step: 2)
@@ -51,10 +50,9 @@ struct WindowSnappingPage: View {
                 }
 
                 Section {
-                    Toggle(isOn: binding(\.dragToSnap)) {
-                        Text("Snap windows dragged to screen edges")
-                        Text("Edges make halves, corners make quarters, the top maximizes and the bottom makes thirds, with a preview as you drag.")
-                    }
+                    SettingToggle("Snap windows dragged to screen edges",
+                                  detail: "Edges make halves, corners make quarters, the top maximizes and the bottom makes thirds, with a preview as you drag.",
+                                  isOn: binding(\.dragToSnap))
                     .disabled(NativeTiling.isEnabled)
                     if NativeTiling.isEnabled {
                         LabeledContent {
@@ -192,6 +190,8 @@ private struct WorkspaceCard: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .help("More")
+                .accessibilityLabel("More for \(workspace.name)")
                 .menuStyle(.borderlessButton)
                 .fixedSize()
             }

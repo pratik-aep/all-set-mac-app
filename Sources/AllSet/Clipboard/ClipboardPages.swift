@@ -127,23 +127,16 @@ private struct ClipboardSettingsSections: View {
     var body: some View {
         let store = services.clipboard
         Section {
-            Toggle(isOn: binding(\.isEnabled)) {
-                Text("Keep clipboard history")
-                Text("Stored only on this Mac.")
-            }
+            SettingToggle("Keep clipboard history", detail: "Stored only on this Mac.", isOn: binding(\.isEnabled))
             Picker("Remember", selection: binding(\.historyLimit)) {
                 ForEach([50, 100, 200, 500, 1000], id: \.self) { count in
                     Text("\(count) items").tag(count)
                 }
             }
-            Toggle(isOn: binding(\.clearOnQuit)) {
-                Text("Clear history when All Set quits")
-                Text("Pinned items stay.")
-            }
-            Toggle(isOn: binding(\.pasteOnSelect)) {
-                Text("Paste when chosen")
-                Text(Accessibility.isTrusted ? "Choosing an item pastes it into the app in front." : "Needs Accessibility access, like window snapping.")
-            }
+            SettingToggle("Clear history when All Set quits", detail: "Pinned items stay.", isOn: binding(\.clearOnQuit))
+            SettingToggle("Paste when chosen",
+                          detail: Accessibility.isTrusted ? "Choosing an item pastes it into the app in front." : "Needs Accessibility access, like window snapping.",
+                          isOn: binding(\.pasteOnSelect))
             LabeledContent("Open picker") {
                 ShortcutRecorder(shortcut: binding(\.pickerShortcut),
                                  onRecording: { services.windowManager?.setRecordingShortcut($0) })
@@ -170,6 +163,8 @@ private struct ClipboardSettingsSections: View {
                         Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .help("Stop Ignoring")
+                    .accessibilityLabel("Stop ignoring \(AppIconCache.name(for: bundleID) ?? bundleID)")
                 }
             }
             Menu("Add Running App") {

@@ -318,6 +318,8 @@ struct WidgetOptionsEditor: View {
                                 Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
+                            .help("Remove City")
+                            .accessibilityLabel("Remove City")
                         }
                     }
                     Button("Add City") {
@@ -398,10 +400,9 @@ struct WidgetOptionsEditor: View {
                 }
                 .pickerStyle(.segmented)
                 Toggle("24-hour time", isOn: binding(\.options.use24Hour, instance))
-                Toggle(isOn: binding(\.options.depthEffect, instance)) {
-                    Text("Depth effect")
-                    Text("When the photo has a clear subject, like a person or a pet, it stands in front of the time.")
-                }
+                SettingToggle("Depth effect",
+                              detail: "When the photo has a clear subject, like a person or a pet, it stands in front of the time.",
+                              isOn: binding(\.options.depthEffect, instance))
             }
         case .daylight:
             Section {
@@ -987,6 +988,8 @@ private struct ImageStrip: View {
                                         .foregroundStyle(.white, .black.opacity(0.6))
                                 }
                                 .buttonStyle(.plain)
+                                .help("Remove Photo")
+                                .accessibilityLabel("Remove Photo")
                                 .padding(3)
                             }
                     }
@@ -1278,6 +1281,8 @@ private struct GoalsEditor: View {
                             Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
+                        .help("Remove Goal")
+                        .accessibilityLabel("Remove Goal")
                     }
                 }
                 Button("Add Goal") {
@@ -1319,6 +1324,8 @@ private struct HabitsEditor: View {
                             Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
+                        .help("Remove Habit")
+                        .accessibilityLabel("Remove Habit")
                     }
                 }
                 Button("Add Habit") {
@@ -1355,6 +1362,8 @@ private struct SymbolMenu: View {
         } label: {
             Image(systemName: selection)
         }
+        .help("Symbol")
+        .accessibilityLabel("Symbol")
         .menuIndicator(.hidden)
         .fixedSize()
     }
@@ -1445,6 +1454,8 @@ private struct EndpointsEditor: View {
                             Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
+                        .help("Remove Site")
+                        .accessibilityLabel("Remove Site")
                     }
                 }
                 Button("Add Site or API") {

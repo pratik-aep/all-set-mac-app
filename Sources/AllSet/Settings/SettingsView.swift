@@ -43,10 +43,9 @@ struct GeneralSettings: View {
         }
 
         Section {
-            Toggle(isOn: $settings.showInDock) {
-                Text("Show All Set in the Dock")
-                Text("Click the Dock icon to open this window. Turn off to live only in the menu bar.")
-            }
+            SettingToggle("Show All Set in the Dock",
+                          detail: "Click the Dock icon to open this window. Turn off to live only in the menu bar.",
+                          isOn: $settings.showInDock)
         }
 
         Section {
@@ -127,10 +126,7 @@ struct ActivitySettings: View {
     }
 
     private func toggle(_ title: String, detail: String, isOn: Binding<Bool>) -> some View {
-        Toggle(isOn: isOn) {
-            Text(title)
-            Text(detail)
-        }
+        SettingToggle(title, detail: detail, isOn: isOn)
     }
 }
 

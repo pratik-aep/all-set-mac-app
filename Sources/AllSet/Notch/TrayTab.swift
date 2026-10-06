@@ -136,6 +136,8 @@ struct ShelfTile: View {
                         .foregroundStyle(.white, .black.opacity(0.6))
                 }
                 .buttonStyle(.plain)
+                .help("Remove from the shelf")
+                .accessibilityLabel("Remove \(item.name) from the shelf")
                 .offset(x: 4, y: -4)
             }
         }

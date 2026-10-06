@@ -84,6 +84,7 @@ struct NowPlayingCard: View {
                                action: @escaping @MainActor () -> Void) -> some View {
         MediaControlButton(symbol: symbol, size: size, action: action)
             .help(help)
+            .accessibilityLabel(help)
     }
 }
 

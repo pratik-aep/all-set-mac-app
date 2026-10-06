@@ -66,10 +66,8 @@ struct IslandPage: View {
             }
         } content: {
             Section {
-                Toggle(isOn: $settings.notchEnabled) {
-                    Text("Dynamic Island")
-                    Text("Turn the notch into a live panel with activities around it.")
-                }
+                SettingToggle("Dynamic Island", detail: "Turn the notch into a live panel with activities around it.",
+                              isOn: $settings.notchEnabled)
             }
 
             Section("Opening") {

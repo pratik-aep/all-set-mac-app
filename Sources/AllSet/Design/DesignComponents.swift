@@ -603,3 +603,28 @@ struct Deferred<Content: View>: View {
         }
     }
 }
+
+/// A setting's switch: its name, with a line explaining it underneath.
+/// VoiceOver reads the name as the setting and the explanation as a hint;
+/// a two-line label alone was read out as the explanation, so "Keep
+/// clipboard history" was announced as "Stored only on this Mac".
+struct SettingToggle: View {
+    let title: String
+    let detail: String
+    @Binding var isOn: Bool
+
+    init(_ title: String, detail: String, isOn: Binding<Bool>) {
+        self.title = title
+        self.detail = detail
+        _isOn = isOn
+    }
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            Text(title)
+            Text(detail)
+        }
+        .accessibilityLabel(title)
+        .accessibilityHint(detail)
+    }
+}
