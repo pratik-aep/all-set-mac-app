@@ -42,4 +42,36 @@ import Testing
         #expect(result?.contains("cancelled") == true)
         #expect(Date().timeIntervalSince(start) < 3)
     }
+
+    /// Recheck S2: cancellation only sent TERM and then waited for ever, so a
+    /// command that ignores TERM kept the caller waiting.
+    @Test func cancellingACommandThatIgnoresTerminateStillStopsIt() async {
+        let start = Date()
+        let task = Task { await CommandRunner.run("/bin/sh", ["-c", "trap '' TERM; sleep 30"], timeout: nil) }
+        try? await Task.sleep(for: .milliseconds(300))
+        task.cancel()
+        let result = await task.value
+        #expect(result?.contains("cancelled") == true)
+        #expect(Date().timeIntervalSince(start) < 4)
+    }
+
+    /// Recheck S2: a timeout killed the command it started but not what that
+    /// command started, which ran on (and could hold the error pipe open).
+    @Test func aTimeoutStopsWhatTheCommandStartedToo() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("AllSetChild-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: file) }
+        // A shell that waits on a child ignoring TERM, having written the child's pid.
+        let script = "trap '' TERM; sleep 30 & echo $! > '\(file.path)'; wait"
+        let result = await CommandRunner.run("/bin/sh", ["-c", script], timeout: 0.4)
+        #expect(result?.contains("was stopped") == true)
+        let child = try #require(pid_t(String(contentsOf: file, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)))
+        defer { kill(child, SIGKILL) }
+        // Gone (or a zombie being reaped) within a moment of the runner answering.
+        var alive = true
+        for _ in 0..<40 where alive {
+            alive = kill(child, 0) == 0
+            if alive { try await Task.sleep(for: .milliseconds(25)) }
+        }
+        #expect(!alive)
+    }
 }
