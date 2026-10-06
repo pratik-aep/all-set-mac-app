@@ -85,7 +85,7 @@ That window is what protects a file another wallpaper comes to use:
 
 Put `<folder>` on a different disk from `~/AllSetStorage`. A backup on the same disk does not survive that disk.
 
-**The drill is the proof.** `backup.py drill <one backup's folder>` restores that backup into a scratch database and a scratch folder, checks that the dump loads, the row count matches, every file matches its checksum and every file a row points at is there, then removes the scratch copies. It exits 0 only if all of that held. The nightly job runs a drill after every backup. A backup that has never passed a drill should not be relied on.
+**The drill is the proof.** `backup.py drill <one backup's folder>` restores that backup into a scratch database and a scratch folder, checks that the dump loads, the row count matches, every file matches its checksum and every file a row points at is there, then removes the scratch copies. It exits 0 only if all of that held. The nightly job runs a drill after every backup. Retention removes older backups only after the replacement passes its drill; a failed or unavailable drill keeps the older copies. A backup that has never passed a drill should not be relied on.
 
 **Restoring for real** uses the same code the drill runs: `backup.py restore <backup folder> --database-url <url> --storage <folder>`. It only writes into a database with no `wallpapers` table and an empty folder, and never overwrites. To replace a damaged server:
 

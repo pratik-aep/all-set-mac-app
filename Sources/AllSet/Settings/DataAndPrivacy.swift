@@ -57,7 +57,7 @@ enum AppData {
         case .failed(let why):
             alert.alertStyle = .warning
             alert.messageText = "The restore wasn\u{2019}t applied"
-            alert.informativeText = "\(why)\n\nYour data is as it was."
+            alert.informativeText = why
             alert.runModal()
         }
     }

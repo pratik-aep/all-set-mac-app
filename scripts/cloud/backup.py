@@ -10,7 +10,8 @@ backup   Writes <destination>/<UTC time>/ with the database (allset.sql, from
          pg_dump), a copy of the storage folder (files/) and manifest.json: the
          row count and each file's size and SHA-256. Files unchanged since the
          last backup are hard links to it, so a night with no changes costs
-         almost no space. Keeps the newest --keep backups and removes older ones.
+         almost no space. Before removing older backups under --keep, the new
+         backup must pass a restore drill. A failed drill preserves older copies.
          Nothing on the live server is changed.
 
 drill    The rehearsal. Restores the backup into a scratch database and a
@@ -154,7 +155,12 @@ def backup(destination, keep=7, now=None):
     except BaseException:
         shutil.rmtree(working, ignore_errors=True)
         raise
+    # Retention is allowed only after this replacement has passed a restore
+    # drill. A failed or unavailable drill leaves every older copy untouched.
     if keep > 0:
+        problems, _ = drill(final)
+        if problems:
+            raise BackupError("New backup failed its restore drill; older backups were kept: " + "; ".join(problems))
         for old in backups_in(destination)[:-keep]:
             shutil.rmtree(old)
     return final
@@ -246,6 +252,9 @@ def main():
             made = backup(args.folder, keep=args.keep)
             manifest = read_manifest(made)
             print(f"Backed up {manifest['rows']} wallpapers and {len(manifest['files'])} files to {made}")
+            if args.keep > 0:
+                print(f"Restore drill passed for {made}; retention applied only after verification.")
+                return
             if not args.drill:
                 return
             args.folder = made

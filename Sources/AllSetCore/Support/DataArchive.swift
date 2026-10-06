@@ -23,7 +23,7 @@ import Foundation
 /// (clipboard history, the wallpaper library, when they were left out) stays
 /// as it was.
 public enum DataArchive {
-    public static let format = 1
+    public static let format = 2
 
     public struct Options: Equatable, Sendable {
         public var includesClipboard = false
@@ -48,6 +48,7 @@ public enum DataArchive {
         public var includesClipboard: Bool
         public var includesWallpaperLibrary: Bool
         public var files: [File]
+        public var settingsFile: File?
 
         public var totalBytes: Int { files.reduce(0) { $0 + $1.size } }
     }
@@ -113,7 +114,9 @@ public enum DataArchive {
             // To the second, as it's stored: the manifest handed back is the one on disk.
             let created = Date(timeIntervalSince1970: now.timeIntervalSince1970.rounded(.down))
             let manifest = Manifest(format: format, created: created, appVersion: appVersion, includesClipboard: options.includesClipboard,
-                                    includesWallpaperLibrary: options.includesWallpaperLibrary, files: files)
+                                    includesWallpaperLibrary: options.includesWallpaperLibrary, files: files,
+                                    settingsFile: .init(path: "settings.plist", size: try size(of: working.appendingPathComponent("settings.plist")),
+                                                        sha256: try sha256(of: working.appendingPathComponent("settings.plist"))))
             try encoder.encode(manifest).write(to: working.appendingPathComponent("manifest.json"))
             try manager.moveItem(at: working, to: destination)
             return manifest
@@ -160,9 +163,27 @@ public enum DataArchive {
             throw Failure.notAnArchive("its manifest can't be read")
         }
         guard manifest.format <= format else { throw Failure.newerFormat(manifest.format) }
+        guard manifest.format == format else {
+            throw Failure.notAnArchive("this older backup has no verified settings; export a new backup")
+        }
         let dataFolder = archive.appendingPathComponent("data")
+        let folderValues = try? dataFolder.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard folderValues?.isDirectory == true, folderValues?.isSymbolicLink != true else {
+            throw Failure.notAnArchive("its data folder is missing or a symbolic link")
+        }
         var problems: [String] = []
+        var listed = Set<String>()
         for file in manifest.files {
+            let components = file.path.split(separator: "/", omittingEmptySubsequences: false)
+            guard !components.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }),
+                  components.first?.hasPrefix(".") == false else {
+                problems.append("\(file.path) is not a canonical data path")
+                continue
+            }
+            guard listed.insert(file.path).inserted else {
+                problems.append("\(file.path) is listed twice")
+                continue
+            }
             // A path that would land outside the data folder is never followed.
             guard let url = ContainedPath.resolve(file.path, in: dataFolder) else {
                 problems.append("\(file.path) points outside the backup")
@@ -172,9 +193,49 @@ public enum DataArchive {
                 problems.append("\(file.path) is missing")
                 continue
             }
+            let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            guard values?.isRegularFile == true, values?.isSymbolicLink != true else {
+                problems.append("\(file.path) is not a regular file")
+                continue
+            }
             if (try? size(of: url)) != file.size || (try? sha256(of: url)) != file.sha256 {
                 problems.append("\(file.path) has changed")
             }
+        }
+        // Restore moves whole directories: every descendant must be accounted for,
+        // and symlinks must never bring unverified files into the live data.
+        let resolvedBase = dataFolder.resolvingSymlinksInPath().path
+        if let walker = FileManager.default.enumerator(at: dataFolder,
+                includingPropertiesForKeys: [.isSymbolicLinkKey, .isRegularFileKey, .isDirectoryKey],
+                errorHandler: { url, _ in
+                    problems.append("\(url.lastPathComponent) couldn't be inspected")
+                    return false
+                }) {
+            for case let url as URL in walker {
+                let path = String(url.resolvingSymlinksInPath().path.dropFirst(resolvedBase.count + 1))
+                let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey, .isDirectoryKey])
+                if values.isSymbolicLink == true {
+                    problems.append("\(path) is a symbolic link")
+                    walker.skipDescendants()
+                } else if values.isRegularFile == true && !listed.contains(path) {
+                    problems.append("\(path) is not listed in the backup")
+                } else if values.isRegularFile != true && values.isDirectory != true {
+                    problems.append("\(path) is not a regular file or directory")
+                }
+            }
+        } else {
+            problems.append("the data folder couldn't be inspected")
+        }
+        let settingsURL = archive.appendingPathComponent("settings.plist")
+        if let settings = manifest.settingsFile, settings.path == "settings.plist",
+           (try? settingsURL.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == false,
+           (try? settingsURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
+           (try? size(of: settingsURL)) == settings.size, (try? sha256(of: settingsURL)) == settings.sha256,
+           let data = try? Data(contentsOf: settingsURL),
+           (try? PropertyListSerialization.propertyList(from: data, format: nil)) is [String: Any] {
+            // Both the settings bytes and their structure were checked.
+        } else {
+            problems.append("settings.plist is missing, damaged or unverified")
         }
         guard problems.isEmpty else { throw Failure.damaged(problems) }
         return manifest
@@ -209,18 +270,28 @@ public enum DataArchive {
 
     /// Applies a staged restore, if there is one. Call before anything reads
     /// the data folder. Returns nil when nothing was waiting. On any failure the
-    /// data folder is as it was, the pending restore is discarded, and the
-    /// error says why.
+    /// original data is restored where possible. If rollback itself fails,
+    /// recovery copies are retained and the error identifies partial restoration.
     public static func applyStaged(in root: URL, now: Date = .now) throws -> Applied? {
-        let manager = FileManager.default
+        try applyStaged(in: root, now: now, manager: .default)
+    }
+
+    // Injectable filesystem for failures during both the swap and its rollback.
+    static func applyStaged(in root: URL, now: Date, manager: FileManager) throws -> Applied? {
         let pending = root.appendingPathComponent(pendingName)
         guard manager.fileExists(atPath: pending.path) else { return nil }
         defer { try? manager.removeItem(at: pending) }
         let manifest = try verify(pending)
+        // Read preferences before any live data moves; read/parse failure must
+        // never become a successful restore with silently omitted settings.
+        let settingsData = try Data(contentsOf: pending.appendingPathComponent("settings.plist"))
+        guard let settings = try PropertyListSerialization.propertyList(from: settingsData, format: nil) as? [String: Any] else {
+            throw Failure.damaged(["settings.plist isn't a preferences dictionary"])
+        }
 
         let stamp = ISO8601DateFormatter.string(from: now, timeZone: .gmt, formatOptions: [.withFullDate, .withTime, .withTimeZone])
             .replacingOccurrences(of: ":", with: "")
-        let previous = root.appendingPathComponent(previousPrefix + stamp)
+        let previous = root.appendingPathComponent(previousPrefix + stamp + "-" + UUID().uuidString)
         var swapped: [(unit: String, hadOld: Bool)] = []
         do {
             try manager.createDirectory(at: previous, withIntermediateDirectories: true)
@@ -237,17 +308,25 @@ public enum DataArchive {
             }
         } catch {
             // Undo, newest first: what came in goes, what was moved aside comes back.
+            var failed: [String] = []
             for (unit, hadOld) in swapped.reversed() {
                 let live = root.appendingPathComponent(unit)
-                try? manager.removeItem(at: live)
-                if hadOld { try? manager.moveItem(at: previous.appendingPathComponent(unit), to: live) }
+                do {
+                    if manager.fileExists(atPath: live.path) { try manager.removeItem(at: live) }
+                    if hadOld { try manager.moveItem(at: previous.appendingPathComponent(unit), to: live) }
+                } catch {
+                    failed.append(unit)
+                }
             }
-            try? manager.removeItem(at: previous)
-            throw Failure.couldNot("The restore couldn't be applied, so nothing was changed: \(error.localizedDescription)")
+            if failed.isEmpty {
+                try? manager.removeItem(at: previous)
+                throw Failure.couldNot("The restore couldn't be applied; your original data was restored: \(error.localizedDescription)")
+            }
+            // Never discard originals when putting them back failed. Later
+            // successful restores must not prune this recovery copy either.
+            throw Failure.couldNot("The restore failed and some original data couldn't be put back (\(failed.joined(separator: ", "))). "
+                + "Recovery files are kept at \(previous.path). Your data may be partially restored.")
         }
-        prunePrevious(in: root, keeping: 2)
-        let settings = (try? Data(contentsOf: pending.appendingPathComponent("settings.plist")))
-            .flatMap { try? PropertyListSerialization.propertyList(from: $0, format: nil) as? [String: Any] }
         return Applied(manifest: manifest, settings: settings, previous: previous)
     }
 
@@ -270,12 +349,6 @@ public enum DataArchive {
         ((try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [])
             .filter { $0.lastPathComponent.hasPrefix(previousPrefix) }
             .sorted { $0.lastPathComponent > $1.lastPathComponent }
-    }
-
-    private static func prunePrevious(in root: URL, keeping count: Int) {
-        for old in previousData(in: root).dropFirst(count) {
-            try? FileManager.default.removeItem(at: old)
-        }
     }
 
     // MARK: Helpers

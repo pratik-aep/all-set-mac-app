@@ -56,6 +56,7 @@ class BackupTests(unittest.TestCase):
     def make(self, **kwargs):
         """A backup an hour after the last one."""
         self.clock += datetime.timedelta(hours=1)
+        kwargs.setdefault("keep", 0)
         return backup.backup(self.destination, now=self.clock, **kwargs)
 
     def test_a_backup_holds_the_database_the_files_and_their_checksums(self):
@@ -131,6 +132,41 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(backup.backups_in(self.destination), [second, third])
         # Losing the first backup doesn't hurt the ones that shared its files.
         self.assertEqual(backup.drill(third)[0], [])
+
+    def test_failed_replacement_drill_never_prunes_a_verified_backup(self):
+        first = self.make(keep=1)
+        real_query = backup.query
+
+        def delete_between_dump_and_copy(url, statement):
+            result = real_query(url, statement)
+            if url == self.pg.url and statement == "select count(*) from wallpapers":
+                self.pg.sql("delete from wallpapers where id = 'aaaa'")
+                os.remove(os.path.join(self.storage, "live/aaaa.mp4"))
+            return result
+
+        backup.query = delete_between_dump_and_copy
+        try:
+            with self.assertRaisesRegex(backup.BackupError, "older backups were kept"):
+                self.make(keep=1)
+        finally:
+            backup.query = real_query
+        self.assertTrue(os.path.isdir(first))
+        self.assertEqual(backup.drill(first)[0], [])
+        self.assertEqual(len(backup.backups_in(self.destination)), 2)
+
+    def test_unavailable_drill_never_prunes_previous_backups(self):
+        first = self.make()
+        real_drill = backup.drill
+        def unavailable(_):
+            raise backup.BackupError("drill database unavailable")
+        backup.drill = unavailable
+        try:
+            with self.assertRaisesRegex(backup.BackupError, "unavailable"):
+                self.make(keep=1)
+        finally:
+            backup.drill = real_drill
+        self.assertTrue(os.path.isdir(first))
+        self.assertEqual(backup.drill(first)[0], [])
 
     def test_a_backup_that_fails_leaves_nothing_half_made(self):
         good = backup.DATABASE_URL

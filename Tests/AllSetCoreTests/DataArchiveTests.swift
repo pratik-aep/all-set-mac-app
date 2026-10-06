@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import Testing
 @testable import AllSetCore
 
@@ -87,7 +88,7 @@ import Testing
         try write(#"{"format":1,"created":"2026-10-06T00:00:00Z","appVersion":"1","includesClipboard":false,"#
                   + #""includesWallpaperLibrary":false,"files":[{"path":"../../outside.txt","size":1,"sha256":"00"}]}"#,
                   to: hostile.appendingPathComponent("manifest.json"))
-        #expect(throws: DataArchive.Failure.damaged(["../../outside.txt points outside the backup"])) { try DataArchive.verify(hostile) }
+        #expect(throws: DataArchive.Failure.self) { try DataArchive.verify(hostile) }
 
         let newer = scratch.appendingPathComponent("newer")
         try write(#"{"format":99,"created":"2026-10-06T00:00:00Z","appVersion":"9","includesClipboard":false,"#
@@ -175,4 +176,113 @@ import Testing
         #expect(NotesStore(fileURL: root.appendingPathComponent("notes.json")).notes.map(\.text) == ["call the dentist", "buy milk"])
         #expect(WidgetStore(fileURL: root.appendingPathComponent("widgets.json")).widgets.map(\.kind) == [.clock, .weather])
     }
+    @Test func changedSettingsAndUnlistedFilesAreRefusedBeforeRestore() throws {
+        let (root, scratch) = try dataFolder()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        let archive = scratch.appendingPathComponent("backup")
+        try DataArchive.export(from: root, settings: settings, to: archive, appVersion: "1")
+        let settingsURL = archive.appendingPathComponent("settings.plist")
+        let original = try Data(contentsOf: settingsURL)
+        try PropertyListSerialization.data(fromPropertyList: ["widgetScale": 9.0], format: .binary, options: 0)
+            .write(to: settingsURL)
+        #expect(throws: DataArchive.Failure.self) { try DataArchive.stage(archive, in: root) }
+        try Data("broken plist".utf8).write(to: settingsURL)
+        #expect(throws: DataArchive.Failure.self) { try DataArchive.verify(archive) }
+        try original.write(to: settingsURL)
+        try write("unverified", to: archive.appendingPathComponent("data/Images/unlisted.jpg"))
+        #expect(throws: DataArchive.Failure.self) { try DataArchive.stage(archive, in: root) }
+        #expect(!DataArchive.hasStagedRestore(in: root))
+        #expect(read(root.appendingPathComponent("Images/one.jpg")) == "picture")
+    }
+
+    @Test func aSymlinkedDataFolderIsRefused() throws {
+        let (root, scratch) = try dataFolder()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        let archive = scratch.appendingPathComponent("backup")
+        try DataArchive.export(from: root, settings: settings, to: archive, appVersion: "1")
+        let data = archive.appendingPathComponent("data")
+        let outside = scratch.appendingPathComponent("outside")
+        try FileManager.default.moveItem(at: data, to: outside)
+        try FileManager.default.createSymbolicLink(at: data, withDestinationURL: outside)
+        #expect(throws: DataArchive.Failure.self) { try DataArchive.stage(archive, in: root) }
+        #expect(read(outside.appendingPathComponent("Images/one.jpg")) == "picture")
+    }
+
+    @Test func invalidSettingsStructureAndNoncanonicalPathsAreRefused() throws {
+        let (root, scratch) = try dataFolder()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        let archive = scratch.appendingPathComponent("backup")
+        try DataArchive.export(from: root, settings: settings, to: archive, appVersion: "1")
+        let manifestURL = archive.appendingPathComponent("manifest.json")
+        var manifest = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any])
+        let broken = Data("not a property list".utf8)
+        try broken.write(to: archive.appendingPathComponent("settings.plist"))
+        manifest["settingsFile"] = ["path": "settings.plist", "size": broken.count,
+                                    "sha256": SHA256.hash(data: broken).map { String(format: "%02x", $0) }.joined()]
+        try JSONSerialization.data(withJSONObject: manifest).write(to: manifestURL)
+        #expect(throws: DataArchive.Failure.self) { try DataArchive.verify(archive) }
+
+        let clean = scratch.appendingPathComponent("clean")
+        try DataArchive.export(from: root, settings: settings, to: clean, appVersion: "1")
+        let cleanManifest = clean.appendingPathComponent("manifest.json")
+        var changed = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: cleanManifest)) as? [String: Any])
+        var files = try #require(changed["files"] as? [[String: Any]])
+        files[0]["path"] = "./Images/one.jpg"
+        changed["files"] = files
+        try JSONSerialization.data(withJSONObject: changed).write(to: cleanManifest)
+        #expect(throws: DataArchive.Failure.self) { try DataArchive.stage(clean, in: root) }
+        #expect(!DataArchive.hasStagedRestore(in: root))
+    }
+
+    private final class FailingMoves: FileManager, @unchecked Sendable {
+        let failRollback: Bool
+        init(failRollback: Bool) { self.failRollback = failRollback; super.init() }
+        override func moveItem(at source: URL, to destination: URL) throws {
+            if source.path.contains(".pending-restore/data/Wallpaper")
+                || (failRollback && source.path.contains(".before-restore-") && destination.lastPathComponent == "Images") {
+                throw NSError(domain: "InjectedRestoreFailure", code: 1)
+            }
+            try super.moveItem(at: source, to: destination)
+        }
+    }
+
+    @Test func aFailedRollbackKeepsOriginalsAndReportsPartialRestoration() throws {
+        let (root, scratch) = try dataFolder()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        let archive = scratch.appendingPathComponent("backup")
+        try DataArchive.export(from: root, settings: settings, to: archive, appVersion: "1")
+        try write("newer picture", to: root.appendingPathComponent("Images/one.jpg"))
+        try DataArchive.stage(archive, in: root)
+        do {
+            _ = try DataArchive.applyStaged(in: root, now: .now, manager: FailingMoves(failRollback: true))
+            Issue.record("Expected the swap and rollback to fail")
+        } catch {
+            #expect(String(describing: error).contains("partially restored"))
+            #expect(!String(describing: error).contains("nothing was changed"))
+        }
+        let previous = try #require(DataArchive.previousData(in: root).first)
+        #expect(read(previous.appendingPathComponent("Images/one.jpg")) == "newer picture")
+        #expect(read(root.appendingPathComponent("notes.json")) == "notes")
+        // Further successful restores must not prune the unresolved originals.
+        for _ in 0..<3 {
+            try DataArchive.stage(archive, in: root)
+            _ = try DataArchive.applyStaged(in: root)
+        }
+        #expect(read(previous.appendingPathComponent("Images/one.jpg")) == "newer picture")
+    }
+
+    @Test func aFailedSwapWithSuccessfulRollbackRestoresTheOriginals() throws {
+        let (root, scratch) = try dataFolder()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        let archive = scratch.appendingPathComponent("backup")
+        try DataArchive.export(from: root, settings: settings, to: archive, appVersion: "1")
+        try write("newer picture", to: root.appendingPathComponent("Images/one.jpg"))
+        try DataArchive.stage(archive, in: root)
+        #expect(throws: DataArchive.Failure.self) {
+            try DataArchive.applyStaged(in: root, now: .now, manager: FailingMoves(failRollback: false))
+        }
+        #expect(read(root.appendingPathComponent("Images/one.jpg")) == "newer picture")
+        #expect(DataArchive.previousData(in: root).isEmpty)
+    }
+
 }

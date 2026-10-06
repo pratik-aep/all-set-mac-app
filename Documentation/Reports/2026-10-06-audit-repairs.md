@@ -128,3 +128,13 @@ Still open, and not something that can be done from this Mac or without the owne
 - **The server setup itself:** the four commands in `operations.md`, run on the server.
 - **CI performance ceilings (O3):** set wide; they need tightening from real runs.
 - **Hand-testing:** the pages changed in this pass were looked at through the debug page renderer. Nothing has been clicked through in the running app.
+
+
+## Backup/restore safety fixes after the latest review
+
+- Restore rollback now checks every move/removal. If putting originals back fails, their recovery folder stays on disk and the launch alert reports partial restoration with its location. Recovery folders are no longer automatically pruned; remove unwanted copies manually after checking them. Unique names prevent two restores in the same second from sharing a recovery folder.
+- Server retention runs a restore drill before pruning any older backup. A failed or unavailable drill leaves older copies untouched. `--keep 0` disables pruning; `--drill` still requests validation in that mode.
+- Archive format 2 checksums `settings.plist`, validates its dictionary structure, rejects unlisted data files, symlinks, duplicate/noncanonical paths and unsupported filesystem entries. Settings are read before live data changes. Format 1 lacks the settings integrity record and is refused with instructions to export a fresh backup.
+- Regression coverage forces both swap and rollback failures, verifies recovery copies survive later restores, corrupts settings and injects unlisted files, and simulates deletion between the server dump and file copy with `--keep 1`.
+
+Validation: `swift test` passed 432 tests in 100 suites; the server unittest suite passed 52 tests; `swift build -c release` passed without warning/error diagnostics. Real-server deployment and the running-app restart/alert remain outside this verification.
