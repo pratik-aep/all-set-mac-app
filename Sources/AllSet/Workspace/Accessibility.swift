@@ -53,7 +53,12 @@ struct AXWindow {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &value) == .success,
               let list = value as? [AXUIElement] else { return [] }
-        return list.map { AXWindow(element: $0, pid: pid) }
+        // Each window answers within a second or is skipped: a hung app can't
+        // hold the main thread for long.
+        return list.map { element in
+            AXUIElementSetMessagingTimeout(element, 1)
+            return AXWindow(element: element, pid: pid)
+        }
     }
 
     /// The window under a point, in Accessibility coordinates.
@@ -84,13 +89,17 @@ struct AXWindow {
 
     /// Size, then position, then size again: some apps limit a window's size to
     /// the screen it's on, so the second resize finishes the job after a move.
-    func setFrame(_ frame: CGRect) {
+    /// False when the app refused the move or the resize (read `frame` back to
+    /// see where it really is: an accepted request can still be limited).
+    @discardableResult
+    func setFrame(_ frame: CGRect) -> Bool {
         var size = frame.size
         var origin = frame.origin
-        guard let sizeValue = AXValueCreate(.cgSize, &size), let originValue = AXValueCreate(.cgPoint, &origin) else { return }
+        guard let sizeValue = AXValueCreate(.cgSize, &size), let originValue = AXValueCreate(.cgPoint, &origin) else { return false }
         AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
-        AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, originValue)
-        AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
+        let moved = AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, originValue)
+        let sized = AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
+        return moved == .success && sized == .success
     }
 
     var title: String? { Self.string(element, kAXTitleAttribute) }

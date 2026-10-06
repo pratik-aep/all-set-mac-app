@@ -121,3 +121,35 @@ import Testing
         #expect(reloaded.workspaces == [workspace])
     }
 }
+
+/// Review A2: switching to a workspace skipped what failed without a word,
+/// and hid every other app even when nothing came back.
+@Suite struct WorkspaceRestoreReportTests {
+    @Test func everythingInPlaceSaysNothing() {
+        let report = WorkspaceRestoreReport(apps: [.init(name: "Safari", outcome: .windows(placed: 2, offTarget: 0, missing: 0))])
+        #expect(report.isComplete && report.summary == nil)
+    }
+
+    @Test func eachShortfallIsNamed() throws {
+        let report = WorkspaceRestoreReport(apps: [
+            .init(name: "Xcode", outcome: .notInstalled),
+            .init(name: "Figma", outcome: .couldntOpen("The app is damaged.")),
+            .init(name: "Safari", outcome: .windows(placed: 1, offTarget: 1, missing: 2)),
+        ], skippedHidingOthers: true)
+        #expect(!report.isComplete)
+        let summary = try #require(report.summary)
+        #expect(summary.contains("Xcode isn't installed."))
+        #expect(summary.contains("Figma couldn't open: The app is damaged."))
+        #expect(summary.contains("Safari: 2 windows didn't open."))
+        #expect(summary.contains("Safari: 1 window couldn't be put exactly where saved."))
+        #expect(summary.contains("weren't hidden"))
+        #expect(report.placedWindows == 1)
+    }
+
+    @Test func aWindowCountsAsPlacedOnlyWhereItLanded() {
+        let target = CGRect(x: 100, y: 50, width: 800, height: 600)
+        #expect(WorkspaceRestoreReport.landed(CGRect(x: 102, y: 49, width: 801, height: 600), at: target))
+        #expect(!WorkspaceRestoreReport.landed(CGRect(x: 100, y: 50, width: 1000, height: 600), at: target))
+        #expect(!WorkspaceRestoreReport.landed(nil, at: target))
+    }
+}

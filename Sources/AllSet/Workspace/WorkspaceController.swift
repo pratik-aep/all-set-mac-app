@@ -38,56 +38,94 @@ final class WorkspaceController {
         }
     }
 
-    func apply(_ workspace: Workspace) async {
+    /// Opens the workspace's apps and puts their windows where they were
+    /// saved, then says what didn't come back that way (in
+    /// `ui.workspaceReports`): it restores a layout, not documents.
+    @discardableResult
+    func apply(_ workspace: Workspace) async -> WorkspaceRestoreReport? {
         guard Accessibility.isTrusted else {
             Accessibility.requestAccess()
-            return
+            return nil
         }
-        guard services.ui.applyingWorkspace == nil else { return }
+        guard services.ui.applyingWorkspace == nil else { return nil }
         services.ui.applyingWorkspace = workspace.id
         defer { services.ui.applyingWorkspace = nil }
+        var outcomes: [String: WorkspaceRestoreReport.Outcome] = [:]
 
         // Open what isn't running, without stealing focus yet.
         for app in workspace.apps where running(app.bundleID) == nil {
-            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.bundleID) else { continue }
+            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.bundleID) else {
+                outcomes[app.bundleID] = .notInstalled
+                continue
+            }
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = false
-            _ = try? await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+            do {
+                _ = try await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+            } catch {
+                outcomes[app.bundleID] = .couldntOpen(error.localizedDescription)
+            }
         }
 
         // Back to front, so the first app ends up on top.
-        for app in workspace.apps.reversed() {
-            guard let running = running(app.bundleID) else { continue }
+        for app in workspace.apps.reversed() where outcomes[app.bundleID] == nil {
+            guard let running = running(app.bundleID) else {
+                outcomes[app.bundleID] = .couldntOpen("it quit while opening")
+                continue
+            }
             running.unhide()
             var windows = await standardWindows(of: running.processIdentifier, atLeast: app.windows.count)
+            var placed = 0, offTarget = 0, missing = 0
             for placement in app.windows {
                 let index = windows.firstIndex { placement.title?.isEmpty == false && $0.title == placement.title }
                     ?? (windows.isEmpty ? nil : 0)
-                guard let index else { break }
+                guard let index else {
+                    missing += 1
+                    continue
+                }
                 let window = windows.remove(at: index)
                 let screen = NSScreen.matching(id: placement.screenID, name: placement.screenName) ?? NSScreen.main
-                guard let visible = screen?.visibleFrame else { continue }
+                guard let visible = screen?.visibleFrame else {
+                    missing += 1
+                    continue
+                }
                 let target = CGRect(x: visible.minX + placement.frame.minX * visible.width,
                                     y: visible.minY + placement.frame.minY * visible.height,
                                     width: placement.frame.width * visible.width,
                                     height: placement.frame.height * visible.height).integral
-                window.setFrame(WindowLayout.flipped(target, primaryHeight: primaryHeight))
+                let wanted = WindowLayout.flipped(target, primaryHeight: primaryHeight)
+                // Checked by reading it back: an app can accept a frame and still limit it.
+                if window.setFrame(wanted), WorkspaceRestoreReport.landed(window.frame, at: wanted) {
+                    placed += 1
+                } else {
+                    offTarget += 1
+                }
                 window.raise()
             }
+            outcomes[app.bundleID] = .windows(placed: placed, offTarget: offTarget, missing: missing)
             running.activate()
         }
 
+        var report = WorkspaceRestoreReport(apps: workspace.apps.map {
+            .init(name: $0.name, outcome: outcomes[$0.bundleID] ?? .windows(placed: 0, offTarget: 0, missing: $0.windows.count))
+        })
         if workspace.hideOthers {
-            let keep = Set(workspace.apps.map(\.bundleID))
-            let me = ProcessInfo.processInfo.processIdentifier
-            for app in NSWorkspace.shared.runningApplications
-            where app.activationPolicy == .regular && app.processIdentifier != me && !keep.contains(app.bundleIdentifier ?? "") {
-                app.hide()
+            if report.placedWindows == 0 {
+                report.skippedHidingOthers = true
+            } else {
+                let keep = Set(workspace.apps.map(\.bundleID))
+                let me = ProcessInfo.processInfo.processIdentifier
+                for app in NSWorkspace.shared.runningApplications
+                where app.activationPolicy == .regular && app.processIdentifier != me && !keep.contains(app.bundleIdentifier ?? "") {
+                    app.hide()
+                }
             }
         }
         if let first = workspace.apps.first, let app = running(first.bundleID) {
             app.activate()
         }
+        services.ui.workspaceReports[workspace.id] = report
+        return report
     }
 
     // MARK: Helpers

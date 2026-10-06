@@ -23,6 +23,8 @@ final class UIState {
     /// another app already owns.
     var shortcutConflicts = Set<String>()
     var applyingWorkspace: UUID?
+    /// What the last switch to each workspace did, shown on its card.
+    var workspaceReports: [UUID: WorkspaceRestoreReport] = [:]
     /// The last whole-desktop change (a theme, or widgets cleared for a
     /// wallpaper) and the desktop from before it, for Undo.
     var desktopUndo: DesktopUndo?

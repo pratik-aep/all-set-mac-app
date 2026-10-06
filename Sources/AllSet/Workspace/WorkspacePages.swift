@@ -100,7 +100,7 @@ struct WorkspacesPage: View {
         PageScaffold {
             PageHeader(eyebrow: store.workspaces.isEmpty ? "Workspace" : "\(store.workspaces.count) saved",
                        title: "Workspaces",
-                       subtitle: "Save the windows you have open, then bring the whole setup back with one click or shortcut.") {
+                       subtitle: "Save where your apps\u{2019} windows are, then bring that layout back with one click or shortcut. Apps open their own windows; documents aren\u{2019}t reopened.") {
                 Button {
                     isSaving = true
                 } label: {
@@ -197,6 +197,23 @@ private struct WorkspaceCard: View {
             }
 
             LayoutMiniMap(apps: workspace.apps)
+
+            if let summary = services.ui.workspaceReports[workspace.id]?.summary {
+                HStack(alignment: .firstTextBaseline, spacing: DS.Space.xs) {
+                    Label(summary, systemImage: "exclamationmark.triangle.fill")
+                        .dsText(.meta)
+                        .foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button {
+                        services.ui.workspaceReports[workspace.id] = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Dismiss")
+                    .accessibilityLabel("Dismiss")
+                }
+            }
 
             HStack {
                 ShortcutRecorder(shortcut: Binding(get: { workspace.shortcut },
