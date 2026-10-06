@@ -115,6 +115,29 @@ public final class WallpaperStore {
     /// a tile's "can this play" (and the wallpaper itself) redraws the moment
     /// that changes; it changes rarely, so this costs nothing while scrolling.
     private var libraryCopies: Set<String> = []
+    /// Relative paths freed from this Mac after the server's copy was checked
+    /// to be the same file (size and SHA-256): `offloaded.json`. The only
+    /// evidence this Mac has of what the server really holds.
+    private var serverConfirmed: Set<String> = []
+
+    /// Where a wallpaper can be played from, as far as this Mac can tell.
+    public enum CopyLocation: Equatable, Sendable {
+        case thisMac
+        /// Freed from this Mac after its server copy was checked to match.
+        case confirmedOnServer
+        /// A server is set up and the catalog names the file, but nothing has
+        /// checked that the server has it: it may need downloading, or be missing.
+        case expectedOnServer
+        /// Not here, and no server to ask.
+        case unavailable
+    }
+
+    public func copyLocation(_ video: LibraryVideo) -> CopyLocation {
+        if canPlay(video) { return .thisMac }
+        let paths = [video.playback, video.still].compactMap(\.self)
+        guard config.libraryServerURL != nil, !paths.isEmpty else { return .unavailable }
+        return paths.allSatisfy(serverConfirmed.contains) ? .confirmedOnServer : .expectedOnServer
+    }
 
     /// Fetches from `config.libraryServerURL` under way, fraction done, by
     /// relative path (`live/<id>.mp4`, `thumbnails/<id>.jpg`…) — not by id, so
@@ -208,10 +231,14 @@ public final class WallpaperStore {
     /// Reads the catalog off the main thread (a big library is a big file).
     public func reloadLibrary() {
         let file = libraryDirectory.appendingPathComponent("catalog.json")
+        let offloaded = libraryDirectory.appendingPathComponent("offloaded.json")
         Task {
             let catalog = await Task.detached(priority: .utility) { () -> WallpaperLibraryCatalog? in
                 guard let data = try? Data(contentsOf: file) else { return nil }
                 return try? JSONDecoder().decode(WallpaperLibraryCatalog.self, from: data)
+            }.value
+            serverConfirmed = await Task.detached(priority: .utility) {
+                Set((try? Data(contentsOf: offloaded)).flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? [])
             }.value
             let directory = libraryDirectory
             // An entry whose files would lie outside the library is never used:
@@ -604,6 +631,7 @@ public final class WallpaperStore {
         change(&paths)
         do {
             try JSONEncoder().encode(paths.sorted()).write(to: url, options: .atomic)
+            serverConfirmed = paths
             return Set(try JSONDecoder().decode([String].self, from: Data(contentsOf: url))) == paths
         } catch {
             log.error("Couldn't record offloaded files: \(error.localizedDescription, privacy: .public)")

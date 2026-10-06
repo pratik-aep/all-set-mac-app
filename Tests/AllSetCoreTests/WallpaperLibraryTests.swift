@@ -314,6 +314,16 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         return (store, id)
     }
 
+    /// Review U5: a configured server and a path in the catalog aren't proof the
+    /// server has the file; without a check it's only expected there.
+    @MainActor @Test func aServerCopyNobodyCheckedIsOnlyExpected() async throws {
+        let (store, id) = try await missingLibraryVideo()
+        let video = try #require(store.libraryVideo(id))
+        #expect(store.copyLocation(video) == .expectedOnServer)
+        store.config.libraryServerURL = nil
+        #expect(store.copyLocation(video) == .unavailable)
+    }
+
     @MainActor @Test func alreadyLocalNeverTouchesTheNetwork() async throws {
         let (store, id) = try await missingLibraryVideo()
         // No handler installed: any network attempt fails loudly, not silently.
@@ -443,6 +453,9 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         #expect(!store.canPlay(a))
         #expect(store.canPlay(try #require(store.libraryVideo("b"))))
         #expect(store.offloadProgress == nil)
+        // Review U5: only a copy checked on the server is called confirmed there.
+        #expect(store.copyLocation(a) == .confirmedOnServer)
+        #expect(store.copyLocation(try #require(store.libraryVideo("b"))) == .thisMac)
 
         // And the round trip: played again, it comes straight back.
         let url = try await store.fetchLibraryVideo("a")

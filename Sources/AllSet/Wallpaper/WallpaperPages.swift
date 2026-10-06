@@ -308,6 +308,15 @@ private struct LibrarySection: View {
         }
     }
 
+    /// Says which copies were checked on the server and which are only expected
+    /// there: a configured server isn't a backup until its files are checked.
+    static func serverSummary(here: Int, confirmed: Int, expected: Int) -> String {
+        var parts = ["\(here) on this Mac"]
+        if confirmed > 0 { parts.append("\(confirmed) checked on your server") }
+        if expected > 0 { parts.append("\(expected) to download from your server (not checked)") }
+        return parts.joined(separator: ", ")
+    }
+
     var body: some View {
         let store = services.wallpaper
         let all = store.library
@@ -319,13 +328,17 @@ private struct LibrarySection: View {
                     && (!ownedOnly || store.canPlay(video))
             })
             let stills = all.filter { $0.kind == .image }.count
-            // Not on this Mac, but the personal server has a copy to fetch.
+            // Not on this Mac: either checked on the server when this Mac's copy
+            // was freed, or only expected there (a server is set up, nothing checked).
             let hasServer = store.config.libraryServerURL != nil
-            let onServer = all.filter { !store.canPlay($0) && hasServer && ($0.playback != nil || $0.still != nil) }
+            let locations = all.map(store.copyLocation)
+            let confirmed = locations.count { $0 == .confirmedOnServer }
+            let expected = locations.count { $0 == .expectedOnServer }
+            let onServer = zip(all, locations).filter { $1 == .confirmedOnServer || $1 == .expectedOnServer }.map(\.0)
             // Only the wallpapers with no copy anywhere else need the folder
             // they came from. Once everything has a copy here or on the
             // server, an unplugged drive changes nothing.
-            let waiting = all.filter { !store.canPlay($0) && !(hasServer && ($0.playback != nil || $0.still != nil)) }
+            let waiting = zip(all, locations).filter { $1 == .unavailable }.map(\.0)
             let offline = store.libraryRoots.values
                 .filter { root in waiting.contains { $0.root == root.id } }
             VStack(alignment: .leading, spacing: DS.Space.m) {
@@ -335,9 +348,9 @@ private struct LibrarySection: View {
                         Text("\(all.count - stills) live, \(stills) stills, "
                              + (!waiting.isEmpty
                                 ? "from \(store.libraryRoots.values.compactMap(\.label).sorted().joined(separator: ", "))"
-                                : onServer.isEmpty
+                                : confirmed + expected == 0
                                 ? "kept on this Mac"
-                                : "\(all.count - onServer.count) on this Mac, \(onServer.count) on your server"))
+                                : Self.serverSummary(here: all.count - confirmed - expected, confirmed: confirmed, expected: expected)))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -709,7 +722,7 @@ private struct LibraryTile: View {
     }
 
     static func deleteMessage(downloaded: Bool) -> String {
-        (downloaded ? "Remove Download frees this Mac's copy: it stays in your library and on your server, and downloads again when played. " : "")
+        (downloaded ? "Remove Download frees this Mac's copy only after your server's copy is checked to be the same file; it stays in your library and downloads again when played. " : "")
             + "Delete Everywhere removes it from your server, the database and this Mac. It asks to confirm it's you, and can't be undone."
     }
 
