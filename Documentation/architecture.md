@@ -67,8 +67,8 @@ configured, R2 holds exactly as verified (nothing but this Mac, ever). Set
 settings UI yet), it adds one more fallback *after* step 3 above:
 `WallpaperView`'s `.library(id)` case runs `.task(id: id) {
 fetchLibraryVideo(id) }` alongside its existing fallback to default art, so a
-wallpaper missing from this Mac (deleted, or a future deliberate "free up
-space" action, not yet built) is fetched once and cached at the *same*
+wallpaper missing from this Mac (deleted, or freed with "Free Up Space…",
+below) is fetched once and cached at the *same*
 relative path (`live/<id>.mp4`…) it lives at locally — every other
 resolution method sees it exactly like a normal local copy afterward, no
 second code path to keep in sync. `WallpaperStore.checkServerReachable()`
@@ -116,16 +116,22 @@ server doesn't repeat either:
   on disk. The grid is lazy, so only tiles on screen ever ask.
 - **`offloadAll(only:)`** deletes this Mac's copy of each playable file
   (`playback`, plus a live loop's `still`) only after a `HEAD` for that exact
-  path answers 200 **with the same `Content-Length`** — a missing or
-  truncated server copy keeps the local file. 8 checks in flight at once.
+  path answers 200 **with the same `Content-Length`**, and then the server's
+  copy is downloaded and **hashes (SHA-256) the same** as the local file — a
+  missing, truncated or different server copy keeps the local file. Same
+  size alone isn't proof. 8 checks in flight at once.
   The catalog and `removed.json` are never touched: an offloaded wallpaper
   is simply "missing locally", the state already proven to self-heal.
   Thumbnails (~34 MB total) are deliberately kept, so browsing stays
   instant and works offline.
 - **Surfaced as "Free Up Space…"** in the Library header (only when a server
   is configured): an estimate before confirming, per-file progress while
-  checking, freed vs. kept afterward. The header now counts "on this Mac /
-  on your server", and the drive-not-connected banner no longer blames a
+  checking, freed vs. kept afterward. The header counts "on this Mac",
+  "checked on your server" (freed after that hash check, i.e. listed in
+  `offloaded.json`) and "to download from your server (not checked)" (a
+  server is configured and the catalog names the file, nothing more):
+  `WallpaperStore.copyLocation`. A configured server isn't a backup until
+  its files are checked. The drive-not-connected banner no longer blames a
   source drive for wallpapers the server can supply.
 - **Downloads are shared, retried and cancellable** (audit, 2026-09-29): one
   `Task` per relative path, joined by every caller; the last caller to give
@@ -143,16 +149,19 @@ server doesn't repeat either:
   preview" instead of nothing when the file isn't local. A hover firing on
   every scroll-by would download too readily; a tap is deliberate. Tapping
   opens `LibraryDetailSheet`, which does fetch.
-- **Two deletes, one button, decided by context, not by the tile**:
-  `LibraryTile.DeleteKind` — `.offloadOnly` (the Owned filter: local copy
-  only, stays in the catalog and on the server) or `.permanent`
-  (everywhere else). `.permanent` runs `AdminGate.authorize` (Touch ID,
-  falling back to the Mac password) before calling
-  `WallpaperStore.deleteEverywhere`, which does the existing local
-  `deleteLibraryVideo` cleanup first — unconditional, already proven — then
-  calls the delete service for the server file and the Postgres row. A
-  server failure is reported, not swallowed; the local deletion already
-  happened either way.
+- **Two deletes, offered the same way everywhere** (`LibraryTile.DeleteActions`;
+  a filter never changes what Delete means): **Remove Download** frees this
+  Mac's copy through `offloadAll(only:)`, so only after the server's copy
+  is checked; **Delete Everywhere** runs `AdminGate.authorize` (Touch ID,
+  falling back to the Mac password), then `WallpaperStore.deleteEverywhere`.
+  That records the delete in `pendingDeletes` (written and read back
+  first), asks the delete service to remove the server's files and the
+  Postgres row, and only once the server confirms removes this Mac's copy
+  (`deleteLibraryVideo`). The outcome is one of `.success`,
+  `.notDeleted(reason)` (the server didn't confirm: nothing was deleted
+  here, and asking again retries) or `.deletedOnServer(reason)` (gone
+  there, but this Mac's copy or its record couldn't be fully removed:
+  deleting again finishes it).
 - **`scripts/cloud/delete_service.py`**: the one destructive server
   endpoint, deliberately behind more than the fetch path is. Bound to
   `127.0.0.1` on the server, not the Tailscale interface like Caddy —
