@@ -52,6 +52,7 @@ Findings from `2026-10-06-comprehensive-review.md`. Every fixed item has a test 
 | D6 | Inconsistent save-failure semantics | Partly: local delete and Notes report failures; other stores (clipboard, workspace, wallpaper config writes) still only log | `1b323e2` |
 | P2 | Screenshot history by count only | Fixed (600 MB byte budget) | `3734315` |
 | P1 | Focus-timer completion owned by a view | Fixed (`FocusTimerCoordinator` in AppServices) | see log |
-| P3–P7 | Image import on main, pointer wakeups, retry backoff, status key case, command timeout | Open | |
+| P7 | Command timeout not an upper bound | Fixed (TERM, then KILL; bounded drain and output; task cancellation) | see log |
+| P3–P6 | Image import on main, pointer wakeups, retry backoff, status key case | Open | |
 | U1–U6 | Navigation, utility pages, accessibility names, notes undo, "on your server" wording, copy | Open (U1 needs a design decision) | |
 | A1–A4, O1–O6 | Architecture, workspace restore, display identity, platform testing, backend ops, tests, CI budgets, release, docs, import input bounds | Open | |

@@ -127,57 +127,7 @@ enum KnockActionRunner {
 }
 
 /// Runs a command without blocking, stopping it if it takes too long.
-enum CommandRunner {
-    /// Returns why it failed, or nil.
-    static func run(_ path: String, _ arguments: [String], timeout: TimeInterval?) async -> String? {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(returning: runAndWait(path, arguments, timeout: timeout))
-            }
-        }
-    }
-
-    private static func runAndWait(_ path: String, _ arguments: [String], timeout: TimeInterval?) -> String? {
-        let name = URL(fileURLWithPath: path).lastPathComponent
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = arguments
-        process.standardOutput = FileHandle.nullDevice
-        let errors = Pipe()
-        process.standardError = errors
-        // Set before launching: a quick command could finish before a
-        // handler set afterwards, and its end would never be seen.
-        let exited = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in exited.signal() }
-        do {
-            try process.run()
-        } catch {
-            return "Couldn't start \(name): \(error.localizedDescription)"
-        }
-        // Drained as it runs: a command that fills the pipe would otherwise stall.
-        let output = ErrorOutput()
-        let drained = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
-            output.data = errors.fileHandleForReading.readDataToEndOfFile()
-            drained.signal()
-        }
-        if let timeout, exited.wait(timeout: .now() + timeout) == .timedOut {
-            process.terminate()
-            drained.wait()
-            return "\(name) took too long and was stopped"
-        } else if timeout == nil {
-            exited.wait()
-        }
-        drained.wait()
-        guard process.terminationStatus != 0 else { return nil }
-        let message = String(decoding: output.data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-        return message.isEmpty ? "\(name) failed (\(process.terminationStatus))" : message
-    }
-
-    private final class ErrorOutput: @unchecked Sendable {
-        var data = Data()
-    }
-}
+// `CommandRunner` is in AllSetCore (Support/CommandRunner.swift).
 
 /// Brief effects drawn over everything, passing clicks through.
 @MainActor
