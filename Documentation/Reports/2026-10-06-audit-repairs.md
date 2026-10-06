@@ -72,3 +72,18 @@ Findings from `2026-10-06-comprehensive-review.md`. Every fixed item has a test 
 | O4 | Release process not ready for distribution | Partly: packages carry third-party notices, a build number from git, and a verified signature. **Needs an Apple Developer account: Developer ID signing, notarization, updates/rollback, clean-machine install check** | see log |
 | O5 | Docs are a history log | Partly: README states the product and points here and to operations.md; README no longer lists retired Aerial videos; architecture.md matches the current offload check, server counts and delete flow. No supported-feature matrix or release checklist yet | see log |
 | O6 | Import tooling trusts corrupt input | Fixed (scene.pkg and wetex bounds-checked, loose files contained, every tool call has a deadline, unique temporary names, a library lock). The old wetex crashed on a truncated file and a cut-off LZ4 match | see log |
+
+## Recheck (2026-10-06, `Documentation/Reports/2026-10-06-recheck.md`): status
+
+The recheck reviewed `e94e675` and found four defects still open. Two were introduced by repairs above (S2 in the P7 rewrite, S3 in the R4/R5 helper), and two were repairs that fixed the named case but not the wider one (S1 after R6, S4 after R2). The rows above for R2, R4, R6 and P7 describe what was done at the time; this table is the current state.
+
+| Finding | What was still wrong | Status | Commit |
+|---|---|---|---|
+| S1 | A reference written during or after a server delete lost its file | Fixed: the row delete and the shared-file check are one transaction under a lock every catalog writer takes (`catalog_lock.py`, also taken by `sync_catalog.py`); deleted files are retired for 7 days and put back if any row references them. Server disk space is freed a week after a delete. The upload step that writes storage keys is outside this repository and must follow the lock rule | `ad11d88` |
+| S2 | Cancelling a command only sent TERM and waited without limit; a timeout left the command's children running | Fixed: the command runs in its own process group; cancel and timeout share one TERM-then-KILL stop for the whole group; the error-output reader can be told to stop | `10e9b96` |
+| S3 | Every containment check leaked two path buffers | Fixed: resolves into a temporary buffer; heap growth measured at zero | `84a5a43` |
+| S4 | A replaced screenshot's request ran on; nothing checked the document before submitting; closing released nothing | Fixed: the studio owns and cancels its request; checked again before submission; closing keeps only the current picture; pictures over 8,192 px a side are scaled as they open; Stop button. The window-close hook and Stop button are app-target code, not exercised by tests | `64c9158` |
+
+Still open from the recheck's last section, unchanged: navigation and utility-page design (U1, U2), clipboard collection on by default (D1), no user-data export or downloaded-photo quota, no server backup or rehearsed restore, services started by hand, no versioned migrations or catalog pagination, and the release checks (real-app workspace restore, identical monitors, minimum macOS, permission revocation, VoiceOver, Developer ID and notarization, clean-machine install).
+
+ThreadSanitizer has not been run, by the recheck or by this work.
