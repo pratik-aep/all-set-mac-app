@@ -12,39 +12,59 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
+/// Reads the file front to back. Every read is checked against what's left:
+/// a truncated or lying file ends with an error, never a read past its end.
 struct Reader {
     let data: Data
     var offset = 0
 
+    var remaining: Int { data.count - offset }
+
+    private mutating func take(_ count: Int) -> Data {
+        guard count >= 0, count <= remaining else { fail("truncated file (wanted \(count) bytes at \(offset), \(remaining) left)") }
+        defer { offset += count }
+        let start = data.startIndex + offset
+        return data.subdata(in: start..<start + count)
+    }
+
     mutating func int32() -> Int32 {
-        defer { offset += 4 }
-        return data.subdata(in: offset..<offset + 4).withUnsafeBytes { $0.loadUnaligned(as: Int32.self) }
+        take(4).withUnsafeBytes { $0.loadUnaligned(as: Int32.self) }
     }
 
     mutating func float32() -> Float {
-        defer { offset += 4 }
-        return data.subdata(in: offset..<offset + 4).withUnsafeBytes { $0.loadUnaligned(as: Float.self) }
+        take(4).withUnsafeBytes { $0.loadUnaligned(as: Float.self) }
     }
 
     /// A 9-byte tag like "TEXB0003\0".
     mutating func tag() -> String {
-        defer { offset += 9 }
-        return String(decoding: data.subdata(in: offset..<offset + 8), as: UTF8.self)
+        String(decoding: take(9).prefix(8), as: UTF8.self)
     }
 
     mutating func bytes(_ count: Int) -> Data {
-        defer { offset += count }
-        return data.subdata(in: offset..<offset + count)
+        take(count)
+    }
+
+    /// A count from the file, which must be between 0 and `limit`.
+    mutating func count(_ what: String, limit: Int) -> Int {
+        let value = Int(int32())
+        guard (0...limit).contains(value) else { fail("implausible \(what): \(value)") }
+        return value
     }
 }
+
+/// Far beyond any real wallpaper texture; a corrupt header can't ask for more.
+let maxSide = 16_384
+let maxDecodedBytes = 512 << 20
 
 func fail(_ message: String) -> Never {
     print(#"{"error": "\#(message)"}"#)
     exit(1)
 }
 
-/// An LZ4 block (no frame header), as Wallpaper Engine stores it.
+/// An LZ4 block (no frame header), as Wallpaper Engine stores it. Never
+/// reads past the input or writes past `size`; a malformed block is an error.
 func lz4(_ input: Data, size: Int) -> Data {
+    guard (0...maxDecodedBytes).contains(size) else { fail("implausible decompressed size \(size)") }
     let source = [UInt8](input)
     var out = [UInt8]()
     out.reserveCapacity(size)
@@ -55,8 +75,10 @@ func lz4(_ input: Data, size: Int) -> Data {
         if literals == 15 {
             while i < source.count { let b = Int(source[i]); i += 1; literals += b; if b != 255 { break } }
         }
-        out.append(contentsOf: source[i..<min(i + literals, source.count)]); i += literals
+        guard literals <= source.count - i, out.count + literals <= size else { fail("malformed LZ4 literals") }
+        out.append(contentsOf: source[i..<i + literals]); i += literals
         if i >= source.count { break }
+        guard i + 1 < source.count else { fail("malformed LZ4: match offset cut off") }
         let distance = Int(source[i]) | Int(source[i + 1]) << 8; i += 2
         var length = token & 15
         if length == 15 {
@@ -64,7 +86,7 @@ func lz4(_ input: Data, size: Int) -> Data {
         }
         length += 4
         let start = out.count - distance
-        guard start >= 0 else { break }
+        guard distance > 0, start >= 0, out.count + length <= size else { fail("malformed LZ4 match") }
         for k in 0..<length { out.append(out[start + k]) }
     }
     return Data(out)
@@ -185,26 +207,26 @@ let wantsFrames = args.contains("--frames")
 var reader = Reader(data: data)
 guard reader.tag().hasPrefix("TEXV"), reader.tag().hasPrefix("TEXI") else { fail("not a TEX file") }
 let format = reader.int32(), flags = reader.int32()
-let textureWidth = Int(reader.int32()), textureHeight = Int(reader.int32())
-let imageWidth = Int(reader.int32()), imageHeight = Int(reader.int32())
+let textureWidth = reader.count("texture width", limit: maxSide), textureHeight = reader.count("texture height", limit: maxSide)
+let imageWidth = reader.count("image width", limit: maxSide), imageHeight = reader.count("image height", limit: maxSide)
 _ = reader.int32()
 let container = reader.tag()
-let imageCount = Int(reader.int32())
+let imageCount = reader.count("image count", limit: 4096)
 var freeImage: Int32 = -1
 var isMP4 = false
 if container == "TEXB0003" || container == "TEXB0004" { freeImage = reader.int32() }
 if container == "TEXB0004" { isMP4 = reader.int32() == 1 }
 var images: [(data: Data, width: Int, height: Int)] = []
 for _ in 0..<imageCount {
-    let mipmaps = Int(reader.int32())
+    let mipmaps = reader.count("mipmap count", limit: 32)
     for level in 0..<mipmaps {
-        let width = Int(reader.int32()), height = Int(reader.int32())
+        let width = reader.count("width", limit: maxSide), height = reader.count("height", limit: maxSide)
         var compressed = false, decompressedSize = 0
         if container != "TEXB0001" {
             compressed = reader.int32() == 1
-            decompressedSize = Int(reader.int32())
+            decompressedSize = reader.count("decompressed size", limit: maxDecodedBytes)
         }
-        let count = Int(reader.int32())
+        let count = reader.count("image size", limit: reader.remaining)
         var bytes = reader.bytes(count)
         if level == 0 {
             if compressed { bytes = lz4(bytes, size: decompressedSize) }
@@ -241,12 +263,13 @@ if freeImage != -1 {
     exit(0)
 }
 
+guard first.width > 0, first.height > 0, first.width * first.height * 4 <= maxDecodedBytes else { fail("implausible image size") }
 guard let rgba = pixels(first.data, format: format, width: first.width, height: first.height) else { fail("unsupported pixel format \(format)") }
 
 if wantsFrames, flags & 4 != 0 {
     // GIF frames: rectangles on the sheet, each with how long it shows.
     let tag = reader.tag()
-    let frameCount = Int(reader.int32())
+    let frameCount = reader.count("frame count", limit: 10_000)
     if tag == "TEXS0003" { _ = reader.int32(); _ = reader.int32() }
     try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
     var times: [Float] = []
@@ -256,6 +279,9 @@ if wantsFrames, flags & 4 != 0 {
         let x = reader.float32(), y = reader.float32(), w = reader.float32()
         _ = reader.float32(); _ = reader.float32()
         let h = reader.float32()
+        guard [x, y, w, h].allSatisfy({ $0.isFinite && abs($0) <= Float(maxSide) }), Int(abs(w)) > 0, Int(abs(h)) > 0 else {
+            fail("implausible frame rectangle")
+        }
         let frame = crop(rgba, width: first.width, x: Int(x), y: Int(y), w: Int(abs(w)), h: Int(abs(h)))
         _ = writePNG(frame, width: Int(abs(w)), height: Int(abs(h)), to: out.appendingPathComponent(String(format: "frame-%04d.png", index + 1)))
         times.append(time)

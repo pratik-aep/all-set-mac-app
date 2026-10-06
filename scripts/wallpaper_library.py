@@ -42,6 +42,68 @@ def tool(name):
 FFPROBE = None
 FFMPEG = None
 
+# How long any one outside tool (ffprobe, ffmpeg, the texture decoder) may run
+# on one file before it counts as failed: a corrupt file can make one spin.
+TOOL_TIME_LIMIT = 300
+
+
+def run_tool(command, timeout=TOOL_TIME_LIMIT, **kwargs):
+    """subprocess.run with a deadline: a tool past it is killed, and the call
+    answers like a failed run (code -9, the reason on stderr) so every caller's
+    existing failure path handles it."""
+    try:
+        return subprocess.run(command, timeout=timeout, **kwargs)
+    except subprocess.TimeoutExpired:
+        empty = "" if kwargs.get("text") else b""
+        reason = f"timed out after {timeout} s"
+        return subprocess.CompletedProcess(command, -9, stdout=empty,
+                                           stderr=reason if kwargs.get("text") else reason.encode())
+
+
+def write_json_atomic(path, data, **kwargs):
+    """Writes JSON next to `path` under a name of its own, then swaps it in:
+    a fixed ".tmp" name let two runs write into the same file."""
+    import tempfile
+    folder = os.path.dirname(path) or "."
+    descriptor, temporary = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".tmp", dir=folder)
+    try:
+        with os.fdopen(descriptor, "w") as handle:
+            json.dump(data, handle, **kwargs)
+        os.replace(temporary, path)
+    except BaseException:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+        raise
+
+
+class LibraryBusy(Exception):
+    pass
+
+
+class library_lock:
+    """Holds the library for one run that changes it (import, remove-duplicates):
+    a second one at the same time would read the catalog, then overwrite the
+    first's changes with its own."""
+
+    def __init__(self, library):
+        self.path = os.path.join(library, ".import.lock")
+
+    def __enter__(self):
+        import fcntl
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        self.handle = open(self.path, "w")
+        try:
+            fcntl.flock(self.handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            self.handle.close()
+            raise LibraryBusy(f"another import is changing {os.path.dirname(self.path)}; try again when it finishes")
+        return self
+
+    def __exit__(self, *exc):
+        import fcntl
+        fcntl.flock(self.handle, fcntl.LOCK_UN)
+        self.handle.close()
+
 
 def sha256(path, chunk=8 << 20):
     digest = hashlib.sha256()
@@ -56,7 +118,7 @@ def sha256(path, chunk=8 << 20):
 
 def probe(path):
     """ffprobe's view of a file, or an error string."""
-    result = subprocess.run([FFPROBE, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", path],
+    result = run_tool([FFPROBE, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", path],
                             capture_output=True, text=True)
     if result.returncode != 0:
         return None, (result.stderr.strip() or "ffprobe failed")[:300]
@@ -68,7 +130,7 @@ def probe(path):
 
 def decodes(path, seconds=2):
     """Whether the first seconds decode without errors (catches truncated or corrupt files)."""
-    result = subprocess.run([FFMPEG, "-v", "error", "-xerror", "-t", str(seconds), "-i", path, "-f", "null", "-"],
+    result = run_tool([FFMPEG, "-v", "error", "-xerror", "-t", str(seconds), "-i", path, "-f", "null", "-"],
                             capture_output=True, text=True)
     return result.returncode == 0, result.stderr.strip()[:300]
 
@@ -264,35 +326,78 @@ def wetex_tool(library):
     binary = os.path.join(library, "bin", "wetex")
     if not os.path.exists(binary) or os.path.getmtime(binary) < os.path.getmtime(source):
         os.makedirs(os.path.dirname(binary), exist_ok=True)
-        result = subprocess.run(["xcrun", "swiftc", "-O", source, "-o", binary], capture_output=True, text=True)
+        result = run_tool(["xcrun", "swiftc", "-O", source, "-o", binary], capture_output=True, text=True, timeout=900)
         if result.returncode != 0:
             sys.exit(f"couldn't compile wetex.swift:\n{result.stderr[:500]}")
     return binary
 
 
+class PackageError(Exception):
+    """A scene.pkg that doesn't describe itself consistently: truncated, or
+    with entries pointing outside the file."""
+
+
 class Package:
-    """Files of a Wallpaper Engine scene: a scene.pkg archive, or loose files in the folder."""
+    """Files of a Wallpaper Engine scene: a scene.pkg archive, or loose files in
+    the folder. The archive's own counts, offsets and lengths are checked
+    against the file before anything is read; a loose file must be inside the
+    scene's folder."""
+
+    # Far above any real scene; a corrupt count can't make it loop for ever.
+    MAX_ENTRIES = 100_000
+    MAX_NAME = 4096
 
     def __init__(self, folder, name):
         import struct
         self.folder, self.entries, self.path = folder, {}, os.path.join(folder, name)
         if os.path.isfile(self.path):
+            size = os.path.getsize(self.path)
             with open(self.path, "rb") as handle:
+                def exactly(count):
+                    data = handle.read(count)
+                    if len(data) != count:
+                        raise PackageError(f"{name} ends early")
+                    return data
+
+                def number():
+                    return struct.unpack("<i", exactly(4))[0]
+
                 def text():
-                    count = struct.unpack("<i", handle.read(4))[0]
-                    return handle.read(count).decode("utf-8", "replace")
+                    count = number()
+                    if not 0 <= count <= self.MAX_NAME:
+                        raise PackageError(f"{name} has a name {count} bytes long")
+                    return exactly(count).decode("utf-8", "replace")
+
                 text()
-                count = struct.unpack("<i", handle.read(4))[0]
+                count = number()
+                if not 0 <= count <= self.MAX_ENTRIES:
+                    raise PackageError(f"{name} claims {count} files")
                 raw = []
                 for _ in range(count):
                     entry = text()
-                    offset, length = struct.unpack("<ii", handle.read(8))
+                    offset, length = struct.unpack("<ii", exactly(8))
                     raw.append((entry, offset, length))
                 base = handle.tell()
-            self.entries = {entry: (base + offset, length) for entry, offset, length in raw}
+            entries = {}
+            for entry, offset, length in raw:
+                if offset < 0 or length < 0 or base + offset + length > size:
+                    raise PackageError(f"{name}: {entry} lies outside the file")
+                entries[entry] = (base + offset, length)
+            self.entries = entries
+
+    def loose(self, name):
+        """A loose file's path, only if it's inside the scene's folder."""
+        if os.path.isabs(name):
+            return None
+        root = os.path.realpath(self.folder)
+        path = os.path.realpath(os.path.join(root, name))
+        return path if os.path.commonpath([root, path]) == root else None
 
     def has(self, name):
-        return name in self.entries or os.path.isfile(os.path.join(self.folder, name))
+        if name in self.entries:
+            return True
+        path = self.loose(name)
+        return path is not None and os.path.isfile(path)
 
     def read(self, name):
         if name in self.entries:
@@ -300,7 +405,10 @@ class Package:
             with open(self.path, "rb") as handle:
                 handle.seek(offset)
                 return handle.read(length)
-        with open(os.path.join(self.folder, name), "rb") as handle:
+        path = self.loose(name)
+        if path is None:
+            raise KeyError(f"{name} is outside the scene folder")
+        with open(path, "rb") as handle:
             return handle.read()
 
     def json(self, name):
@@ -339,7 +447,7 @@ def decode_texture(package, name, work, wetex, frames=False):
     with open(source, "wb") as handle:
         handle.write(package.read(path))
     command = [wetex, source, source[:-4] + ("-frames" if frames else "")] + (["--frames"] if frames else [])
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = run_tool(command, capture_output=True, text=True)
     try:
         info = json.loads(result.stdout.strip().splitlines()[-1])
     except (IndexError, json.JSONDecodeError):
@@ -361,7 +469,7 @@ def frame_movement(video, seconds):
     between small grey copies of three frames, 0-255."""
     width, height, frames = 160, 90, []
     for at in (0.0, seconds / 3, 2 * seconds / 3):
-        run = subprocess.run([FFMPEG, "-v", "error", "-ss", f"{at:.2f}", "-i", video, "-frames:v", "1",
+        run = run_tool([FFMPEG, "-v", "error", "-ss", f"{at:.2f}", "-i", video, "-frames:v", "1",
                               "-vf", f"scale={width}:{height}", "-pix_fmt", "gray", "-f", "rawvideo", "-"], capture_output=True)
         if run.returncode != 0 or len(run.stdout) < width * height:
             return None
@@ -820,7 +928,7 @@ class SceneNormaliser:
 
 
 def image_size(path):
-    result = subprocess.run([FFPROBE, "-v", "error", "-select_streams", "v", "-show_entries", "stream=width,height",
+    result = run_tool([FFPROBE, "-v", "error", "-select_streams", "v", "-show_entries", "stream=width,height",
                              "-of", "csv=p=0", path], capture_output=True, text=True)
     try:
         width, height = [int(v) for v in result.stdout.strip().split(",")[:2]]
@@ -930,7 +1038,7 @@ def wescene_tool(library):
     binary = os.path.join(library, "bin", "wescene")
     if not os.path.exists(binary) or os.path.getmtime(binary) < os.path.getmtime(source):
         os.makedirs(os.path.dirname(binary), exist_ok=True)
-        result = subprocess.run(["xcrun", "swiftc", "-O", "-Xcc", "-DGL_SILENCE_DEPRECATION", source, "-o", binary],
+        result = run_tool(["xcrun", "swiftc", "-O", "-Xcc", "-DGL_SILENCE_DEPRECATION", source, "-o", binary],
                                 capture_output=True, text=True)
         if result.returncode != 0:
             sys.exit(f"couldn't compile wescene.swift:\n{result.stderr[:800]}")
@@ -997,7 +1105,7 @@ def is_blank(path):
     darkest legitimate art measured (a faint ink-style illustration, almost
     silhouette) sat at mean 0.38; every confirmed-blank render sat at 0.19 or
     under, mean of a 32x18 greyscale downscale, 0-255 scale."""
-    result = subprocess.run([FFMPEG, "-v", "error", "-i", path, "-frames:v", "1", "-vf", "scale=32:18,format=gray",
+    result = run_tool([FFMPEG, "-v", "error", "-i", path, "-frames:v", "1", "-vf", "scale=32:18,format=gray",
                              "-f", "rawvideo", "-"], capture_output=True)
     pixels = result.stdout
     if len(pixels) < 32 * 18:
@@ -1026,14 +1134,14 @@ def gif_video(package, texture, work, wetex, output):
             handle.write(f"file 'frame-{index:04d}.png'\nduration {max(duration, 0.02):.3f}\n")
         handle.write(f"file 'frame-{len(info['times']):04d}.png'\n")
     first = os.path.join(info["dir"], "frame-0001.png")
-    result = subprocess.run([FFPROBE, "-v", "error", "-select_streams", "v", "-show_entries", "stream=width,height", "-of", "csv=p=0", first],
+    result = run_tool([FFPROBE, "-v", "error", "-select_streams", "v", "-show_entries", "stream=width,height", "-of", "csv=p=0", first],
                             capture_output=True, text=True)
     try:
         w, h = [int(v) for v in result.stdout.strip().split(",")[:2]]
     except ValueError:
         return "unreadable frames"
     factor = max(1, int(2160 / h))
-    result = subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", listing,
+    result = run_tool([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", listing,
                              "-vf", f"scale={w * factor}:{h * factor}:flags=neighbor,format=yuv420p,fps=30",
                              "-c:v", "h264_videotoolbox", "-b:v", "12M", "-movflags", "+faststart", output],
                             capture_output=True, text=True)
@@ -1045,7 +1153,10 @@ def import_scene(folder, project, library, wetex, item_id, live=True):
     Returns (entry fields, problem)."""
     import tempfile
     file_name = project.get("file") or "scene.json"
-    package = Package(folder, os.path.splitext(file_name)[0] + ".pkg")
+    try:
+        package = Package(folder, os.path.splitext(file_name)[0] + ".pkg")
+    except PackageError as error:
+        return None, f"damaged package: {error}"
     scene = package.json(file_name)
     if scene is None:
         return None, "no scene description"
@@ -1247,11 +1358,11 @@ def transcode(source, destination, record):
     """HEVC in hardware, at most 3840×2160 and 60 fps, no audio (wallpapers play muted)."""
     fps = min(record.get("fps") or 60, 60)
     bitrate = max(8, min(int((record.get("bitRate") or 20_000_000) / 1e6), 30))
-    temporary = destination + ".part.mp4"
+    temporary = f"{destination}.{os.getpid()}.part.mp4"
     command = [FFMPEG, "-v", "error", "-y", "-i", source, "-an",
                "-vf", f"scale='min(3840,iw)':'min(2160,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,fps={fps:g}",
                "-c:v", "hevc_videotoolbox", "-b:v", f"{bitrate}M", "-tag:v", "hvc1", "-movflags", "+faststart", temporary]
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = run_tool(command, capture_output=True, text=True)
     if result.returncode != 0 or not os.path.exists(temporary):
         return result.stderr.strip()[:300] or "ffmpeg failed"
     os.replace(temporary, destination)
@@ -1262,7 +1373,7 @@ def thumbnail(source, destination, duration):
     at = max(0.0, min(2.0, duration * 0.3))
     # Seeking in a single picture skips its only frame: stills aren't seeked.
     seek = ["-ss", f"{at:.2f}"] if duration > 0 else []
-    subprocess.run([FFMPEG, "-v", "error", "-y"] + seek + ["-i", source, "-frames:v", "1",
+    run_tool([FFMPEG, "-v", "error", "-y"] + seek + ["-i", source, "-frames:v", "1",
                     "-vf", "scale=640:-2", "-q:v", "4", destination], capture_output=True)
     return os.path.exists(destination)
 
@@ -1271,7 +1382,7 @@ def dhash(path, square=False):
     """A 64-bit difference hash of a picture (of its centre square, to compare
     with Workshop previews, which are square crops), for finding near-duplicates."""
     crop = "crop='min(iw,ih)':'min(iw,ih)'," if square else ""
-    result = subprocess.run([FFMPEG, "-v", "error", "-i", path, "-frames:v", "1", "-vf", f"{crop}scale=9:8,format=gray",
+    result = run_tool([FFMPEG, "-v", "error", "-i", path, "-frames:v", "1", "-vf", f"{crop}scale=9:8,format=gray",
                              "-f", "rawvideo", "-"], capture_output=True)
     pixels = result.stdout
     if len(pixels) < 72:
@@ -1546,12 +1657,8 @@ def remove_duplicates(decisions_path, library):
             removed[decision["remove"]] = {"keep": decision.get("keep"), "reason": decision.get("reason", "duplicate")}
     before = len(catalog["items"])
     catalog["items"] = [item for item in catalog["items"] if item["id"] not in removed]
-    with open(os.path.join(library, "removed.json.tmp"), "w") as handle:
-        json.dump(removed, handle, indent=1, ensure_ascii=False)
-    os.replace(os.path.join(library, "removed.json.tmp"), os.path.join(library, "removed.json"))
-    with open(catalog_path + ".tmp", "w") as handle:
-        json.dump(catalog, handle, indent=1, ensure_ascii=False)
-    os.replace(catalog_path + ".tmp", catalog_path)
+    write_json_atomic(os.path.join(library, "removed.json"), removed, indent=1, ensure_ascii=False)
+    write_json_atomic(catalog_path, catalog, indent=1, ensure_ascii=False)
     clean_orphans(library, catalog)
     print(f"removed {before - len(catalog['items'])}; library now {len(catalog['items'])}")
 
@@ -1699,9 +1806,7 @@ def import_library(root, library, live=True, self_contained=False):
     catalog["roots"] = roots + [{"id": root_id, "path": root, "label": os.path.basename(root)}]
     catalog["version"] = 1
     catalog["updatedAt"] = now
-    with open(catalog_path + ".tmp", "w") as handle:
-        json.dump(catalog, handle, indent=1, ensure_ascii=False)
-    os.replace(catalog_path + ".tmp", catalog_path)
+    write_json_atomic(catalog_path, catalog, indent=1, ensure_ascii=False)
 
     clean_orphans(library, catalog)
 
@@ -1753,16 +1858,18 @@ def main():
     if args.command == "inventory":
         inventory(args.folder, args.library)
     elif args.command == "remove-duplicates":
-        remove_duplicates(args.folder, args.library)
+        with library_lock(args.library):
+            remove_duplicates(args.folder, args.library)
     elif args.command in ("inspect-scene", "render-scene"):
         inspect_scene(args.folder, args.library, args.output if args.command == "render-scene" else None)
     else:
-        import_library(args.folder, args.library, live=not args.no_live,
-                       self_contained=args.self_contained)
+        with library_lock(args.library):
+            import_library(args.folder, args.library, live=not args.no_live,
+                           self_contained=args.self_contained)
 
 
 if __name__ == "__main__":
     try:
         main()
-    except CatalogUnreadable as error:
+    except (CatalogUnreadable, LibraryBusy) as error:
         sys.exit(str(error))
