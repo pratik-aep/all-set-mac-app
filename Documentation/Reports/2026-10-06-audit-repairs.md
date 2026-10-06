@@ -55,6 +55,7 @@ Findings from `2026-10-06-comprehensive-review.md`. Every fixed item has a test 
 | P7 | Command timeout not an upper bound | Fixed (TERM, then KILL; bounded drain and output; task cancellation) | see log |
 | P5 | Weather/GitHub retried every minute after failures; fetches outlived their widgets; stale data hidden | Fixed (`RetryBackoff` per key and credential, 401 waits longest; `SharedRequests` cancels a fetch once every waiting widget left; forecast and air errors kept apart; `WidgetStaleBadge` shows age and why) | see log |
 | P6 | Status check identity lowercased whole URL | Fixed (only scheme and host fold case; path and query keep theirs) | see log |
-| P3, P4 | Image import on main, pointer wakeups | Open | |
+| P4 | 20 Hz pointer timer ran with no widgets or all covered | Fixed (`NeededTimer`: scheduled only while a widget is shown uncovered; not hand-measured) | see log |
+| P3 | Image import on main, thumbnails via full decode | Open | |
 | U1–U6 | Navigation, utility pages, accessibility names, notes undo, "on your server" wording, copy | Open (U1 needs a design decision) | |
 | A1–A4, O1–O6 | Architecture, workspace restore, display identity, platform testing, backend ops, tests, CI budgets, release, docs, import input bounds | Open | |

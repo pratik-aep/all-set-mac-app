@@ -21,8 +21,11 @@ final class DesktopWidgetController {
     private var arrivals: Task<Void, Never>?
     private var occlusionObservers: [UUID: NSObjectProtocol] = [:]
     private var screenObserver: NSObjectProtocol?
-    /// Reads the pointer for the corner resize handles.
-    private var pointerWatch: Timer?
+    /// Reads the pointer for the corner resize handles: macOS sends no
+    /// mouse-moved events to an app that isn't in front, so it's read directly,
+    /// two dozen cheap checks a second, and only while some widget is shown
+    /// uncovered. No widgets, or all of them covered, means no wakeups.
+    private lazy var pointerWatch = NeededTimer(interval: 0.05, tolerance: 0.02) { [weak self] in self?.pointerMoved() }
     private var lastPointer: CGPoint?
     private var toolbar: NSPanel?
     /// "Keep / Go Back" while a theme is being tried on the desktop.
@@ -75,19 +78,20 @@ final class DesktopWidgetController {
             self?.updateDropping()
         }
         hasStarted = true
-        // macOS sends no mouse-moved events to an app that isn't in front, so
-        // the pointer is read directly: two dozen cheap checks a second.
-        let watch = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.pointerMoved() }
-        }
-        watch.tolerance = 0.02
-        RunLoop.main.add(watch, forMode: .common)
-        pointerWatch = watch
+        updatePointerWatch()
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.sync(animated: false) }
         }
+    }
+
+    private func updatePointerWatch() {
+        let needed = services.settings.showWidgets && windows.values.contains { !$0.state.isOccluded }
+        guard pointerWatch.setNeeded(needed), !needed else { return }
+        // Stopped: nothing can stay hovered.
+        lastPointer = nil
+        for window in windows.values where window.state.cornerHovered { window.state.cornerHovered = false }
     }
 
     private func pointerMoved() {
@@ -277,6 +281,7 @@ final class DesktopWidgetController {
             MainActor.assumeIsolated { self?.visibilityChanged() }
         }
         windows[id] = window
+        updatePointerWatch()
         return window
     }
 
@@ -285,6 +290,7 @@ final class DesktopWidgetController {
             NotificationCenter.default.removeObserver(observer)
         }
         guard let window = windows.removeValue(forKey: id) else { return }
+        defer { updatePointerWatch() }
         window.orderOut(nil)
         if spares.count < Self.spareLimit {
             (window.contentView as? FirstClickHostingView<WidgetRoot>)?.rootView = WidgetRoot.empty(services: services)
@@ -302,6 +308,7 @@ final class DesktopWidgetController {
             let occluded = !window.occlusionState.contains(.visible)
             if window.state.isOccluded != occluded { window.state.isOccluded = occluded }
         }
+        updatePointerWatch()
         updateStatsViewer()
     }
 
