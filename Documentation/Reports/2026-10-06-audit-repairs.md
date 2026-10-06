@@ -44,7 +44,7 @@ Findings from `2026-10-06-comprehensive-review.md`. Every fixed item has a test 
 | R7 | Rollback discards an original on collision | Fixed (kept as a conflict) | `59f5d70` |
 | R8 | Preview journal retired without confirmed save | Fixed | `9df2319` |
 | R9 | Unreadable importer catalog triggers cleanup | Fixed (stops; cleanup moves to `.orphans/`) | `5c9ec48` |
-| D1 | Clipboard history on by default | **Open: product decision** | |
+| D1 | Clipboard history on by default | Fixed, see "Remaining gaps" below (`44a1d36`) | `44a1d36` |
 | D2 | Pending capture after Clear/Turn Off | Fixed | `d84af1e` |
 | D3 | GitHub cache not scoped to credential | Fixed (token fingerprint; external Keychain edits not detected) | `0a922e1` |
 | D4 | Key replacement deletes first | Fixed (failure path verified by reading, not by test) | `48e612f` |
@@ -61,7 +61,7 @@ Findings from `2026-10-06-comprehensive-review.md`. Every fixed item has a test 
 | U4 | Notes removed for good | Fixed (Undo for remove, Clear Done and edit-to-empty, in place; Clear Done shows its count; pencil and Edit menu, VoiceOver actions) | see log |
 | U5 | "On your server" without checking | Fixed (`copyLocation`: checked on server only when freed after a hash match; otherwise "to download from your server (not checked)") | see log |
 | U6 | Copy promising more than the code | Fixed (Monitor keeps sampling slower; About; On This Mac help) | see log |
-| U1, U2 | Navigation redesign; compact utility pages | **Open: design decisions** (layout changes not made without seeing them) | |
+| U1, U2 | Navigation redesign; compact utility pages | Done in a contained form, see "Remaining gaps" below (`25a120d`) | `25a120d` |
 | A1 | AppServices reached through for everything | Addressed where the review asked first: narrow owners at each failure boundary (`FocusTimerCoordinator`, `SharedRequests`/`RetryBackoff`, `CommandRunner`, `ScreenshotStudio` in Core, per-store `saveError`, `WorkspaceRestoreReport`). No wider refactor, as the review advised against one | see log |
 | A2 | Workspace restore silent about failures | Fixed (`WorkspaceRestoreReport` per app; moves verified by reading the frame back; hide-others skipped when nothing placed; card shows it; layout-not-documents wording; 1 s AX timeout per window). Not run against real apps | see log |
 | A3 | Display identity by name; snap target per zone only; native tiling assumed on macOS 14 | Fixed again (`DisplayIdentity`: display UUID first, name fallback; widgets, workspaces, per-display size and saved wallpapers; wallpaper windows per display; snap target includes the display; native tiling only from macOS 15). Not tried with two identical monitors | see log |
@@ -103,3 +103,28 @@ Limits the second recheck noted on the accepted repairs, unchanged:
 - S4: preparation and rendering that have already started off the main actor run to their end before the result is dropped; the history figure is a budget for undo pixels, not a ceiling on the process's memory; the window-close hook and Stop button were reviewed in source, not exercised in the UI.
 
 Nothing sets storage keys automatically after `push_wallpapers.sh`; `set_storage_key.py` sets one key at a time by hand.
+
+## Remaining gaps (2026-10-06): the "unchanged product/release gaps" both rechecks listed
+
+The owner asked for these to be completed with judgment, including the ones that had been waiting on a decision. The rows above for D1, D6, P3, U1/U2 and O1 describe the state before this pass; this table is current.
+
+| Gap | What was done | What it does not cover | Commit |
+|---|---|---|---|
+| Clipboard collection on by default (D1) | A new install collects nothing until its owner turns history on, from a first-run panel that says what is saved, where and for how long. An existing install keeps what it had. Unpinned items expire (30 days for a new install; off for an existing one until chosen). Erase Everything removes pins and pictures too | History is still an unencrypted file | `44a1d36` |
+| User-data export and restore (D6) | `DataArchive`: a folder with a manifest of checksums, the preferences and the data. Restore is verified, staged, applied at launch before any store reads, keeps what it replaces, and undoes a failed swap. In General › Back up and restore | Keychain secrets are never exported. The restart and launch alert are app-target code that has not been run | `9a95a8b` |
+| Downloaded-photo cache quota (P3) | 1 GB, least recently used first; a photo the wallpaper or a widget shows is never evicted, and nothing is evicted until the app has said what is in use | | `254b58b` |
+| Navigation (U1) | Desktop: seven pills to four. Favorites, Wallpaper Options and Look & Layout are opened from the page they belong to, light its pill, and are still found by search. `AppPage`, deep links and shortcuts unchanged. Checked by rendering the pages | A contained regrouping, not a redesign of the whole window; the other four sections are as they were | `25a120d` |
+| Utility-page presentation (U2) | AI Screenshot: actions in the header, decorative panel removed, shortcut and examples in the first screen. Checked by rendering the page | Themes and Wallpaper keep their browsing imagery (the review said to keep it for discovery) | `25a120d` |
+| Server backups and restore drill (O1) | `backup.py`: dump, hard-linked copy of storage, checksum manifest; `drill` restores into scratch copies and verifies; `restore` is the same code and never overwrites | **Not yet run on the real server.** No off-site copy, no alert when a drill fails | `19899da` |
+| Service supervision (O1) | `install_services.py`: launch agents that keep the delete and catalog services running and run a nightly backup plus drill | **Not yet installed on the real server.** Runs only while that account is logged in | `19899da` |
+| Versioned migrations (O1) | `migrations/0001_initial.sql`, `migrate.py`, `schema_migrations`; a failing step rolls back; an existing database is adopted | **Not yet run on the real database** | `19899da` |
+| Catalog pagination (O1) | `?limit=&offset=` with count and next-offset headers; plain `/catalog` unchanged; at most 8 requests at once | Still one `psql` per request | `19899da` |
+| ThreadSanitizer | `swift test --sanitize=thread` reports no data race. One test fails under it for an unrelated reason: the media helper built with the sanitizer can't be loaded into the system's `perl` | Tests only, not the running app | (no change needed) |
+
+Still open, and not something that can be done from this Mac or without the owner:
+
+- **A4 and release checks:** the minimum supported macOS, a second (and an identical) monitor, permissions denied or revoked, VoiceOver with the app running, contrast and Reduce Transparency, a clean-machine install.
+- **Distribution (O4):** Developer ID signing, notarization, and updates need an Apple Developer account.
+- **The server setup itself:** the four commands in `operations.md`, run on the server.
+- **CI performance ceilings (O3):** set wide; they need tightening from real runs.
+- **Hand-testing:** the pages changed in this pass were looked at through the debug page renderer. Nothing has been clicked through in the running app.
