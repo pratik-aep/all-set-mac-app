@@ -2,6 +2,9 @@
 
   GET /catalog     -> JSON list of {id, title, kind, category, tags, duration,
                       width, height, size_bytes}. No paths, no provenance.
+                      The whole list, or one page with ?limit=N (1-500) and
+                      ?offset=M: the body is the same list, and the headers
+                      X-Total-Count and X-Next-Offset say how to go on.
   GET /file/<id>   -> that wallpaper's playback file. Supports `Range: bytes=`
                       so an interrupted download can resume.
 
@@ -33,7 +36,13 @@ import secrets
 import shutil
 import subprocess
 import sys
+import threading
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+# The most rows one page of /catalog may ask for, and requests served at once.
+MAX_PAGE = 500
+MAX_CONCURRENT = 8
 
 STORAGE = os.path.expanduser("~/AllSetStorage/wallpapers")
 TOKEN_PATH = os.path.expanduser("~/.allset_catalog_token")
@@ -130,11 +139,16 @@ class Handler(BaseHTTPRequestHandler):
     include_quarantined = False
     timeout = 30  # seconds a client may stall sending its request
 
-    def _json(self, status, body):
+    # Requests served at once, across every connection.
+    slots = threading.BoundedSemaphore(MAX_CONCURRENT)
+
+    def _json(self, status, body, headers=None):
         data = json.dumps(body).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(data)
 
@@ -142,25 +156,53 @@ class Handler(BaseHTTPRequestHandler):
         given = self.headers.get("Authorization", "")
         if not hmac.compare_digest(given, f"Bearer {self.token}"):
             return self._json(401, {"error": "bad key"})
+        # A fixed number of requests at a time: each one runs psql or streams a
+        # file, and a thread per request without a limit is how a small server
+        # falls over. Past it, the client is told to come back, not queued.
+        if not self.slots.acquire(blocking=False):
+            return self._json(503, {"error": "busy; try again shortly"}, {"Retry-After": "1"})
         try:
-            if self.path == "/catalog":
-                return self._catalog()
-            if self.path.startswith("/file/"):
-                return self._file(self.path[len("/file/"):])
+            url = urllib.parse.urlsplit(self.path)
+            if url.path == "/catalog":
+                return self._catalog(urllib.parse.parse_qs(url.query))
+            if url.path.startswith("/file/"):
+                return self._file(url.path[len("/file/"):])
         except DatabaseError as error:
             print(f"{self.path}: database error: {error}", file=sys.stderr)
             return self._json(503, {"error": "catalog database unavailable"})
         except (BrokenPipeError, ConnectionResetError):
             return  # the client went away mid-download
+        finally:
+            self.slots.release()
         self._json(404, {"error": "not found"})
 
-    def _catalog(self):
+    def _catalog(self, parameters):
+        """The whole list, or with ?limit= (and ?offset=) one page of it. The
+        body is the same list either way; a page also says how many rows there
+        are in all (X-Total-Count) and where the next page starts (X-Next-Offset,
+        absent on the last one). A page can hold fewer than `limit` items: rows
+        whose file isn't on this server are left out after the page is cut."""
+        where = status_clause(self.include_quarantined)
+        paging, headers = "", {}
+        if "limit" in parameters or "offset" in parameters:
+            try:
+                limit = int(parameters.get("limit", [str(MAX_PAGE)])[0])
+                offset = int(parameters.get("offset", ["0"])[0])
+            except ValueError:
+                return self._json(400, {"error": "limit and offset must be whole numbers"})
+            if not 1 <= limit <= MAX_PAGE or offset < 0:
+                return self._json(400, {"error": f"limit must be 1 to {MAX_PAGE}, offset 0 or more"})
+            total = int(query(f"select count(*) from wallpapers where {where}") or 0)
+            paging = f" limit {limit} offset {offset}"
+            headers["X-Total-Count"] = str(total)
+            if offset + limit < total:
+                headers["X-Next-Offset"] = str(offset + limit)
         rows = query(f"select coalesce(json_agg(t), '[]') from (select {COLUMNS}, playback_key from wallpapers "
-                     f"where {status_clause(self.include_quarantined)} order by category, title) t")
+                     f"where {where} order by category, title, id{paging}) t")
         # only list wallpapers whose file is actually on this server
         return self._json(200, [{k: v for k, v in r.items() if k != "playback_key"}
                                 for r in json.loads(rows)
-                                if os.path.isfile(os.path.join(STORAGE, r["playback_key"] or "-"))])
+                                if os.path.isfile(os.path.join(STORAGE, r["playback_key"] or "-"))], headers)
 
     def _file(self, item_id):
         if not ID_PATTERN.match(item_id):

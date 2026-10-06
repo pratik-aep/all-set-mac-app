@@ -20,9 +20,11 @@ def free_port():
 
 
 class Postgres:
-    """Started with the catalog schema loaded; `url` connects to it."""
+    """Started with every migration applied (scripts/cloud/migrations), the way
+    the real database is brought up to date; `url` connects to it.
+    `migrated=False` leaves it empty, for testing the migrations themselves."""
 
-    def __init__(self):
+    def __init__(self, migrated=True):
         self.tmp = tempfile.mkdtemp(prefix="allset-pg-test-")
         self.data = os.path.join(self.tmp, "pg")
         self.port = free_port()
@@ -30,8 +32,9 @@ class Postgres:
         subprocess.run([f"{BIN}/pg_ctl", "-D", self.data, "-o", f"-p {self.port} -c listen_addresses=127.0.0.1 -k {self.tmp}",
                         "-l", os.path.join(self.tmp, "log"), "-w", "start"], check=True, capture_output=True)
         self.url = f"postgres://allset@127.0.0.1:{self.port}/postgres"
-        with open(os.path.join(HERE, "schema.sql")) as schema:
-            self.sql(schema.read())
+        if migrated:
+            import migrate
+            migrate.apply(self.url, psql=PSQL)
 
     def sql(self, statement):
         out = subprocess.run([PSQL, self.url, "-v", "ON_ERROR_STOP=1", "-At", "-c", statement],
