@@ -149,16 +149,8 @@ struct FocusWidget: View {
             default: medium(remaining: remaining, progress: progress)
             }
         }
-        .task(id: session.endsAt) {
-            // Moves on when time's up, even while the widget is covered.
-            guard !isPreview, let endsAt = session.endsAt else { return }
-            let wait = endsAt.timeIntervalSinceNow
-            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
-            guard !Task.isCancelled else { return }
-            // Don't chime for a session that ended long ago, while the app was closed.
-            if wait > -60 { NSSound(named: session.isBreak ? "Glass" : "Hero")?.play() }
-            change { $0.finishPhase() }
-        }
+        // Phases finish in AppServices.focusTimers, not here: a hidden widget's
+        // view is gone, and its task with it.
     }
 
     private var phaseTitle: String { session.isBreak ? "break" : "focus" }

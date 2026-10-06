@@ -55,6 +55,10 @@ final class AppServices {
     let volume = VolumeMonitor()
     let power = PowerSourceMonitor()
     let widgets = WidgetStore(fileURL: AppServices.widgetsFileURL)
+    /// Finishes focus-timer phases on time, whether or not a focus widget is showing.
+    private(set) lazy var focusTimers = FocusTimerCoordinator(widgets: widgets) { breakEnded in
+        NSSound(named: breakEnded ? "Glass" : "Hero")?.play()
+    }
     /// Durable records of desktop changes: an unfinished preview, the previous desktop.
     let desktopJournal = DesktopJournal(directory: AppServices.widgetsFileURL.deletingLastPathComponent())
     let weather = WeatherService()
@@ -100,6 +104,10 @@ final class AppServices {
         startWatchingMemory()
         applyMonitorPace()
         observe({ [settings] in settings.refreshInterval }) { [weak self] _ in self?.applyMonitorPace() }
+        // Any timer due while the app was closed finishes now; then each on time.
+        focusTimers.finishDuePhases()
+        focusTimers.reschedule()
+        observe({ [widgets] in widgets.widgets.map(\.options.focus.endsAt) }) { [weak self] _ in self?.focusTimers.reschedule() }
         monitor.start()
         media.start()
         volume.start()
@@ -113,6 +121,7 @@ final class AppServices {
     }
 
     func stop() {
+        focusTimers.stop()
         // A preview nobody kept isn't the desktop: quitting puts the real one back.
         if ui.themePreview != nil { endThemePreview(keep: false) }
         knocks.stop()

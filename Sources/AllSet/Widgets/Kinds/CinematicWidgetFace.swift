@@ -163,14 +163,7 @@ struct CinematicWidgetFace: View {
                     }
                 }
         }
-        .task(id: session.endsAt) {
-            guard !isPreview, let endsAt = session.endsAt else { return }
-            let wait = endsAt.timeIntervalSinceNow
-            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
-            guard !Task.isCancelled else { return }
-            if wait > -60 { NSSound(named: session.isBreak ? "Glass" : "Hero")?.play() }
-            services.widgets.update(instance.id) { $0.options.focus.finishPhase() }
-        }
+        // Phases finish in AppServices.focusTimers, not in the view.
     }
     private var focusBackground: String {
         if case .bundled(let name) = instance.options.background { return name }
