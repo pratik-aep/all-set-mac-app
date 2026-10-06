@@ -313,6 +313,13 @@ struct DesktopWidgetsPage: View {
                     .buttonStyle(.pill)
                     .disabled(widgets.isEmpty)
                     Button {
+                        services.ui.page = .widgetAppearance
+                    } label: {
+                        Label("Look & Layout", systemImage: "paintbrush")
+                    }
+                    .buttonStyle(.pill)
+                    .help("How every widget looks and lines up, all at once")
+                    Button {
                         services.ui.page = .gallery(nil)
                     } label: {
                         Label("Add Widgets", systemImage: "plus")

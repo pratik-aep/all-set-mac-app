@@ -20,7 +20,8 @@ struct SearchOverlay: View {
     }
 
     private var hits: [Hit] {
-        let pages = NavSection.allCases.flatMap { NavItem.items(in: $0, services: services) }
+        // Every page, including the ones opened from another page rather than a pill.
+        let pages = NavSection.allCases.flatMap { NavItem.items(in: $0, services: services) + NavItem.secondary(in: $0) }
             .map { Hit(id: "p-\($0.title)", group: "Pages", title: $0.title, symbol: $0.symbol, page: $0.page) }
         guard !SearchMatch.normalize(query).isEmpty else { return Array(pages.prefix(8)) }
         let themes = ThemeLibrary.search(query).prefix(5)

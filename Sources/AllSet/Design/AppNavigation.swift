@@ -62,11 +62,27 @@ struct NavItem: Identifiable {
 
     var id: String { title }
 
-    /// Detail pages light up the pill they belong to.
+    /// Detail pages, and pages reached from another page rather than a pill,
+    /// light up the pill they belong to.
     func matches(_ current: AppPage) -> Bool {
         switch (page, current) {
         case (.themes, .themeSet), (.gallery, .gallery), (.desktop, .widget): true
+        case (.themes, .favorites), (.wallpaper, .wallpaperOptions), (.desktop, .widgetAppearance): true
         default: page == current
+        }
+    }
+
+    /// Pages with no pill of their own: each is a setting or a view of
+    /// something that has one, and is opened from there (Favorites is a filter
+    /// on Themes, Wallpaper Options a button on Wallpaper, Look & Layout a
+    /// button on On Your Desktop). Still found by search and by links.
+    static func secondary(in section: NavSection) -> [NavItem] {
+        switch section {
+        case .desktop:
+            [NavItem(page: .favorites, title: "Favorites", symbol: "heart.fill"),
+             NavItem(page: .widgetAppearance, title: "Look & Layout", symbol: "paintbrush.fill"),
+             NavItem(page: .wallpaperOptions, title: "Wallpaper Options", symbol: "slider.horizontal.3")]
+        default: []
         }
     }
 
@@ -77,12 +93,11 @@ struct NavItem: Identifiable {
             [NavItem(page: .island, title: "Dynamic Island", symbol: "capsule.fill"),
              NavItem(page: .activities, title: "Live Activities", symbol: "waveform")]
         case .desktop:
+            // Three things to find a look with, then the desktop you have. What
+            // used to sit beside them (see `secondary`) is next to what it controls.
             [NavItem(page: .themes, title: "Themes", symbol: "wand.and.stars"),
              NavItem(page: .gallery(nil), title: "Widgets", symbol: "square.grid.2x2.fill"),
-             NavItem(page: .favorites, title: "Favorites", symbol: "heart.fill"),
              NavItem(page: .wallpaper, title: "Wallpaper", symbol: "photo.artframe"),
-             NavItem(page: .widgetAppearance, title: "Look & Layout", symbol: "paintbrush.fill"),
-             NavItem(page: .wallpaperOptions, title: "Wallpaper Options", symbol: "slider.horizontal.3"),
              NavItem(page: .desktop, title: "On Your Desktop", symbol: "rectangle.on.rectangle", badge: services.widgets.widgets.count)]
         case .workspace:
             [NavItem(page: .snapping, title: "Window Snapping", symbol: "rectangle.split.2x1.fill"),

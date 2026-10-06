@@ -372,37 +372,22 @@ struct ScreenshotPage: View {
 
     var body: some View {
         PageScaffold {
+            // A utility page: the two ways in sit in the header, and what follows
+            // (the shortcut, what to ask for) is in view without scrolling. The
+            // decorative canvas that used to hold the buttons took the first screen.
             PageHeader(eyebrow: "Tools", title: "AI Screenshot",
-                       subtitle: "Drag out part of the screen, then tell Claude or ChatGPT what to change.")
-            // The canvas leads: a selection being drawn, with the two ways in.
-            ZStack {
-                StudioBackdrop(piece: ArtPiece(style: .aurora, palette: .midnight))
-                VStack(spacing: DS.Space.l) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
-                            .fill(.black.opacity(0.18))
-                        RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
-                            .strokeBorder(.white.opacity(0.85), style: StrokeStyle(lineWidth: 1.5, dash: [7, 5]))
-                        Image(systemName: "camera.viewfinder")
-                            .font(.system(size: 44, weight: .light))
-                            .foregroundStyle(.white.opacity(0.9))
+                       subtitle: "Drag out part of the screen, then tell Claude or ChatGPT what to change.") {
+                HStack(spacing: DS.Space.xs) {
+                    Button("Open a Picture…") { ScreenshotStudioController.shared.open() }
+                        .buttonStyle(.pill)
+                    Button {
+                        Task { await ScreenshotStudioController.shared.capture(services: services) }
+                    } label: {
+                        Label("Take Screenshot", systemImage: "camera.viewfinder")
                     }
-                    .frame(width: 280, height: 150)
-                    HStack(spacing: DS.Space.s) {
-                        Button {
-                            Task { await ScreenshotStudioController.shared.capture(services: services) }
-                        } label: {
-                            Label("Take Screenshot", systemImage: "camera.viewfinder")
-                        }
-                        .buttonStyle(.pillProminent)
-                        Button("Open a Picture…") { ScreenshotStudioController.shared.open() }
-                            .buttonStyle(.pill)
-                    }
+                    .buttonStyle(.pillProminent)
                 }
             }
-            .frame(height: 340)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.hero, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: DS.Radius.hero, style: .continuous).strokeBorder(DS.Surface.hairline))
 
             ShortcutPicker(services: services)
 

@@ -164,7 +164,8 @@ private struct ClipboardFirstRun: View {
         Label {
             Text(text).dsText(.body).fixedSize(horizontal: false, vertical: true)
         } icon: {
-            Image(systemName: symbol).foregroundStyle(.secondary)
+            // One width for every symbol, so the lines of text start together.
+            Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 22)
         }
     }
 }
