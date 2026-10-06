@@ -107,6 +107,9 @@ public enum ScreenshotRenderer {
 
         let line = max(3, CGFloat(min(width, height)) / 220)
         var crop: CGRect?
+        /// Every redaction, filled again after everything else: nothing drawn later
+        /// (a blur, a highlight, a label) can show what it hides.
+        var redactions: [CGRect] = []
         for edit in edits {
             let rect = edit.rect.intersection(bounds)
             switch edit.kind {
@@ -117,7 +120,9 @@ public enum ScreenshotRenderer {
                     if narrowed.width >= 4, narrowed.height >= 4 { crop = narrowed }
                 }
             case .blur:
-                guard !rect.isEmpty, let blurred = blur(image, rect: rect) else { continue }
+                // Made from the picture as edited so far, never the original: a blur
+                // over an earlier redaction must blur black, not what was under it.
+                guard !rect.isEmpty, let current = context.makeImage(), let blurred = blur(current, rect: rect) else { continue }
                 context.saveGState()
                 context.translateBy(x: rect.minX, y: rect.maxY)
                 context.scaleBy(x: 1, y: -1)
@@ -126,6 +131,7 @@ public enum ScreenshotRenderer {
             case .redact:
                 context.setFillColor(NSColor.black.cgColor)
                 context.fill(rect)
+                redactions.append(rect)
             case .highlight:
                 context.saveGState()
                 context.setBlendMode(.multiply)
@@ -144,6 +150,14 @@ public enum ScreenshotRenderer {
                 drawLabel(edit.text, at: CGPoint(x: edit.x, y: edit.y), color: edit.color.nsColor,
                           size: max(16, CGFloat(height) / 32))
             }
+        }
+        // Redactions are authoritative: filled last, over anything drawn after them.
+        if !redactions.isEmpty {
+            context.saveGState()
+            context.setBlendMode(.copy)
+            context.setFillColor(NSColor.black.cgColor)
+            context.fill(redactions)
+            context.restoreGState()
         }
         guard let result = context.makeImage() else { return nil }
         if let crop {

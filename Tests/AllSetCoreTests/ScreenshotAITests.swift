@@ -55,6 +55,33 @@ import Testing
         #expect(ScreenshotRenderer.apply(everything, to: image) != nil)
     }
 
+    /// Review R1: edits from every request are drawn again in order, and a blur
+    /// from a later one used to be made from the original picture, uncovering
+    /// whatever an earlier redaction hid.
+    @Test func aLaterBlurNeverUncoversARedaction() throws {
+        let image = try picture()
+        let edits = [
+            ScreenshotEdit(kind: .redact, x: 20, y: 20, width: 120, height: 60),   // over the red square
+            ScreenshotEdit(kind: .blur, x: 0, y: 0, width: 200, height: 100),       // a later request
+        ]
+        let result = try #require(ScreenshotRenderer.apply(edits, to: image))
+        for (x, y) in [(80, 50), (21, 21), (139, 79)] {
+            #expect(try pixel(result, x, y) == (0, 0, 0), "redacted at \(x),\(y)")
+        }
+    }
+
+    @Test func nothingDrawnLaterCoversARedaction() throws {
+        let image = try picture()
+        let edits = [
+            ScreenshotEdit(kind: .redact, x: 250, y: 20, width: 100, height: 60),
+            ScreenshotEdit(kind: .highlight, x: 200, y: 0, width: 200, height: 200, color: .yellow),
+            ScreenshotEdit(kind: .text, x: 260, y: 30, text: "SECRET", color: .white),
+        ]
+        let result = try #require(ScreenshotRenderer.apply(edits, to: image))
+        #expect(try pixel(result, 300, 50) == (0, 0, 0))
+        #expect(try pixel(result, 270, 40) == (0, 0, 0))
+    }
+
     @Test func blurSoftensOnlyItsArea() throws {
         let image = try picture()
         // Across the red square's right edge.
