@@ -57,5 +57,9 @@ Findings from `2026-10-06-comprehensive-review.md`. Every fixed item has a test 
 | P6 | Status check identity lowercased whole URL | Fixed (only scheme and host fold case; path and query keep theirs) | see log |
 | P4 | 20 Hz pointer timer ran with no widgets or all covered | Fixed (`NeededTimer`: scheduled only while a widget is shown uncovered; not hand-measured) | see log |
 | P3 | Image import on main, thumbnails via full decode | Fixed (import off main, 4 at a time, progress + Stop on My Photos, cancellable; small copies and the wallpaper file skip the full decode). Still open: a quota for the downloaded-photo cache, which needs to know which photos the wallpaper and widgets still use | see log |
-| U1–U6 | Navigation, utility pages, accessibility names, notes undo, "on your server" wording, copy | Open (U1 needs a design decision) | |
+| U3 | Toggles exposed by their explanation; unnamed icon buttons | Fixed (`SettingToggle`: name as label, explanation as hint, 9 sites; 10 icon-only buttons labelled). Not checked with VoiceOver running; contrast/Reduce Transparency matrix not done | see log |
+| U4 | Notes removed for good | Fixed (Undo for remove, Clear Done and edit-to-empty, in place; Clear Done shows its count; pencil and Edit menu, VoiceOver actions) | see log |
+| U5 | "On your server" without checking | Fixed (`copyLocation`: checked on server only when freed after a hash match; otherwise "to download from your server (not checked)") | see log |
+| U6 | Copy promising more than the code | Fixed (Monitor keeps sampling slower; About; On This Mac help) | see log |
+| U1, U2 | Navigation redesign; compact utility pages | **Open: design decisions** (layout changes not made without seeing them) | |
 | A1–A4, O1–O6 | Architecture, workspace restore, display identity, platform testing, backend ops, tests, CI budgets, release, docs, import input bounds | Open | |
