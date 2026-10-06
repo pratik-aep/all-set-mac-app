@@ -103,7 +103,9 @@ public final class WidgetStore {
     }
 
     /// Writes immediately, e.g. before the app quits.
-    public func saveNow() {
+    /// True when the layout is on disk; on failure `saveError` says why.
+    @discardableResult
+    public func saveNow() -> Bool {
         pendingSave?.cancel()
         pendingSave = nil
         do {
@@ -113,9 +115,11 @@ public final class WidgetStore {
             try encoder.encode(widgets).write(to: fileURL, options: .atomic)
             hasSavedLayout = true
             if saveError != nil { saveError = nil }
+            return true
         } catch {
             log.error("Couldn't save widgets: \(error.localizedDescription, privacy: .public)")
             saveError = error.localizedDescription
+            return false
         }
     }
 

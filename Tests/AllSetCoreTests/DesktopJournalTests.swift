@@ -92,4 +92,79 @@ import Testing
         #expect(!journal.beginPreview(PendingPreview(setID: "x", before: before)))
         #expect(journal.pendingPreview == nil)
     }
+
+    // MARK: Restoring and keeping (review R8)
+
+    @Test func goingBackRetiresTheRecordOnlyOnceTheDesktopIsSaved() throws {
+        let home = try scratch()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let suite = "AllSetTests.\(UUID().uuidString)"
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        let settings = AppSettings(defaults: defaults)
+        let wallpaper = WallpaperStore(directory: home.appendingPathComponent("Wallpaper"))
+        // The layout file can't be written: a folder stands where it goes.
+        let layoutURL = home.appendingPathComponent("widgets.json")
+        try FileManager.default.createDirectory(at: layoutURL, withIntermediateDirectories: true)
+        let widgets = WidgetStore(fileURL: layoutURL)
+        widgets.replaceAll(with: [WidgetInstance(kind: .clock, size: .small)])
+        let journal = DesktopJournal(directory: home)
+        let before = DesktopSnapshot(settings: settings, widgets: widgets, wallpaper: wallpaper)
+        #expect(journal.beginPreview(PendingPreview(setID: "setup.seven", before: before)))
+        widgets.replaceAll(with: [WidgetInstance(kind: .weather, size: .medium)])
+
+        // Restored on screen, but not saved: the record stays for the next launch.
+        #expect(journal.restorePreview(settings: settings, widgets: widgets, wallpaper: wallpaper) == .notSaved(setID: "setup.seven"))
+        #expect(widgets.widgets.map(\.kind) == [.clock])
+        #expect(journal.pendingPreview != nil)
+
+        // Saving works again: the retry finishes and retires it.
+        try FileManager.default.removeItem(at: layoutURL)
+        #expect(journal.restorePreview(settings: settings, widgets: widgets, wallpaper: wallpaper) == .restored(setID: "setup.seven"))
+        #expect(journal.pendingPreview == nil)
+        #expect(WidgetStore(fileURL: layoutURL).widgets.map(\.kind) == [.clock])
+    }
+
+    @Test func aKeptPreviewsLeftoverRecordNeverRollsTheDesktopBack() throws {
+        let home = try scratch()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let suite = "AllSetTests.\(UUID().uuidString)"
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let (settings, widgets, wallpaper) = try desktop(in: home, suite: suite, kinds: [.clock])
+        let journal = DesktopJournal(directory: home)
+        let before = DesktopSnapshot(settings: settings, widgets: widgets, wallpaper: wallpaper)
+        // A record marked kept whose removal didn't happen (the app died in between).
+        #expect(journal.beginPreview(PendingPreview(setID: "setup.seven", before: before, isKept: true)))
+        widgets.replaceAll(with: [WidgetInstance(kind: .weather, size: .medium)])
+        #expect(journal.restorePreview(settings: settings, widgets: widgets, wallpaper: wallpaper) == .wasKept)
+        #expect(widgets.widgets.map(\.kind) == [.weather])
+        #expect(journal.pendingPreview == nil)
+    }
+
+    @Test func keepingRetiresTheRecord() throws {
+        let home = try scratch()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let suite = "AllSetTests.\(UUID().uuidString)"
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let (settings, widgets, wallpaper) = try desktop(in: home, suite: suite, kinds: [.clock])
+        let journal = DesktopJournal(directory: home)
+        #expect(journal.beginPreview(PendingPreview(setID: "x", before: DesktopSnapshot(settings: settings, widgets: widgets, wallpaper: wallpaper))))
+        #expect(journal.keepPreview())
+        #expect(journal.pendingPreview == nil)
+        #expect(journal.restorePreview(settings: settings, widgets: widgets, wallpaper: wallpaper) == .nothingPending)
+    }
+
+    @Test func aRecordFromBeforeKeptExistedStillReads() throws {
+        let home = try scratch()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let suite = "AllSetTests.\(UUID().uuidString)"
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let (settings, widgets, wallpaper) = try desktop(in: home, suite: suite, kinds: [.clock])
+        let before = DesktopSnapshot(settings: settings, widgets: widgets, wallpaper: wallpaper)
+        var object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(PendingPreview(setID: "x", before: before))) as? [String: Any])
+        object["isKept"] = nil
+        try JSONSerialization.data(withJSONObject: object).write(to: home.appendingPathComponent("desktop-preview.json"))
+        let pending = try #require(DesktopJournal(directory: home).pendingPreview)
+        #expect(!pending.isKept)
+    }
 }

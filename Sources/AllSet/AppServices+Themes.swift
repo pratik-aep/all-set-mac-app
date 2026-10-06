@@ -69,8 +69,9 @@ extension AppServices {
         }
         if setsWallpaper, let source = set.wallpaper { wallpaper.set(source) }
         settings.adopt(set)
-        recordChange(.theme(set.name), before: before)
-        ui.toast = Toast(message: "\(set.name) is on your desktop", symbol: "wand.and.stars")
+        if recordChange(.theme(set.name), before: before) {
+            ui.toast = Toast(message: "\(set.name) is on your desktop", symbol: "wand.and.stars")
+        }
         return true
     }
 
@@ -102,22 +103,34 @@ extension AppServices {
                 recordChange(.theme(set.name), before: preview.before)
                 themeStats.record(.install, for: set.id)
             }
+            if !desktopJournal.keepPreview() {
+                ui.toast = Toast(message: "Kept, but couldn't record that: the next launch may undo this theme",
+                                 symbol: "exclamationmark.triangle")
+            }
         } else {
-            preview.before.restore(settings: settings, widgets: widgets, wallpaper: wallpaper)
-            widgets.saveNow()
+            report(desktopJournal.restorePreview(settings: settings, widgets: widgets, wallpaper: wallpaper), atLaunch: false)
         }
-        desktopJournal.endPreview()
     }
 
     /// A preview the app quit or crashed during: puts back the desktop from before it.
     /// Called at launch, before any window shows.
     func recoverInterruptedPreview() {
-        guard let pending = desktopJournal.pendingPreview else { return }
-        pending.before.restore(settings: settings, widgets: widgets, wallpaper: wallpaper)
-        widgets.saveNow()
-        desktopJournal.endPreview()
-        let name = ThemeLibrary.set(pending.setID)?.name ?? "A theme"
-        ui.toast = Toast(message: "\(name) was only a preview: your desktop is back", symbol: "arrow.uturn.backward")
+        report(desktopJournal.restorePreview(settings: settings, widgets: widgets, wallpaper: wallpaper), atLaunch: true)
+    }
+
+    private func report(_ outcome: PreviewRestore, atLaunch: Bool) {
+        switch outcome {
+        case .nothingPending, .wasKept:
+            break
+        case .restored(let setID):
+            guard atLaunch else { return }
+            let name = ThemeLibrary.set(setID)?.name ?? "A theme"
+            ui.toast = Toast(message: "\(name) was only a preview: your desktop is back", symbol: "arrow.uturn.backward")
+        case .notSaved:
+            // The record stays, so the next launch restores and saves again.
+            ui.toast = Toast(message: "Your desktop is back but couldn't be saved; it will be restored again next launch",
+                             symbol: "exclamationmark.triangle")
+        }
     }
 
     /// The desktop before the last whole-desktop change, kept on disk: what
@@ -125,39 +138,58 @@ extension AppServices {
     var previousDesktop: PreviousDesktop? { desktopJournal.previous }
 
     /// Brings back the desktop from before the last change. The desktop it replaces
-    /// becomes the previous one, so doing it twice returns to where you were.
+    /// becomes the previous one, so doing it twice returns to where you were. The
+    /// stored copy is replaced only once the restored desktop has been saved.
     func restorePreviousDesktop() {
         if ui.themePreview != nil { endThemePreview(keep: false) }
         guard let previous = desktopJournal.previous else { return }
         let current = desktopSnapshot
         previous.before.restore(settings: settings, widgets: widgets, wallpaper: wallpaper)
-        widgets.saveNow()
-        desktopJournal.remember(PreviousDesktop(change: "Restored the previous desktop", before: current))
+        guard widgets.saveNow(), wallpaper.saveNow() else {
+            ui.toast = Toast(message: "Restored, but couldn't save it: the stored previous desktop is kept", symbol: "exclamationmark.triangle")
+            return
+        }
         ui.desktopUndo = nil
-        ui.toast = Toast(message: "Previous desktop restored", symbol: "arrow.uturn.backward")
+        if desktopJournal.remember(PreviousDesktop(change: "Restored the previous desktop", before: current)) {
+            ui.toast = Toast(message: "Previous desktop restored", symbol: "arrow.uturn.backward")
+        } else {
+            ui.toast = Toast(message: "Previous desktop restored, but the one before it couldn't be kept to switch back to",
+                             symbol: "exclamationmark.triangle")
+        }
     }
 
-    /// Offers Undo for a change and keeps the desktop from before it on disk.
-    private func recordChange(_ change: DesktopUndo.Change, before: DesktopSnapshot) {
+    /// Offers Undo for a change and keeps the desktop from before it on disk. False
+    /// (and a warning shown) if that copy couldn't be saved.
+    @discardableResult
+    private func recordChange(_ change: DesktopUndo.Change, before: DesktopSnapshot) -> Bool {
         ui.desktopUndo = DesktopUndo(change: change, before: before)
         let words = switch change {
         case .theme(let name): "\(name) went on"
         case .wallpaper: "New wallpaper"
         case .turnedOff(let name): "\(name) was turned off"
         }
-        desktopJournal.remember(PreviousDesktop(change: words, before: before))
+        guard desktopJournal.remember(PreviousDesktop(change: words, before: before)) else {
+            ui.toast = Toast(message: "Done, but a copy of the previous desktop couldn't be saved: Undo works only until you quit",
+                             symbol: "exclamationmark.triangle")
+            return false
+        }
+        return true
     }
 
     /// Puts back the desktop from before the last theme (widgets, size,
-    /// font, corners, theme and wallpaper), or the widgets a wallpaper
-    /// cleared away.
+    /// font, corners, theme and wallpaper), or the previous wallpaper.
     func undoDesktopChange() {
         guard let undo = ui.desktopUndo else { return }
         // The undo reaches further back than any preview on top of it.
         ui.themePreview = nil
         undo.before.restore(settings: settings, widgets: widgets, wallpaper: wallpaper)
-        widgets.saveNow()
+        let saved = widgets.saveNow() && wallpaper.saveNow()
+        // A preview record under it is superseded by this desktop once it's saved.
+        if saved { desktopJournal.endPreview() }
         ui.desktopUndo = nil
+        if !saved {
+            ui.toast = Toast(message: "Undone, but couldn't save it", symbol: "exclamationmark.triangle")
+        }
     }
 
     /// Takes the current theme off the desktop: its widgets go and the widget
@@ -169,8 +201,9 @@ extension AppServices {
         widgets.replaceAll(with: [])
         settings.resetWidgetLook()
         ui.isArrangingWidgets = false
-        recordChange(.turnedOff(name), before: before)
-        ui.toast = Toast(message: "\(name) is off", symbol: "power")
+        if recordChange(.turnedOff(name), before: before) {
+            ui.toast = Toast(message: "\(name) is off", symbol: "power")
+        }
     }
 
     /// A wallpaper the person picked. Only the wallpaper changes: the widgets and

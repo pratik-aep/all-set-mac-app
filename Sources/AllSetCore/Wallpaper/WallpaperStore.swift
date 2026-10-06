@@ -793,6 +793,13 @@ public final class WallpaperStore {
             .map(\.lastPathComponent)
     }
 
+    /// Writes the settings now. True when they're on disk and read back the same.
+    @discardableResult
+    public func saveNow() -> Bool {
+        save()
+        return StoreFile.load(WallpaperConfig.self, from: fileURL) == config
+    }
+
     private func save() {
         do {
             try JSONEncoder().encode(config).write(to: fileURL, options: .atomic)
